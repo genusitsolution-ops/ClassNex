@@ -16,7 +16,13 @@ final class Router
     public function add(string $method, string $pattern, callable $handler, array $opts = []): void
     {
         $regex = '#^' . preg_replace('#\{(\w+)\}#', '(?P<$1>[^/]+)', rtrim($pattern, '/')) . '/?$#';
-        $this->routes[] = [$method, $regex, $handler, $opts];
+        $this->routes[] = [$method, $regex, $handler, $opts, rtrim($pattern, '/')];
+    }
+
+    /** Route table (used to generate docs/API.md). */
+    public function definitions(): array
+    {
+        return array_map(static fn($r) => ['method' => $r[0], 'path' => $r[4], 'opts' => $r[3]], $this->routes);
     }
 
     public function get(string $p, callable $h, array $o = []): void { $this->add('GET', $p, $h, $o); }

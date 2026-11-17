@@ -4,7 +4,7 @@ import `in`.classnex.app.BuildConfig
 import `in`.classnex.app.data.SessionEvents
 import `in`.classnex.app.data.SessionStore
 import `in`.classnex.app.data.net.ApiService
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

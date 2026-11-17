@@ -287,7 +287,8 @@ ok((int) q($feeQ . " AND status = 'sent'") === 1 && (int) q("SELECT COUNT(*) FRO
 $body = (string) q("SELECT body FROM notification_queue WHERE event_key IN ('fee_due','fee_overdue') AND channel = 'whatsapp'");
 ok(str_contains($body, 'Rahul Sharma') && str_contains($body, 'ABC Cricket Academy'), 'Reminder text is personalised: ' . $body);
 
-// live mode with unreachable Meta API → retry path
+// live mode with an unreachable API endpoint → retry path
+Settings::set('whatsapp_api_base', 'http://127.0.0.1:9');
 DB::exec("UPDATE whatsapp_configurations SET mode = 'live', phone_number_id = '123', access_token_enc = ? WHERE id = 1", [Crypto::encrypt('dummy-token')]);
 $r = api('POST', '/messages/send', ['target' => 'students', 'student_ids' => [$stu], 'message' => 'Ground closed tomorrow', 'channels' => ['whatsapp', 'inapp']], $own);
 ok($r['status'] === 200 && ($r['json']['data']['whatsapp'] ?? 0) === 1, 'Manual reminder sent to a selected student');
@@ -296,6 +297,7 @@ $job = DB::one("SELECT * FROM notification_queue WHERE event_key = 'manual_messa
 ok($job['status'] === 'pending' && (int) $job['attempts'] === 1 && strtotime($job['next_attempt_at']) > time(), '23. Failed send is retried later with backoff (attempt 1 failed: ' . mb_substr((string) $job['last_error'], 0, 60) . ')');
 DB::exec("UPDATE notification_queue SET status = 'failed' WHERE id = ?", [$job['id']]);
 DB::exec("UPDATE whatsapp_configurations SET mode = 'test' WHERE id = 1");
+Settings::set('whatsapp_api_base', null);
 $r = api('POST', '/admin/queue/action', ['action' => 'retry', 'ids' => [(int) $job['id']]], $sa);
 cron('queue');
 ok(q('SELECT status FROM notification_queue WHERE id = ?', [$job['id']]) === 'sent', 'Failed message can be retried manually and then succeeds');

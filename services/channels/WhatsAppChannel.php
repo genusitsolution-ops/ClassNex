@@ -49,7 +49,8 @@ final class WhatsAppChannel
         if (!$c['phone_number_id'] || !$c['access_token']) {
             return ['ok' => false, 'error' => 'WhatsApp is in live mode but Phone Number ID / Access Token are missing', 'retry' => false];
         }
-        $url = sprintf('https://graph.facebook.com/%s/%s/messages', $c['api_version'] ?: 'v21.0', $c['phone_number_id']);
+        $base = rtrim((string) (Settings::get('whatsapp_api_base') ?: 'https://graph.facebook.com'), '/');
+        $url = sprintf('%s/%s/%s/messages', $base, $c['api_version'] ?: 'v21.0', $c['phone_number_id']);
         $res = HttpClient::request('POST', $url, ['Authorization: Bearer ' . $c['access_token']], $msg);
         $id = $res['json']['messages'][0]['id'] ?? null;
         if ($res['status'] >= 200 && $res['status'] < 300 && $id) {
