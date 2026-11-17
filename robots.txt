@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /owner/
+Disallow: /teacher/
+Disallow: /student/
+Disallow: /api/
+Disallow: /receipt.php
+Disallow: /activate.php
+Sitemap: /sitemap.php

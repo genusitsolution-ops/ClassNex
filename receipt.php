@@ -23,7 +23,7 @@ header('X-Robots-Tag: noindex');
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title><?= $d ? 'Receipt ' . e($d['receipt_no']) : 'Receipt not found' ?> – ClassNex</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
 <link rel="icon" href="assets/img/favicon.png">
 <style>body{background:#f3f5fb}.card{max-width:520px;margin:2rem auto;border:0;border-radius:18px;box-shadow:0 10px 30px rgba(20,30,80,.08)}</style>
 </head>
