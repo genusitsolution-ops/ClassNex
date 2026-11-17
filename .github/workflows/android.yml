@@ -1,0 +1,78 @@
+name: Android build
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['android/**']
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'Backend API URL (ends with /api/v1/)'
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: android
+    env:
+      API_URL: ${{ github.event.inputs.api_url || vars.CLASSNEX_API_URL || 'https://www.example.com/api/v1/' }}
+      CLASSNEX_VERSION_CODE: ${{ github.run_number }}
+      CLASSNEX_VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Firebase config (optional)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then echo "$GOOGLE_SERVICES_JSON" > app/google-services.json; echo "Firebase enabled"; else echo "No GOOGLE_SERVICES_JSON secret – push notifications disabled in this build"; fi
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleDebug -PclassnexApiUrl="$API_URL"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: classnex-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Decode release keystore
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CLASSNEX_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/classnex.jks"
+            echo "path=$RUNNER_TEMP/classnex.jks" >> "$GITHUB_OUTPUT"
+          else
+            echo "No signing secrets – release build skipped (see docs/ANDROID.md)"
+          fi
+
+      - name: Build signed release APK + AAB
+        if: steps.keystore.outputs.path != ''
+        env:
+          CLASSNEX_KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          CLASSNEX_KEYSTORE_PASSWORD: ${{ secrets.CLASSNEX_KEYSTORE_PASSWORD }}
+          CLASSNEX_KEY_ALIAS: ${{ secrets.CLASSNEX_KEY_ALIAS }}
+          CLASSNEX_KEY_PASSWORD: ${{ secrets.CLASSNEX_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease bundleRelease -PclassnexApiUrl="$API_URL"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.keystore.outputs.path != ''
+        with:
+          name: classnex-release
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab

@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.ClassNex" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/navy</item>
+        <item name="android:windowBackground">@color/white</item>
+    </style>
+    <style name="Theme.ClassNex.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/white</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.ClassNex</item>
+    </style>
+</resources>

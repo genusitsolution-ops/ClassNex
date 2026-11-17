@@ -1,0 +1,56 @@
+name: Backend tests
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['android/**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, sodium, gd, curl, mbstring, openssl, zip, fileinfo, intl, exif
+          coverage: none
+      - name: Lint all PHP files
+        run: find . -name '*.php' -not -path './android/*' -print0 | xargs -0 -n1 php -l | grep -v 'No syntax errors' || true
+      - name: Write test config
+        run: |
+          cat > config/config.php <<'PHP'
+          <?php
+          $c = require __DIR__ . '/config.sample.php';
+          $c['env'] = 'testing'; $c['debug'] = true;
+          $c['app_url'] = getenv('CNX_URL') ?: 'http://127.0.0.1:8081';
+          $c['db'] = ['host' => '127.0.0.1', 'port' => 3306, 'name' => getenv('CNX_DB') ?: 'classnex_test', 'user' => 'root', 'pass' => 'root', 'charset' => 'utf8mb4'];
+          $c['app_key'] = 'q2J4b0m2bF9ySmRlNnFxT0V4a3dXQnNQd0J2a1RkVnM=';
+          return $c;
+          PHP
+          php -r 'echo strlen(base64_decode("q2J4b0m2bF9ySmRlNnFxT0V4a3dXQnNQd0J2a1RkVnM=")), PHP_EOL;'
+      - name: Start PHP server
+        run: |
+          mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE classnex_test"
+          CNX_DB=classnex_test CNX_URL=http://127.0.0.1:8081 php -S 127.0.0.1:8081 tests/devserver.php > /tmp/server.log 2>&1 &
+          sleep 2
+      - name: End-to-end workflow tests (MySQL 8)
+        run: CNX_DB=classnex_test php tests/e2e.php http://127.0.0.1:8081
+      - name: Server log
+        if: failure()
+        run: tail -100 /tmp/server.log; tail -100 storage/logs/php-error.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-test-run
+          path: docs/QA_TEST_RUN.md
