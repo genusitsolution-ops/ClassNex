@@ -1,0 +1,5 @@
+# Uploaded public images only — never execute scripts here
+<FilesMatch "\.(?!(png|jpe?g|webp)$)[^.]+$">
+  Require all denied
+</FilesMatch>
+php_flag engine off

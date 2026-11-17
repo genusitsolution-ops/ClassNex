@@ -1,0 +1,45 @@
+# ClassNex – Apache configuration (cPanel / shared hosting)
+Options -Indexes
+DirectoryIndex index.php index.html
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Pass the Authorization header to PHP (needed for the Android app's Bearer tokens)
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  # Force HTTPS (uncomment after SSL is installed)
+  # RewriteCond %{HTTPS} off
+  # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Block private folders and files
+  RewriteRule ^(config|classes|services|includes|database|storage|cli|cron|tests|docs|android|vendor)(/|$) - [F,L]
+  RewriteRule (^|/)\.(?!well-known) - [F,L]
+  RewriteRule \.(sql|gz|log|md|lock|json|yml|yaml|sh|bak|ini)$ - [F,L,NC]
+
+  # REST API front controller
+  RewriteRule ^api/v1/(.*)$ api/v1/index.php?_route=/$1 [QSA,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+  # Enable after HTTPS is working:
+  # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+<IfModule mod_php.c>
+  php_value upload_max_filesize 10M
+  php_value post_max_size 12M
+  php_flag display_errors Off
+  php_flag expose_php Off
+</IfModule>
+
+<FilesMatch "\.(jpg|jpeg|png|webp|svg|css|js|woff2?)$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=604800"
+  </IfModule>
+</FilesMatch>

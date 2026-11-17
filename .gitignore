@@ -1,0 +1,37 @@
+# secrets & environment
+config/config.php
+.env
+*.keystore
+*.jks
+keystore.properties
+google-services.json
+service-account*.json
+
+# runtime data (never commit student data)
+storage/private/**
+!storage/private/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+storage/cache/*
+!storage/cache/.gitkeep
+uploads/logos/*
+uploads/cms/*
+uploads/activities/*
+!uploads/.htaccess
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.apk
+*.aab
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
