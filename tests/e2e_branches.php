@@ -82,14 +82,14 @@ ok((int) q("SELECT student_limit FROM packages WHERE slug = 'growth'") === 100 &
 $sa = api('POST', '/auth/login', ['identifier' => 'qa-admin@classnex.test', 'password' => 'Admin@12345'])['json']['data']['token'] ?? null;
 ok((bool) $sa, 'Super admin logs in');
 $features = ['attendance', 'fees', 'inapp', 'push', 'whatsapp', 'manual_reminders', 'auto_reminders', 'reports', 'parent_access'];
-$r = api('POST', '/admin/packages', ['name' => 'QA Starter 15', 'price' => '100', 'billing_cycle' => 'monthly', 'trial_days' => 0, 'student_limit' => 15, 'whatsapp_mode' => 'transactional', 'features' => $features, 'status' => 'active'], $sa);
+$r = api('POST', '/admin/packages', ['name' => 'QA Starter 15', 'price' => '100', 'billing_cycle' => 'monthly', 'trial_days' => 0, 'student_limit' => 15, 'whatsapp_mode' => 'manual', 'features' => $features, 'status' => 'active'], $sa);
 $p15 = (int) ($r['json']['data']['id'] ?? 0);
-$r = api('POST', '/admin/packages', ['name' => 'QA Growth 100', 'price' => '200', 'billing_cycle' => 'custom', 'billing_days' => 45, 'trial_days' => 0, 'student_limit' => 100, 'whatsapp_mode' => 'full', 'features' => $features, 'status' => 'active'], $sa);
+$r = api('POST', '/admin/packages', ['name' => 'QA Growth 100', 'price' => '200', 'billing_cycle' => 'custom', 'billing_days' => 45, 'trial_days' => 0, 'student_limit' => 100, 'whatsapp_mode' => 'api', 'features' => $features, 'status' => 'active'], $sa);
 $p100 = (int) ($r['json']['data']['id'] ?? 0);
 ok($p15 > 0 && $p100 > 0, 'Super Admin creates 15-student and 100-student packages (custom 45-day cycle, WhatsApp mode)', $r['body']);
 $r = api('POST', '/admin/packages', ['name' => 'Bad custom', 'price' => '1', 'billing_cycle' => 'custom', 'features' => $features], $sa);
 ok($r['status'] === 422 && isset($r['json']['errors']['billing_days']), 'Custom billing cycle requires a number of days');
-ok(q("SELECT whatsapp_mode FROM packages WHERE id = ?", [$p15]) === 'transactional', 'WhatsApp mode stored on the package');
+ok(q("SELECT whatsapp_mode FROM packages WHERE id = ?", [$p15]) === 'manual', 'WhatsApp mode stored on the package');
 
 // 1. create academy
 section('1–2. Academy with multiple branches');
@@ -184,9 +184,11 @@ section('9. Duplicate prevention');
 $r = api('POST', '/students', ['name' => 'student 1', 'whatsapp' => '9700000001', 'activity_id' => $act, 'branch_id' => $bB, 'batch_id' => $batchB, 'is_minor' => '0'], $own);
 ok($r['status'] === 409 && ($r['json']['code'] ?? '') === 'duplicate_student', 'Same person at another branch is detected as a duplicate (not a new profile)', $r['body']);
 $r = api('POST', '/students', ['name' => 'Student 1', 'whatsapp' => '9700000001', 'activity_id' => $act, 'batch_id' => $batchB, 'is_minor' => '0', 'confirm_duplicate' => '1'], $own);
-ok($r['status'] === 409, 'Duplicate cannot be forced through to bypass the limit');
+ok($r['status'] === 422 && isset($r['json']['errors']['duplicate_reason']), 'Duplicate override needs a reason');
+$r = api('POST', '/students', ['name' => 'Student 1', 'whatsapp' => '9700000001', 'activity_id' => $act, 'batch_id' => $batchB, 'is_minor' => '0', 'confirm_duplicate' => '1', 'duplicate_reason' => 'Different child, checked'], $own);
+ok($r['status'] === 402 && ($r['json']['code'] ?? '') === 'limit_reached', 'A verified duplicate override still cannot bypass the student limit');
 $r = api('POST', '/students', ['name' => 'Student 15', 'whatsapp' => '9700000015', 'activity_id' => $act, 'batch_id' => $batchB, 'is_minor' => '0'], $own);
-ok($r['status'] === 409 && str_contains($r['json']['message'] ?? '', 'Re-activate'), 'Inactive duplicate → told to re-activate the existing profile');
+ok($r['status'] === 409 && ($r['json']['errors']['candidates'][0]['status'] ?? '') === 'inactive', 'Inactive duplicate is found (can be linked / re-activated instead)');
 ok((int) q('SELECT COUNT(*) FROM students WHERE academy_id = ?', [$aid]) === 16, 'No duplicate profiles were created');
 
 // 10–11 upgrade
@@ -288,17 +290,19 @@ ok(activeCount($aid2) === 0 && (api('GET', '/dashboard', null, $own2)['json']['d
 // WhatsApp transactional mode
 section('WhatsApp mode');
 $f = Feature::forAcademy($aid2);
-ok(($f['whatsapp_mode'] ?? '') === 'transactional', 'Transactional WhatsApp mode reaches the academy');
+ok(($f['whatsapp_mode'] ?? '') === 'manual' && in_array('whatsapp_manual', $f['features'], true) && !in_array('whatsapp', $f['features'], true), 'Manual WhatsApp mode reaches the academy (click-to-send only, no API)');
 $r = api('POST', '/students', ['name' => 'Mode Kid', 'whatsapp' => '9200000001', 'activity_id' => $act2, 'branch_id' => $b2, 'is_minor' => '0', 'send_message' => '0'], $own2);
 $sk = (int) ($r['json']['data']['student']['id'] ?? 0);
 $inv = DB::one('SELECT * FROM fee_invoices WHERE student_id = ? LIMIT 1', [$sk]);
 NotificationService::feeReminder(999001, $inv, 1);
-ok($inv && (int) q("SELECT COUNT(*) FROM notification_queue WHERE student_id = ? AND channel = 'whatsapp' AND event_key = 'fee_overdue'", [$sk]) === 0, 'Transactional mode: automatic fee reminder is NOT sent on WhatsApp');
+ok($inv && (int) q("SELECT COUNT(*) FROM notification_queue WHERE student_id = ? AND channel = 'whatsapp' AND event_key = 'fee_overdue'", [$sk]) === 0, 'Manual mode: automatic fee reminder is NOT sent through the WhatsApp API');
 $pay = (int) (api('POST', '/payments', ['student_id' => $sk, 'amount' => '100', 'method' => 'cash'], $own2)['json']['data']['id'] ?? 0);
-ok($pay && (int) q("SELECT COUNT(*) FROM notification_queue WHERE student_id = ? AND channel = 'whatsapp' AND event_key = 'payment_success'", [$sk]) === 1, 'Transactional mode: payment receipt IS sent on WhatsApp');
+ok($pay && (int) q("SELECT COUNT(*) FROM notification_queue WHERE student_id = ? AND channel = 'whatsapp' AND event_key = 'payment_success'", [$sk]) === 0, 'Manual mode: nothing is sent in the background through the API');
+$r = api('POST', "/payments/$pay/share", ['channel' => 'link'], $own2);
+ok(str_starts_with($r['json']['data']['whatsapp_link'] ?? '', 'https://wa.me/91') && (int) q("SELECT COUNT(*) FROM manual_messages WHERE student_id = ? AND purpose = 'receipt' AND status = 'opened'", [$sk]) === 1, 'Manual mode: receipt click-to-send link prepared and logged');
 $inv1 = DB::one('SELECT * FROM fee_invoices WHERE student_id = ? LIMIT 1', [$students[12]]);
 NotificationService::feeReminder(999002, $inv1, 1);
-ok((int) q("SELECT COUNT(*) FROM notification_queue WHERE student_id = ? AND channel = 'whatsapp' AND event_key = 'fee_overdue'", [$students[12]]) === 1, 'Full mode (Growth package): automatic fee reminder IS sent on WhatsApp');
+ok((int) q("SELECT COUNT(*) FROM notification_queue WHERE student_id = ? AND channel = 'whatsapp' AND event_key = 'fee_overdue'", [$students[12]]) === 1, 'API mode (Growth package): automatic fee reminder IS queued for the WhatsApp API');
 
 $total = $pass + $fail;
 echo "\n\033[1mResult: $pass passed, $fail failed\033[0m\n";

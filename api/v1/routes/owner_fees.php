@@ -287,10 +287,11 @@ return static function (Router $r): void {
     $r->post('/payments/{id}/share', static function (Ctx $c, array $p) {
         $pay = PaymentService::get($c->academy(), (int) $p['id']);
         $ch = Http::input()['channel'] ?? 'whatsapp';
-        if ($ch === 'link') {
-            $msg = "Payment receipt {$pay['receipt_no']} for {$pay['student_name']}: {$pay['receipt_url']}";
-            $s = DB::one('SELECT country_code, whatsapp FROM students WHERE id = ?', [$pay['student_id']]);
-            return Http::ok(['whatsapp_link' => 'https://wa.me/' . Phone::wa($s['country_code'], $s['whatsapp']) . '?text=' . rawurlencode($msg), 'url' => $pay['receipt_url']]);
+        if ($ch === 'link') { // click-to-send: prepared + logged in WhatsApp history
+            $res = ManualWhatsApp::prepare($c, ['purpose' => 'receipt', 'payment_id' => (int) $p['id']]);
+            $first = $res['items'][0];
+            ManualWhatsApp::markOpened($c->academy(), (int) $first['id']);
+            return Http::ok(['whatsapp_link' => $first['link'], 'url' => $pay['receipt_url'], 'items' => $res['items']]);
         }
         $channels = $ch === 'email' ? ['email'] : ['whatsapp'];
         $vars = ['amount' => Money::format((int) $pay['amount_paise']), 'receipt_no' => $pay['receipt_no'], 'balance' => Money::format((int) $pay['balance_after_paise']), 'receipt_link' => $pay['receipt_url']];

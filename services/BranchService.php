@@ -34,7 +34,7 @@ final class BranchService
         };
         $att = DB::one("SELECT SUM(a.status IN ('present','late')) AS present, SUM(a.status IN ('present','late','absent')) AS counted
                         FROM attendance a JOIN attendance_sessions se ON se.id = a.session_id JOIN batches b ON b.id = se.batch_id
-                        WHERE se.academy_id = ? AND se.session_date BETWEEN ? AND ?" . $w('b.branch_id'), [$academyId, $from, $to]);
+                        WHERE se.academy_id = ? AND se.session_date BETWEEN ? AND ?" . $w('se.branch_id'), [$academyId, $from, $to]);
         return [
             'students'        => (int) DB::val("SELECT COUNT(*) FROM students s WHERE s.academy_id = ? AND s.status = 'active'" . $w('s.branch_id'), [$academyId]),
             'new_admissions'  => (int) DB::val('SELECT COUNT(*) FROM students s WHERE s.academy_id = ? AND s.admission_date BETWEEN ? AND ?' . $w('s.branch_id'), [$academyId, $from, $to]),

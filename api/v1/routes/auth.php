@@ -126,6 +126,7 @@ function me(Ctx $c): array
         $out['academy'] = $a;
         $out['subscription'] = Subscription::state($c->academyId);
         $out['features'] = Feature::forAcademy($c->academyId)['features'];
+        $out['whatsapp_mode'] = Feature::forAcademy($c->academyId)['whatsapp_mode'];
         if ($c->role === 'teacher') {
             $out['teacher_id'] = $c->teacherId;
         }

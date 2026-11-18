@@ -190,10 +190,6 @@ final class NotificationService
                     }
                     break;
                 case 'whatsapp':
-                    // "transactional" WhatsApp mode: receipts, attendance, admissions and manual messages only
-                    if (!$platform && $academyId && !empty($opts['auto']) && (Feature::forAcademy($academyId)['whatsapp_mode'] ?? 'full') !== 'full') {
-                        break;
-                    }
                     foreach ($r['phones'] as $phone => $name) {
                         if (DB::val("SELECT 1 FROM notification_opt_outs WHERE phone = ? AND channel = 'whatsapp'", [$phone])) {
                             continue;
@@ -243,10 +239,12 @@ final class NotificationService
         if (strlen($key) > 120) {
             $key = substr($event, 0, 40) . ':' . hash('sha256', $key);
         }
-        return DB::exec('INSERT IGNORE INTO notification_queue (academy_id, event_key, channel, recipient, recipient_name, user_id, student_id, subject, body, payload, priority, idempotency_key, created_by)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+        // scheduled messages: the queue only picks a row once next_attempt_at has passed
+        $at = !empty($opts['send_at']) && strtotime((string) $opts['send_at']) > time() ? date('Y-m-d H:i:s', strtotime((string) $opts['send_at'])) : date('Y-m-d H:i:s');
+        return DB::exec('INSERT IGNORE INTO notification_queue (academy_id, event_key, channel, recipient, recipient_name, user_id, student_id, subject, body, payload, priority, idempotency_key, created_by, next_attempt_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
             $academyId, $event, $channel, $recipient, $name ? mb_substr($name, 0, 120) : null, $opts['user_id'] ?? null, $opts['student_id'] ?? null,
-            $subject ? mb_substr($subject, 0, 200) : null, $body, json_encode($payload, JSON_UNESCAPED_UNICODE), (int) ($opts['priority'] ?? 5), $key, $opts['created_by'] ?? null,
+            $subject ? mb_substr($subject, 0, 200) : null, $body, json_encode($payload, JSON_UNESCAPED_UNICODE), (int) ($opts['priority'] ?? 5), $key, $opts['created_by'] ?? null, $at,
         ]);
     }
 
@@ -280,6 +278,6 @@ final class NotificationService
             'fee_title' => $inv['title'],
             'amount'    => Money::format((int) $inv['total_paise'] - (int) $inv['paid_paise']),
             'due_date'  => date('j M Y', strtotime($inv['due_date'])),
-        ], ['dedupe' => "r$reminderId", 'priority' => 6, 'auto' => true, 'data' => ['type' => 'invoice', 'invoice_id' => (string) $inv['id']]]);
+        ], ['dedupe' => "r$reminderId", 'priority' => 6, 'data' => ['type' => 'invoice', 'invoice_id' => (string) $inv['id']]]);
     }
 }

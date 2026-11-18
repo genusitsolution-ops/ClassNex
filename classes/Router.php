@@ -15,7 +15,8 @@ final class Router
 
     public function add(string $method, string $pattern, callable $handler, array $opts = []): void
     {
-        $regex = '#^' . preg_replace('#\{(\w+)\}#', '(?P<$1>[^/]+)', rtrim($pattern, '/')) . '/?$#';
+        // {id}-style parameters only match digits, so fixed paths like /students/bulk-branch never collide with /students/{id}
+        $regex = '#^' . preg_replace_callback('#\{(\w+)\}#', static fn($m) => '(?P<' . $m[1] . '>' . ($m[1] === 'id' || str_ends_with($m[1], 'id') ? '\d+' : '[^/]+') . ')', rtrim($pattern, '/')) . '/?$#';
         $this->routes[] = [$method, $regex, $handler, $opts, rtrim($pattern, '/')];
     }
 

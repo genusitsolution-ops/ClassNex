@@ -1,4 +1,4 @@
-/* ClassNex academy panel (Owner + Teacher). Every screen talks to the same REST API as the Android app. */
+/* ClassNex academy panel (Class Admin + Teacher). OWNER = the Class Admin role (stored as 'owner'). Every screen talks to the same REST API as the Android app. */
 (() => {
   'use strict';
   const C = window.CNX;
@@ -91,7 +91,8 @@
   // ===================================================================== STUDENTS
   route('/students', async (v, p) => {
     await lookups();
-    v.innerHTML = head('Students', 'Search by name, Student ID or phone', can('students.manage') ? '<a class="btn btn-primary" href="#/students/new"><i class="bi bi-person-plus"></i> Add Student</a>' : '') + '<div id="sl"></div>';
+    v.innerHTML = head('Students', 'Search by name, Student ID or phone', (OWNER && LK.branches.length && can('students.manage') ? '<button class="btn btn-light" id="bm"><i class="bi bi-arrow-left-right"></i> Move to branch</button>' : '') + (can('students.manage') ? '<a class="btn btn-primary" href="#/students/new"><i class="bi bi-person-plus"></i> Add Student</a>' : '')) + '<div id="sl"></div>';
+    $('#bm', v) && ($('#bm', v).onclick = () => bulkMove());
     listView({
       el: $('#sl', v), endpoint: '/students', searchPlaceholder: 'Search students…', params: { q: p.q || '', status: 'active', activity_id: p.activity_id || '', batch_id: p.batch_id || '', dues: p.dues || '', branch_id: p.branch_id || '' },
       filters: [
@@ -113,6 +114,34 @@
   }, 'Students');
 
   // ------------------------------------------------- quick registration (30–60 s)
+  // Possible duplicate found while registering: open it, link it (no new profile), or – Class Admin only –
+  // create a separate student after checking (reason goes to the audit log). Never merges automatically.
+  function duplicateDialog(info, data, submit) {
+    const cands = info.candidates || [];
+    const m = modal({
+      title: 'Possible duplicate student', size: 'lg',
+      body: `<p class="small text-muted">These existing students look similar. Brothers and sisters can share a parent's WhatsApp number – check the name, guardian and date of birth.</p>
+        <div class="list-group">${cands.map((c) => `<div class="list-group-item"><div class="d-flex flex-wrap gap-2 align-items-center">
+          <div class="flex-grow-1"><strong>${esc(c.name)}</strong> <span class="small text-muted">${esc(c.student_code)}</span> ${badge(c.status)} ${c.level === 'high' ? '<span class="badge text-bg-danger">Likely same student</span>' : '<span class="badge text-bg-warning">Possible match</span>'}
+            <div class="small text-muted">${esc(c.reasons.join(' · '))} · Guardian: ${esc(c.guardian_name || '–')} · DOB: ${c.dob ? date(c.dob) : '–'} · Branch: ${esc(c.branch_name)} · WhatsApp ••${esc(c.whatsapp_last4)}</div></div>
+          <a class="btn btn-sm btn-light" href="#/students/${c.id}" data-bs-dismiss="modal">Open</a>
+          <button class="btn btn-sm btn-primary" data-link="${c.id}">Link this student</button></div></div>`).join('')}</div>
+        ${info.can_override ? `<div class="border-top mt-3 pt-3"><label class="form-label small fw-bold">This is a different student</label><input class="form-control" id="dr" placeholder="Reason, e.g. twin brother / different child of the same parent"></div>` : '<p class="small text-muted mt-3 mb-0">Only the Class Admin can create a separate profile when a possible duplicate exists.</p>'}`,
+      footer: `<button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>${info.can_override ? '<button class="btn btn-outline-danger" id="sep">Create separate student</button>' : ''}`,
+    });
+    $$('[data-link]', m.el).forEach((b) => b.onclick = async () => {
+      try {
+        const r = await post(`/students/${b.dataset.link}/link`, { activity_id: data.activity_id, batch_id: data.batch_id || null, branch_id: data.branch_id || null });
+        toast(r.message); m.close(); go('#/students/' + b.dataset.link);
+      } catch (e) { fail(e); }
+    });
+    $('#sep', m.el) && ($('#sep', m.el).onclick = async () => {
+      const reason = $('#dr', m.el).value.trim();
+      if (reason.length < 5) return toast('Please give a short reason.', 'warning');
+      try { await submit(true, reason); m.close(); } catch (e) { fail(e); }
+    });
+  }
+
   route('/students/new', async (v) => {
     if (!can('students.manage')) throw new Error('You do not have permission to add students.');
     await lookups(true);
@@ -219,8 +248,8 @@
       const fd = new FormData();
       Object.entries(data).forEach(([k, val]) => { if (val !== '' && val !== null) fd.append(k, val); });
       if (photoBlob) fd.append('photo', photoBlob, 'photo.jpg');
-      const submit = async (confirmDup = false) => {
-        if (confirmDup) fd.set('confirm_duplicate', '1');
+      const submit = async (confirmDup = false, reason = '') => {
+        if (confirmDup) { fd.set('confirm_duplicate', '1'); fd.set('duplicate_reason', reason); }
         const r = await post('/students', fd);
         const s = r.data.student;
         if (docFile) {
@@ -236,9 +265,8 @@
       };
       try { await submit(); }
       catch (er) {
-        if (er.code === 'duplicate_student') {
-          if (await confirm(er.message, { title: 'Student already registered', ok: 'Open existing profile' })) go('#/students/' + er.errors.duplicate_id);
-        } else { showErrors(f, er.errors); fail(er); }
+        if (er.code === 'duplicate_student') duplicateDialog(er.errors, data, submit);
+        else { showErrors(f, er.errors); fail(er); }
       } finally { btn.disabled = false; another = false; }
     };
   }, 'Add Student');
@@ -261,6 +289,7 @@
           ${can('students.manage') ? `<button class="btn btn-light" data-a="edit"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-light" data-a="transfer"><i class="bi bi-arrow-left-right"></i> Change batch</button>${LK.branches.length ? '<button class="btn btn-light" data-a="branch"><i class="bi bi-geo-alt"></i> Change branch</button>' : ''}` : ''}
           ${OWNER ? '<button class="btn btn-light" data-a="enroll"><i class="bi bi-plus-square"></i> Add activity</button>' : ''}
           ${has('manual_reminders') && can('notifications.send') ? '<button class="btn btn-light" data-a="msg"><i class="bi bi-chat-dots"></i> Message</button>' : ''}
+          ${has('whatsapp_manual') && can('notifications.send') ? '<button class="btn btn-light text-success" data-a="wa"><i class="bi bi-whatsapp"></i> WhatsApp</button>' : ''}
           ${has('parent_access') && can('students.manage') ? '<button class="btn btn-light" data-a="invite"><i class="bi bi-phone"></i> App invite</button>' : ''}
         </div>
       </div></div>
@@ -377,8 +406,15 @@
       },
       enroll: () => { const m = formModal({ title: 'Enrol in another activity', fields: [{ name: 'activity_id', label: 'Activity', type: 'select', required: true, options: actOpts() }, { name: 'batch_id', label: 'Batch', type: 'select', options: [] }, { name: 'monthly_fee', label: 'Monthly fee (blank = default)', type: 'money' }, { name: 'assign_fees', label: 'Start monthly fee', type: 'switch', value: 1 }], submit: async (d) => { const r = await post(`/students/${s.id}/enroll`, d); toast(r.message); C.dispatch(); } }); linkSelects(m.el); },
       msg: () => messageModal({ target: 'students', student_ids: [s.id] }, s.name),
+      wa: () => {
+        const m = formModal({ title: 'WhatsApp ' + s.name, okText: 'Prepare message', intro: '<p class="small text-muted">ClassNex prepares the text; WhatsApp opens and you press send.</p>',
+          fields: [{ name: 'purpose', label: 'Message', type: 'select', placeholder: false, options: [['custom', 'Custom message'], ['admission', 'Admission confirmation'], ...(fees && s.balance.outstanding_paise > 0 ? [['fee_reminder', 'Fee reminder']] : [])] }, { name: 'message', label: 'Text (custom message)', type: 'textarea', rows: 4 }],
+          submit: async (d) => { const r = await post('/whatsapp/manual/prepare', { ...d, target: 'students', student_ids: [s.id], student_id: s.id }); waSend(r.data.items, 'WhatsApp'); } });
+        void m;
+      },
       invite: async () => { try { const r = await post(`/students/${s.id}/invite`); inviteResult(r.data); } catch (e) { fail(e); } },
     })[b.dataset.a]());
+    if (p.new && has('whatsapp_manual') && !has('whatsapp') && can('notifications.send')) waPrepare({ purpose: 'admission', student_id: s.id }, 'Admission confirmation');
     if (p.new && can('fees.collect') && has('fees') && fees && s.balance.outstanding_paise > 0) {
       const m = modal({ title: 'Student registered 🎉', body: `<p><strong>${esc(s.name)}</strong> was registered with ID <strong>${esc(s.student_code)}</strong>.</p><p class="mb-0">Pending fees: <strong>${money(s.balance.outstanding_paise)}</strong>. Collect now?</p>`, footer: `<button class="btn btn-light" data-bs-dismiss="modal">Later</button><a class="btn btn-primary" href="#/collect?student=${s.id}">Collect fee</a>` });
       $('a', m.footer).onclick = () => m.close();
@@ -449,23 +485,71 @@
       try {
         const res = await post('/attendance', { batch_id: +p.batch, date: day, entries, reason });
         toast(res.message + (res.data.notifications ? ` Parents notified: ${res.data.notifications}.` : ''));
+        const absent = entries.filter((x) => ['absent', 'late'].includes(x.status)).length;
+        if (has('whatsapp_manual') && !has('whatsapp') && absent && can('notifications.send') && (await confirm(`${absent} student(s) absent or late. Prepare WhatsApp messages for their parents?`, { ok: 'Prepare WhatsApp' }))) {
+          await waPrepare({ purpose: 'attendance', batch_id: +p.batch, date: day }, 'Attendance alerts');
+        }
         go('#/attendance?date=' + day);
       } catch (e) { fail(e); btn.disabled = false; }
     });
   }, 'Mark Attendance');
 
-  route('/attendance-history', async (v) => {
+  route('/attendance-history', async (v, p) => {
     await lookups();
-    v.innerHTML = head('Attendance history') + '<div id="h"></div>';
-    listView({
-      el: $('#h', v), endpoint: '/attendance/history', search: false, params: { from: C.month() + '-01', to: C.today() },
-      filters: [{ name: 'batch_id', placeholder: 'All batches', options: batchOpts() }, { name: 'from', type: 'date', placeholder: 'From' }, { name: 'to', type: 'date', placeholder: 'To' }],
-      columns: [
-        { label: 'Date', render: (s) => `<strong>${date(s.session_date)}</strong>` }, { label: 'Batch', render: (s) => `${esc(s.batch_name)} <span class="text-muted small">${esc(s.activity_name)}</span>` },
-        { label: 'Present', render: (s) => `<span class="text-success fw-bold">${s.present}</span>` }, { label: 'Absent', render: (s) => `<span class="text-danger fw-bold">${s.absent}</span>` },
-        { label: 'Late / Leave', render: (s) => `${s.late} / ${s.on_leave}` }, { label: '%', render: (s) => s.total ? Math.round(((+s.present + +s.late) * 100) / s.total) + '%' : '–' }, { label: 'Marked by', render: (s) => esc(s.marked_by || '') },
-      ], empty: 'No attendance in this period.',
+    const st = { view: p.view || 'sessions', from: p.from || C.month() + '-01', to: p.to || C.today(), branch_id: p.branch_id || '', activity_id: p.activity_id || '', batch_id: p.batch_id || '', student_id: p.student_id || '', status: p.status || '' };
+    const pct = (x) => (x === null || x === undefined ? '–' : x + '%');
+    const card = (l, x, cls = '') => `<div class="col-4 col-md-2"><div class="stat py-2"><div><div class="lbl">${l}</div><div class="val fs-5 ${cls}">${x}</div></div></div></div>`;
+    const views = [['sessions', 'By class'], ['students', 'By student'], ...(LK.branches.length ? [['branches', 'By branch']] : [])];
+    v.innerHTML = head('Attendance history', LK.branches.length ? 'Pick a branch for one branch, or leave “All branches” for the combined academy history.' : '',
+      `<div class="btn-group"><button class="btn btn-light" data-x="pdf"><i class="bi bi-filetype-pdf"></i> PDF</button><button class="btn btn-light" data-x="xlsx"><i class="bi bi-file-earmark-excel"></i> Excel</button><button class="btn btn-light" data-x="csv">CSV</button></div>`) + `
+      <div class="d-flex gap-2 flex-wrap mb-2"><div class="btn-group" id="vw">${views.map(([k, l]) => `<button class="btn btn-sm ${st.view === k ? 'btn-primary' : 'btn-light'}" data-v="${k}">${l}</button>`).join('')}</div></div>
+      <div class="row g-2 mb-3" id="sum"></div><div id="bb"></div><div id="h"></div>`;
+    const studentOpt = st.student_id ? [[st.student_id, p.student_name || 'Selected student']] : [];
+    const columns = {
+      sessions: [
+        { label: 'Date', render: (s) => `<strong>${date(s.session_date)}</strong>` },
+        ...(LK.branches.length ? [{ label: 'Branch', render: (s) => esc(s.branch_name) }] : []),
+        { label: 'Batch', render: (s) => `${esc(s.batch_name)} <span class="text-muted small">${esc(s.activity_name)}</span>` },
+        { label: 'Students', cls: 'text-end', render: (s) => s.total_students },
+        { label: 'Present', cls: 'text-end', render: (s) => `<span class="text-success fw-bold">${s.present}</span>` },
+        { label: 'Absent', cls: 'text-end', render: (s) => `<span class="text-danger fw-bold">${s.absent}</span>` },
+        { label: 'Late', cls: 'text-end', render: (s) => s.late }, { label: 'Leave', cls: 'text-end', render: (s) => s.leave },
+        { label: '%', cls: 'text-end', render: (s) => pct(s.attendance_pct) }, { label: 'Marked by', render: (s) => esc(s.marked_by || '') },
+      ],
+      students: [
+        { label: 'Date', render: (s) => date(s.session_date) },
+        { label: 'Student', render: (s) => `<a href="#/students/${s.student_id}">${esc(s.student_name)}</a> <span class="small text-muted">${esc(s.student_code)}</span>` },
+        ...(LK.branches.length ? [{ label: 'Branch', render: (s) => esc(s.branch_name || 'Main') }] : []),
+        { label: 'Batch', render: (s) => `${esc(s.batch_name)} <span class="text-muted small">${esc(s.activity_name)}</span>` },
+        { label: 'Status', render: (s) => badge(s.status) }, { label: 'Remarks', render: (s) => esc(s.remarks || '') },
+      ],
+      branches: [
+        { label: 'Branch', render: (s) => `<strong>${esc(s.branch_name)}</strong>` }, { label: 'Classes', cls: 'text-end', render: (s) => s.sessions },
+        { label: 'Students', cls: 'text-end', render: (s) => s.total_students }, { label: 'Present', cls: 'text-end', render: (s) => s.present },
+        { label: 'Absent', cls: 'text-end', render: (s) => s.absent }, { label: 'Late', cls: 'text-end', render: (s) => s.late }, { label: 'Leave', cls: 'text-end', render: (s) => s.leave },
+        { label: 'Attendance %', cls: 'text-end', render: (s) => `<strong>${pct(s.attendance_pct)}</strong>` },
+      ],
+    };
+    const list = listView({
+      el: $('#h', v), endpoint: '/attendance/history', search: false, params: st, perPage: 50,
+      filters: [
+        { name: 'from', type: 'date', placeholder: 'From' }, { name: 'to', type: 'date', placeholder: 'To' },
+        ...(LK.branches.length ? [{ name: 'branch_id', placeholder: 'All branches (combined)', options: [...branchOpts(), ['none', 'Main / no branch']] }] : []),
+        { name: 'activity_id', placeholder: 'All activities', options: LK.activities.map((a) => [a.id, a.name]) },
+        { name: 'batch_id', placeholder: 'All batches', options: batchOpts() },
+        { name: 'status', placeholder: 'Any status', options: [['present', 'Present'], ['absent', 'Absent'], ['late', 'Late'], ['leave', 'Leave']] },
+        ...(studentOpt.length ? [{ name: 'student_id', placeholder: 'All students', options: studentOpt }] : []),
+      ],
+      columns: columns[st.view], empty: 'No attendance for these filters.',
+      after: (json) => {
+        const s = json.meta?.summary || {};
+        $('#sum', v).innerHTML = card('Students', s.total_students ?? 0) + card('Present', s.present ?? 0, 'text-success') + card('Absent', s.absent ?? 0, 'text-danger') + card('Late', s.late ?? 0) + card('Leave', s.leave ?? 0) + card('Attendance', pct(s.attendance_pct));
+        const bb = json.meta?.by_branch;
+        $('#bb', v).innerHTML = bb?.length > 1 ? `<div class="card mb-3"><div class="card-header">Branch-wise (combined academy)</div><div class="card-body p-0">${table(columns.branches, bb)}</div></div>` : '';
+      },
     });
+    $$('[data-v]', v).forEach((b) => b.onclick = () => go('#/attendance-history' + qs({ ...list.state, page: undefined, view: b.dataset.v })));
+    $$('[data-x]', v).forEach((b) => b.onclick = () => C.download('/attendance/history' + qs({ ...list.state, page: undefined, format: b.dataset.x }), `attendance-history.${b.dataset.x}`));
   }, 'Attendance History');
 
   // ================================================================== COLLECT FEE
@@ -602,7 +686,11 @@
     });
     $('#remAll', v) && ($('#remAll', v).onclick = async () => {
       if (!(await confirm('Send a fee reminder to every student with overdue fees? Each family receives their own amount.', { ok: 'Send reminders' }))) return;
-      try { const r = await post('/messages/send', { target: 'dues', overdue_only: 1, type: 'fee_reminder', channels: ['whatsapp', 'inapp', 'push', 'sms'], client_ref: C.uuid() }); toast(r.message); } catch (e) { fail(e); }
+      try {
+        const r = await post('/messages/send', { target: 'dues', overdue_only: 1, type: 'fee_reminder', channels: ['whatsapp', 'inapp', 'push', 'sms'], client_ref: C.uuid() }); toast(r.message);
+        // manual WhatsApp mode: prepare one click-to-send message per family (bulk reminder preparation)
+        if (has('whatsapp_manual') && !has('whatsapp')) waPrepare({ purpose: 'fee_reminder', target: 'dues', overdue_only: 1, branch_id: lv.state.branch_id || '' }, 'Overdue fee reminders');
+      } catch (e) { fail(e); }
     });
   }, 'Pending Fees');
 
@@ -621,6 +709,7 @@
   // ============================================================ MESSAGES
   function messageModal(preset = {}, who = '') {
     const chans = ['whatsapp', 'inapp', 'push', 'email', 'sms'].filter(has);
+    const manualWa = has('whatsapp_manual');
     formModal({
       title: who ? 'Message ' + who : 'Send message', okText: 'Send',
       fields: [
@@ -635,6 +724,7 @@
   route('/messages', async (v) => {
     await lookups();
     const chans = ['whatsapp', 'inapp', 'push', 'email', 'sms'].filter(has);
+    const manualWa = has('whatsapp_manual');
     const tpl = [
       ['Fee reminder', '', 'fee_reminder'],
       ['Class cancelled', 'Dear Parent, today\'s class is cancelled. Sorry for the inconvenience.'],
@@ -642,7 +732,7 @@
       ['Timing change', 'Dear Parent, please note the class timing has changed from tomorrow.'],
       ['Event', 'Dear Parent, we are happy to announce an upcoming event. Details will be shared soon.'],
     ];
-    v.innerHTML = head('Reminders & Messages', 'Send to one student, a batch, or everyone. Automatic fee reminders run on their own.', '<a class="btn btn-light" href="#/message-log"><i class="bi bi-list-check"></i> Delivery log</a>') + `
+    v.innerHTML = head('Reminders & Messages', has('whatsapp') ? 'Send to one student, a batch, or everyone. WhatsApp goes out automatically through the official WhatsApp Business API.' : (manualWa ? 'Prepare messages, then tap Send on each one to open it in WhatsApp / WhatsApp Business.' : 'Send to one student, a batch, or everyone.'), `${manualWa ? '<a class="btn btn-light" href="#/whatsapp-log"><i class="bi bi-whatsapp"></i> WhatsApp history</a>' : ''}<a class="btn btn-light" href="#/message-log"><i class="bi bi-list-check"></i> Delivery log</a>`) + `
       <div class="row g-3"><div class="col-lg-8"><form class="card" id="mf"><div class="card-body">
         <div class="mb-3"><label class="form-label">Quick templates</label><div class="d-flex flex-wrap gap-2">${tpl.map(([n], i) => `<button type="button" class="btn btn-sm btn-light" data-tpl="${i}">${n}</button>`).join('')}</div></div>
         ${form([
@@ -654,7 +744,8 @@
           { name: 'type', label: 'Type', type: 'select', placeholder: false, options: [['message', 'Message'], ...(has('fees') ? [['fee_reminder', 'Personalised fee reminder']] : [])], col: 'col-md-6' },
           { name: 'title', label: 'Title (app & email)', col: 'col-12' },
           { name: 'message', label: 'Message', type: 'textarea', rows: 5, help: '<span id="cc">0</span>/1000 characters. WhatsApp uses your approved template; the text goes into the message body.' },
-          { name: 'channels', label: 'Send via', type: 'multicheck', options: chans.map((c) => [c, label(c === 'inapp' ? 'App inbox' : c)]), value: chans.filter((c) => !['email', 'sms'].includes(c)) },
+          { name: 'channels', label: 'Send via', type: 'multicheck', options: [...chans.map((c) => [c, c === 'inapp' ? 'App inbox' : c === 'whatsapp' ? 'WhatsApp (automatic)' : label(c)]), ...(manualWa ? [['wa_manual', 'WhatsApp – click to send']] : [])], value: [...chans.filter((c) => !['email', 'sms'].includes(c)), ...(manualWa && !has('whatsapp') ? ['wa_manual'] : [])] },
+          ...(chans.some((c) => c !== 'inapp') ? [{ name: 'send_at', label: 'Schedule (optional)', type: 'datetime-local', col: 'col-md-6', help: 'Leave empty to send now. Automatic channels only.' }] : []),
         ])}
         <button class="btn btn-primary btn-lg mt-3 px-5"><i class="bi bi-send"></i> Send</button></div></form></div>
         <div class="col-lg-4"><div class="card"><div class="card-header"><i class="bi bi-robot text-primary"></i> Automatic reminders</div><div class="card-body small">
@@ -682,10 +773,65 @@
       const d = readForm(f);
       d.student_ids = [...picked.keys()].map(Number);
       d.client_ref = C.uuid();
-      if (!(await confirm('Send now?', { ok: 'Send' }))) return;
-      try { const r = await post('/messages/send', d); toast(r.message + ' ' + Object.entries(r.data).filter(([, n]) => n).map(([k, n]) => `${label(k)}: ${n}`).join(', ')); f.reset(); picked.clear(); drawPicked(); vis(); } catch (er) { showErrors(f, er.errors); fail(er); }
+      const chs = [].concat(d.channels || []);
+      const manual = chs.includes('wa_manual');
+      d.channels = chs.filter((c) => c !== 'wa_manual');
+      if (!manual && !d.channels.length) return toast('Choose at least one way to send.', 'warning');
+      if (!(await confirm(d.send_at ? 'Schedule this message?' : 'Send now?', { ok: d.send_at ? 'Schedule' : 'Send' }))) return;
+      try {
+        if (d.channels.length) { const r = await post('/messages/send', d); toast(r.message + ' ' + Object.entries(r.data).filter(([, n]) => n).map(([k, n]) => `${label(k)}: ${n}`).join(', ')); }
+        if (manual) {
+          const r = await post('/whatsapp/manual/prepare', { purpose: d.type === 'fee_reminder' ? 'fee_reminder' : 'custom', target: d.target, batch_id: d.batch_id, activity_id: d.activity_id, student_ids: d.student_ids, overdue_only: d.overdue_only, message: d.message });
+          waSend(r.data.items, d.type === 'fee_reminder' ? 'Fee reminders' : 'Message');
+        }
+        f.reset(); picked.clear(); drawPicked(); vis();
+      } catch (er) { showErrors(f, er.errors); fail(er); }
     };
   }, 'Reminders & Messages');
+
+  // Click-to-send WhatsApp: one row per message, Send opens WhatsApp with the text ready; the user presses send there.
+  function waSend(items, title = 'WhatsApp') {
+    if (!items?.length) return toast('Nobody to message.', 'warning');
+    let done = 0;
+    const m = modal({
+      title: `${title} – ${items.length} message(s)`, size: 'lg',
+      body: `<p class="small text-muted">Tap <b>Send</b> to open WhatsApp with the message ready, then press send in WhatsApp. Come back here for the next one.</p>
+        <div class="progress mb-3" style="height:6px"><div class="progress-bar bg-success" id="wp" style="width:0"></div></div>
+        <div class="list-group">${items.map((x, i) => `<div class="list-group-item d-flex gap-2 align-items-start" data-i="${i}"><div class="flex-grow-1"><div class="fw-bold">${esc(x.student_name)} <span class="small text-muted fw-normal">to ${esc(x.name || '')} ${esc(x.phone)}</span></div><div class="small text-muted" style="white-space:pre-wrap">${esc(x.text)}</div></div>
+          <a class="btn btn-success btn-sm" target="_blank" rel="noopener" href="${esc(x.link)}" data-send="${i}"><i class="bi bi-whatsapp"></i> Send</a></div>`).join('')}</div>`,
+      footer: '<span class="small me-auto" id="wn">0 sent</span><button class="btn btn-light" data-bs-dismiss="modal">Done</button>',
+    });
+    $$('[data-send]', m.el).forEach((a) => a.addEventListener('click', () => {
+      const x = items[+a.dataset.send];
+      if (!a.classList.contains('btn-outline-success')) { done++; a.className = 'btn btn-outline-success btn-sm'; a.innerHTML = '<i class="bi bi-check2"></i> Sent'; }
+      $('#wn', m.el).textContent = `${done} of ${items.length} opened in WhatsApp`;
+      $('#wp', m.el).style.width = Math.round((done * 100) / items.length) + '%';
+      post(`/whatsapp/manual/${x.id}/opened`, {}).catch(() => {});
+    }));
+  }
+  C.waSend = waSend;
+  async function waPrepare(body, title) {
+    try { const r = await post('/whatsapp/manual/prepare', body); waSend(r.data.items, title); } catch (e) { fail(e); }
+  }
+
+  route('/whatsapp-log', async (v) => {
+    v.innerHTML = head('WhatsApp history', 'Messages prepared for click-to-send. “Opened” means Send was tapped and WhatsApp opened.') + '<div id="wl"></div>';
+    await lookups();
+    listView({
+      el: $('#wl', v), endpoint: '/whatsapp/manual/log', search: false, params: { from: '', to: '' },
+      filters: [{ name: 'purpose', placeholder: 'All types', options: [['fee_reminder', 'Fee reminder'], ['receipt', 'Receipt'], ['attendance', 'Attendance'], ['admission', 'Admission'], ['announcement', 'Announcement'], ['custom', 'Custom']] },
+        { name: 'status', placeholder: 'Any status', options: [['prepared', 'Prepared'], ['opened', 'Opened in WhatsApp']] }, ...(LK.branches.length ? [{ name: 'branch_id', placeholder: 'All branches', options: branchOpts() }] : []),
+        { name: 'from', type: 'date' }, { name: 'to', type: 'date' }],
+      columns: [
+        { label: 'When', render: (q) => dateTime(q.created_at) }, { label: 'Type', render: (q) => label(q.purpose) },
+        { label: 'To', render: (q) => `${esc(q.student_name || q.recipient_name || '')}<div class="small text-muted">${esc(q.recipient_name || '')} · +${esc(q.phone)}${q.branch_name ? ' · ' + esc(q.branch_name) : ''}</div>` },
+        { label: 'Message', render: (q) => `<div class="small text-muted" style="max-width:360px;white-space:pre-wrap">${esc(q.message.slice(0, 160))}</div>` },
+        { label: 'Status', render: (q) => (q.status === 'opened' ? badge('sent') + `<div class="small text-muted">${dateTime(q.opened_at)}</div>` : badge('pending')) + `<div class="small text-muted">by ${esc(q.prepared_by || '')}</div>` },
+        { label: '', render: (q) => `<a class="btn btn-sm btn-light" target="_blank" rel="noopener" href="${esc(q.link)}" data-open="${q.id}"><i class="bi bi-whatsapp"></i> Send again</a>` },
+      ], empty: 'No WhatsApp messages prepared in this period.',
+      after: (_, el) => $$('[data-open]', el).forEach((a) => a.addEventListener('click', () => post(`/whatsapp/manual/${a.dataset.open}/opened`, {}).catch(() => {}))),
+    });
+  }, 'WhatsApp History');
 
   route('/message-log', async (v) => {
     v.innerHTML = head('Message delivery log', 'WhatsApp, push, email and SMS sent by your academy') + '<div id="ml"></div>';
@@ -853,7 +999,11 @@
       { name: 'audience', label: 'For', type: 'select', placeholder: false, options: OWNER ? [['all', 'Everyone'], ['students', 'Students & parents'], ['teachers', 'Teachers'], ['batch', 'One batch']] : [['batch', 'One batch']], col: 'col-md-6' },
       { name: 'batch_id', label: 'Batch', type: 'select', options: batchOpts(), col: 'col-md-6' },
       { name: 'publish_at', label: 'Schedule (optional)', type: 'text', attrs: 'type="datetime-local"', col: 'col-md-6' }, { name: 'notify', label: 'Notify on WhatsApp / app', type: 'switch', value: 1, col: 'col-md-6' },
-    ], submit: async (d) => { const r = await post('/announcements', d); toast(r.message); C.dispatch(); } }));
+    ], submit: async (d) => {
+      const r = await post('/announcements', d); toast(r.message);
+      if (has('whatsapp_manual') && !has('whatsapp') && OWNER && r.data?.id && d.audience !== 'teachers' && (await confirm('Also prepare this announcement for WhatsApp (click to send)?', { ok: 'Prepare WhatsApp' }))) await waPrepare({ purpose: 'announcement', announcement_id: r.data.id }, 'Announcement');
+      C.dispatch();
+    } }));
     $$('[data-del]', v).forEach((b) => b.onclick = async () => { if (await confirm('Delete this announcement?', { danger: true })) await del('/announcements/' + b.dataset.del).then(() => C.dispatch()).catch(fail); });
   }, 'Announcements');
 
@@ -950,7 +1100,7 @@
     ], rows, { empty: 'No branches yet.', onRow });
   }
   route('/branches', async (v) => {
-    if (!OWNER) throw new Error('Only the academy owner manages branches.');
+    if (!OWNER) throw new Error('Only the Class Admin manages branches.');
     const [sum, dash] = await Promise.all([get('/branches/summary'), get('/dashboard')]);
     const q = dash.data.student_quota || {};
     v.innerHTML = head('Branches', 'Add as many branches as you need. All branches share one subscription and one student limit.', '<button class="btn btn-primary" id="ab"><i class="bi bi-plus-lg"></i> Add branch</button>') + `
@@ -982,11 +1132,77 @@
     });
   }
 
+
+  // Bulk assign / transfer students to a branch. Server-side search + paging, so it works with thousands of students.
+  // "Select all matching" sends the filter instead of IDs. Student IDs and the academy student count never change.
+  function bulkMove(fixedBranch = null) {
+    const st = { q: '', branch_id: '', activity_id: '', batch_id: '', page: 1, not_branch_id: fixedBranch?.id || '' };
+    const sel = new Set();
+    let allMatching = false;
+    let total = 0;
+    const m = modal({
+      title: fixedBranch ? `Assign students to ${fixedBranch.name}` : 'Move students to a branch', size: 'lg',
+      body: `<div class="filters mb-2"><input class="form-control" type="search" data-f="q" placeholder="Name, Student ID or WhatsApp">
+          <select class="form-select" data-f="branch_id"><option value="">Current branch: any</option>${branchOpts().map(([i, n]) => `<option value="${i}">${esc(n)}</option>`).join('')}<option value="none">Main / no branch</option></select>
+          <select class="form-select" data-f="activity_id"><option value="">All activities</option>${LK.activities.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+          <select class="form-select" data-f="batch_id"><option value="">All batches</option>${batchOpts().map(([i, n]) => `<option value="${i}">${esc(n)}</option>`).join('')}</select></div>
+        <div class="d-flex align-items-center gap-2 small mb-2"><label class="form-check mb-0"><input class="form-check-input" type="checkbox" id="pgAll"> This page</label>
+          <button type="button" class="btn btn-link btn-sm p-0" id="allM"></button><span class="ms-auto fw-bold" id="selN">0 selected</span></div>
+        <div id="pl"><div class="loading-block"><div class="spinner-border text-primary"></div></div></div>
+        <div class="row g-2 mt-2 border-top pt-3">
+          ${fixedBranch ? '' : `<div class="col-md-6"><label class="form-label small fw-bold">Move to branch</label><select class="form-select" id="toBr"><option value="">Choose…</option>${branchOpts().map(([i, n]) => `<option value="${i}">${esc(n)}</option>`).join('')}</select></div>`}
+          <div class="col-md-6"><label class="form-label small fw-bold">Also move into batch (optional)</label><select class="form-select" id="toBt"></select></div></div>`,
+      footer: '<button class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="go" disabled><i class="bi bi-arrow-left-right"></i> Assign selected</button>',
+    });
+    const el = m.el;
+    const target = () => fixedBranch?.id || $('#toBr', el)?.value || '';
+    const fillBatches = () => { const br = target(); $('#toBt', el).innerHTML = '<option value="">Keep current batch</option>' + LK.batches.filter((x) => br && String(x.branch_id || '') === String(br)).map((x) => `<option value="${x.id}">${esc(x.name)} (${esc(x.activity_name)})</option>`).join(''); };
+    const count = () => (allMatching ? total : sel.size);
+    const paintCount = () => {
+      $('#selN', el).textContent = `${count()} selected`;
+      $('#allM', el).textContent = allMatching ? 'Clear selection' : (total > 0 ? `Select all ${total} matching` : '');
+      $('#go', el).disabled = !count() || !target();
+    };
+    const load = async () => {
+      const json = await get('/students' + qs({ ...st, per_page: 25 }));
+      total = json.meta?.total || 0;
+      const rows = json.data || [];
+      $('#pl', el).innerHTML = rows.length ? `<div class="list-group">${rows.map((x) => `<label class="list-group-item d-flex gap-2 align-items-center"><input class="form-check-input" type="checkbox" value="${x.id}" ${allMatching || sel.has(x.id) ? 'checked' : ''} ${allMatching ? 'disabled' : ''}>
+          <span class="flex-grow-1">${esc(x.name)} <span class="small text-muted">${esc(x.student_code)} · ${esc(x.whatsapp || '')}</span></span><span class="small text-muted">${esc(x.branch_name || 'Main')}</span></label>`).join('')}</div>
+        <div class="pager"><span>${total} students · page ${json.meta.page} of ${json.meta.pages || 1}</span><span class="btn-group"><button type="button" class="btn btn-sm btn-light" data-p="-1" ${st.page <= 1 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i></button><button type="button" class="btn btn-sm btn-light" data-p="1" ${st.page >= json.meta.pages ? 'disabled' : ''}><i class="bi bi-chevron-right"></i></button></span></div>`
+        : '<div class="empty py-4">No students match.</div>';
+      $$('input[type=checkbox]', $('#pl', el)).forEach((c) => c.onchange = () => { c.checked ? sel.add(+c.value) : sel.delete(+c.value); paintCount(); });
+      $$('[data-p]', el).forEach((btn) => btn.onclick = () => { st.page += +btn.dataset.p; load(); });
+      $('#pgAll', el).checked = false;
+      paintCount();
+    };
+    let t;
+    $$('[data-f]', el).forEach((f) => f.addEventListener(f.type === 'search' ? 'input' : 'change', () => { clearTimeout(t); t = setTimeout(() => { st[f.dataset.f] = f.value; st.page = 1; allMatching = false; load(); }, f.type === 'search' ? 300 : 0); }));
+    $('#pgAll', el).onchange = (e) => { $$('#pl input[type=checkbox]', el).forEach((c) => { c.checked = e.target.checked; e.target.checked ? sel.add(+c.value) : sel.delete(+c.value); }); paintCount(); };
+    $('#allM', el).onclick = () => { allMatching = !allMatching; if (!allMatching) sel.clear(); load(); };
+    $('#toBr', el) && ($('#toBr', el).onchange = () => { fillBatches(); paintCount(); });
+    fillBatches();
+    $('#go', el).onclick = async () => {
+      const filter = { q: st.q, branch_id: st.branch_id, activity_id: st.activity_id, batch_id: st.batch_id, not_branch_id: st.not_branch_id };
+      const body = { branch_id: target(), batch_id: $('#toBt', el).value || null, ...(allMatching ? { filter } : { student_ids: [...sel] }) };
+      try {
+        const pre = await post('/students/bulk-branch', { ...body, preview: 1 });
+        const brName = fixedBranch?.name || $('#toBr option:checked', el).textContent;
+        if (!(await confirm(`Move ${pre.data.count} student(s) to ${brName}${body.batch_id ? ' and into the selected batch' : ''}? They keep the same Student ID, fees and attendance history. Your student count does not change.`, { title: 'Confirm bulk move', ok: `Move ${pre.data.count} student(s)` }))) return;
+        const r = await post('/students/bulk-branch', body);
+        toast(r.message);
+        m.close();
+        C.dispatch();
+      } catch (e) { fail(e); }
+    };
+    load();
+  }
+
   route('/branches/:id', async (v, p) => {
     const b = (await get('/branches/' + p.id)).data;
     const f = b.figures;
     v.innerHTML = head(esc(b.name) + (b.status === 'inactive' ? ' ' + badge('inactive') : ''), esc([b.address, b.contact_number, b.manager_teacher_name || b.manager_name ? 'Manager: ' + (b.manager_teacher_name || b.manager_name) : ''].filter(Boolean).join(' · ')),
-      `<button class="btn btn-light" id="eb"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-light" id="as"><i class="bi bi-person-plus"></i> Assign</button><a class="btn btn-light" href="#/reports?r=students&branch_id=${b.id}"><i class="bi bi-bar-chart"></i> Reports</a>`) + `
+      `<button class="btn btn-light" id="eb"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-light" id="as"><i class="bi bi-people"></i> Assign students</button><button class="btn btn-light" id="at"><i class="bi bi-person-badge"></i> Teachers & batches</button><a class="btn btn-light" href="#/reports?r=students&branch_id=${b.id}"><i class="bi bi-bar-chart"></i> Reports</a>`) + `
       <div class="row g-3 mb-3">
         ${[['Active students', f.students], ['Teachers', f.teachers], ['Batches', f.batches], ['Attendance (month)', f.attendance_pct === null ? '–' : f.attendance_pct + '%'], ...(has('fees') && can('fees.view') ? [['Collected (month)', money(f.collected_paise)], ['Pending', money(f.pending_paise)]] : [])].map(([l, x]) => `<div class="col-6 col-md-4 col-xl-2"><div class="stat"><div><div class="lbl">${l}</div><div class="val fs-5">${x}</div></div></div></div>`).join('')}
       </div>
@@ -994,16 +1210,15 @@
       <div class="col-lg-5"><div class="card"><div class="card-header">Teachers</div><div class="card-body py-1">${b.teachers.length ? b.teachers.map((t) => `<div class="list-tile"><div class="flex-grow-1">${esc(t.name)}</div>${badge(t.status)}</div>`).join('') : '<div class="empty py-4">No teachers assigned.</div>'}</div></div></div></div>
       <div class="d-flex gap-2 mt-3 flex-wrap"><a class="btn btn-light" href="#/students?branch_id=${b.id}">Students</a>${has('fees') ? `<a class="btn btn-light" href="#/reports?r=fee_collection&branch_id=${b.id}">Fee collection</a><a class="btn btn-light" href="#/reports?r=pending_fees&branch_id=${b.id}">Pending fees</a>` : ''}<a class="btn btn-light" href="#/reports?r=attendance&branch_id=${b.id}">Attendance</a></div>`;
     $('#eb', v).onclick = () => branchForm(b);
-    $('#as', v).onclick = async () => {
-      const [t, bt, st] = await Promise.all([get('/teachers?status=active&per_page=500'), get('/batches?status=active'), get('/students?status=active&per_page=500')]);
+    $('#as', v).onclick = () => bulkMove(b);
+    $('#at', v).onclick = async () => {
+      const [t, bt] = await Promise.all([get('/teachers?status=active'), get('/batches?status=active')]);
       const opt = (rows, sel) => rows.filter((x) => String(x.branch_id || '') !== String(b.id)).map((x) => [x.id, sel(x)]);
       formModal({
-        title: 'Assign to ' + b.name, okText: 'Assign',
-        intro: '<p class="small text-muted">Moves existing records to this branch. Students keep the same profile and ID, so your student count does not change.</p>',
+        title: 'Assign teachers & batches to ' + b.name, okText: 'Assign',
         fields: [
           { name: 'teacher_ids', label: 'Teachers', type: 'multicheck', options: opt(t.data, (x) => x.name) },
           { name: 'batch_ids', label: 'Batches', type: 'multicheck', options: opt(bt.data, (x) => `${x.name} (${x.activity_name})`) },
-          { name: 'student_ids', label: 'Students', type: 'multicheck', options: opt(st.data, (x) => `${x.name} · ${x.student_code}`) },
         ],
         submit: async (d) => { const r = await post(`/branches/${b.id}/assign`, d); toast(r.message); await lookups(true); C.dispatch(); },
       });

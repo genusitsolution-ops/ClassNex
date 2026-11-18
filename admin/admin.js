@@ -14,9 +14,9 @@
     const ns = {};
     d.notification_stats.forEach((r) => { (ns[r.channel] ||= {})[r.status] = +r.total; });
     const max = Math.max(1, ...d.revenue_trend.map((r) => +r.total));
-    v.innerHTML = head('Platform overview', date(C.today()), '<a class="btn btn-primary" href="#/owners?new=1"><i class="bi bi-person-plus"></i> Add owner</a>') + `
+    v.innerHTML = head('Platform overview', date(C.today()), '<a class="btn btn-primary" href="#/owners?new=1"><i class="bi bi-person-plus"></i> Add academy</a>') + `
       <div class="row g-3 mb-3">
-        ${st('#/owners', 'bi-building', 'ic-blue', d.total_academies, 'Academies', `${d.active_owners} active · ${d.inactive_owners} inactive owners`)}
+        ${st('#/owners', 'bi-building', 'ic-blue', d.total_academies, 'Academies', `${d.active_owners} active · ${d.inactive_owners} inactive academies`)}
         ${st('#/owners', 'bi-people', 'ic-purple', d.total_students.toLocaleString('en-IN'), 'Active students')}
         ${st('#/owners?subscription=active', 'bi-gem', 'ic-green', d.active_subscriptions, 'Active subscriptions', `${d.trial_subscriptions} on trial · <span class="text-danger">${d.expired_subscriptions} expired</span>`)}
         ${st('#/sub-payments', 'bi-currency-rupee', 'ic-orange', money(d.monthly_revenue_paise), 'Revenue this month', `${d.pending_subscription_payments} pending online payments`)}
@@ -36,9 +36,9 @@
   // =============================================================== OWNERS
   route('/owners', async (v, p) => {
     const pk = await packages();
-    v.innerHTML = head('Owners & Academies', '', '<button class="btn btn-primary" id="add"><i class="bi bi-person-plus"></i> Add owner</button>') + '<div id="ol"></div>';
+    v.innerHTML = head('Academies & Class Admins', '', '<button class="btn btn-primary" id="add"><i class="bi bi-person-plus"></i> Add academy</button>') + '<div id="ol"></div>';
     listView({
-      el: $('#ol', v), endpoint: '/admin/owners', params: { subscription: p.subscription || '' }, searchPlaceholder: 'Academy, owner, mobile, email…',
+      el: $('#ol', v), endpoint: '/admin/owners', params: { subscription: p.subscription || '' }, searchPlaceholder: 'Academy, Class Admin, mobile, email…',
       filters: [{ name: 'status', placeholder: 'Any academy status', options: [['active', 'Active'], ['inactive', 'Inactive'], ['suspended', 'Suspended']] }, { name: 'subscription', placeholder: 'Any subscription', options: ['trial', 'active', 'grace', 'expired', 'suspended'].map((s) => [s, label(s)]) }],
       columns: [
         { label: 'Academy', render: (r) => `<div class="fw-bold">${esc(r.academy_name)}</div><div class="small text-muted">${esc(r.code)} ${r.city ? '· ' + esc(r.city) : ''}</div>` },
@@ -49,7 +49,7 @@
     });
     const add = () => formModal({
       title: 'Add Class Owner', size: 'lg',
-      intro: '<p class="small text-muted">Creates the owner login, their academy and a subscription in one step. Leave the password empty to send an activation link on WhatsApp / email.</p>',
+      intro: '<p class="small text-muted">Creates the academy, its Class Admin login and a subscription in one step. Leave the password empty to send an activation link on WhatsApp / email.</p>',
       fields: [
         { name: 'owner_name', label: 'Owner name', required: true, col: 'col-md-6' }, { name: 'mobile', label: 'Mobile (login)', type: 'phone', required: true, col: 'col-md-6' },
         { name: 'email', label: 'Email', type: 'email', col: 'col-md-6' }, { name: 'password', label: 'Password (optional)', type: 'password', col: 'col-md-6' },
@@ -71,7 +71,7 @@
     const s = a.subscription;
     v.innerHTML = head(a.name, `${esc(a.code)} · created ${date(a.created_at)} · ${badge(a.status)}`, '<a class="btn btn-light" href="#/owners">Back</a>') + `
       <div class="row g-3"><div class="col-lg-5">
-        <div class="card mb-3"><div class="card-header">Owner</div><div class="card-body"><dl class="kv">${[['Name', esc(a.owner_name || '–')], ['Mobile', esc(a.owner_mobile || '–')], ['Email', esc(a.owner_email || '–')], ['Login', badge(a.owner_status || 'invited')], ['City', esc(a.city || '–')], ['Admission link', `<a target="_blank" href="${C.BOOT.root}/admission.php?a=${esc(a.slug)}">open</a>`]].map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')}</dl>
+        <div class="card mb-3"><div class="card-header">Class Admin</div><div class="card-body"><dl class="kv">${[['Name', esc(a.owner_name || '–')], ['Mobile', esc(a.owner_mobile || '–')], ['Email', esc(a.owner_email || '–')], ['Login', badge(a.owner_status || 'invited')], ['City', esc(a.city || '–')], ['Admission link', `<a target="_blank" href="${C.BOOT.root}/admission.php?a=${esc(a.slug)}">open</a>`]].map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`).join('')}</dl>
           <div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-sm btn-light" id="edit"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-sm btn-light" id="inv"><i class="bi bi-key"></i> Send login / reset link</button>
           ${a.status === 'active' ? '<button class="btn btn-sm btn-outline-danger" data-st="suspended">Suspend academy</button>' : '<button class="btn btn-sm btn-outline-success" data-st="active">Activate academy</button>'}</div></div></div>
         <div class="card"><div class="card-header">Usage</div><div class="card-body">${Object.entries(a.usage.usage).map(([k, u]) => `<div class="d-flex small mb-1"><span>${label(k)}</span><span class="ms-auto">${u.used} / ${u.limit ?? '∞'}</span></div>`).join('')}<div class="small mt-2">Teachers: ${a.counts.teachers} · Batches: ${a.counts.batches} · Fees collected this month: ${money(a.counts.payments_month_paise)}</div></div></div>
@@ -112,7 +112,7 @@
     const pk = await packages(true);
     v.innerHTML = head('Packages', 'Limits and features are enforced by the backend for web and Android.', '<button class="btn btn-primary" id="add"><i class="bi bi-plus-lg"></i> New package</button>') + `<div class="row g-3">${pk.packages.map((p) => `<div class="col-md-6 col-xl-4"><div class="card h-100 ${+p.is_featured ? 'border-primary' : ''}" role="button" data-id="${p.id}"><div class="card-body"><div class="d-flex"><div class="fw-bold fs-5">${esc(p.name)}</div><div class="ms-auto">${badge(p.status)} ${+p.is_public ? '' : '<span class="badge b-muted">Hidden</span>'}</div></div>
       <div class="fs-3 fw-bold">${money(p.price_paise)}<span class="fs-6 text-muted fw-normal">/${cycle(p)}</span></div><div class="small text-muted mb-2">${p.trial_days} days trial · ${p.academies} academies</div>
-      <div class="small mb-2"><strong>${p.student_limit ?? 'Unlimited'} active students</strong> (all branches) · Unlimited branches · Teachers ${p.teacher_limit ?? '∞'} · Batches ${p.batch_limit ?? '∞'} · WhatsApp: ${label(p.whatsapp_mode || 'full')}${p.monthly_whatsapp_limit ? ' (' + p.monthly_whatsapp_limit + '/mo)' : ''}</div>
+      <div class="small mb-2"><strong>${p.student_limit ?? 'Unlimited'} active students</strong> (all branches) · Unlimited branches · Teachers ${p.teacher_limit ?? '∞'} · Batches ${p.batch_limit ?? '∞'} · WhatsApp: ${({ off: 'Disabled', manual: 'Manual click-to-send', api: 'Official API (automatic)' })[p.whatsapp_mode || 'api']}${p.monthly_whatsapp_limit ? ' (' + p.monthly_whatsapp_limit + '/mo)' : ''}</div>
       <div class="d-flex flex-wrap gap-1">${p.features.map((f) => `<span class="badge b-success">${esc(pk.feature_labels[f] || f)}</span>`).join('')}</div></div></div></div>`).join('')}</div>`;
     const edit = (p = {}) => formModal({
       title: p.id ? 'Edit ' + p.name : 'New package', size: 'lg', values: { ...p, price: p.id ? rupees(p.price_paise) : '', features: p.features || ['attendance', 'fees', 'inapp', 'push', 'manual_reminders', 'parent_access'], is_public: p.id ? p.is_public : 1 },
@@ -120,7 +120,7 @@
         { name: 'name', label: 'Package name', required: true, col: 'col-md-6' }, { name: 'price', label: 'Price', type: 'money', required: true, col: 'col-md-3' },
         { name: 'billing_cycle', label: 'Billing', type: 'select', required: true, placeholder: false, options: [['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['half_yearly', 'Half-yearly'], ['yearly', 'Yearly'], ['lifetime', 'Lifetime'], ['custom', 'Custom (days)']], col: 'col-md-3' },
         { name: 'billing_days', label: 'Custom cycle length (days)', type: 'number', col: 'col-md-4', help: 'Only for “Custom” billing.' },
-        { name: 'whatsapp_mode', label: 'WhatsApp mode', type: 'select', placeholder: false, options: [['full', 'Full (incl. automatic fee reminders)'], ['transactional', 'Transactional (receipts, attendance, manual)'], ['off', 'Off']], col: 'col-md-8' },
+        { name: 'whatsapp_mode', label: 'WhatsApp mode', type: 'select', placeholder: false, options: [['api', 'Official WhatsApp Business Cloud API – automatic background sending'], ['manual', 'Manual click-to-send (WhatsApp / WhatsApp Business app)'], ['off', 'Disabled – no WhatsApp']], col: 'col-md-8', help: 'API mode also needs the “WhatsApp Messages” feature below and your Meta credentials under Integrations → WhatsApp. Automatic fee reminders need the “Automatic Reminders” feature.' },
         { name: 'description', label: 'Description', type: 'textarea', rows: 2 },
         { type: 'html', name: 'h1', html: '<div class="fw-bold small mt-2">Limits (blank = unlimited). The student limit counts unique active students across ALL branches. Branches are always unlimited.</div>' },
         ...[['student_limit', 'Students'], ['teacher_limit', 'Teachers'], ['activity_limit', 'Activities'], ['batch_limit', 'Batches'], ['storage_limit_mb', 'Storage MB'], ['monthly_whatsapp_limit', 'WhatsApp / month'], ['trial_days', 'Trial days']].map(([k, l]) => ({ name: k, label: l, type: 'number', col: 'col-6 col-md-3' })),
@@ -175,7 +175,7 @@
       $('#test', el).onclick = () => formModal({ title: 'Send test SMS', fields: [{ name: 'to', label: 'Mobile', type: 'phone', required: true }], okText: 'Send', submit: async (x) => { const r = await post('/admin/integrations/sms/test', x); toast(r.message); } });
     } else if (tab === 'razorpay') {
       const r = d.razorpay;
-      el.innerHTML = card('Razorpay – ClassNex subscription payments', `<div class="small text-muted mb-2">Owners pay for their plans online with these keys. (Each academy configures its own keys for student fees.) Webhook URL: <code>${esc(r.webhook_url)}</code> with events <code>payment.captured</code>, <code>order.paid</code>.</div>` + form([{ name: 'key_id', label: 'Key ID', value: r.key_id, col: 'col-md-6' }, { name: 'key_secret', label: 'Key secret', type: 'password', placeholder: r.key_secret || 'not set', col: 'col-md-6' }, { name: 'webhook_secret', label: 'Webhook secret', type: 'password', placeholder: r.webhook_secret || 'not set', col: 'col-md-6' }, { name: 'is_enabled', label: 'Enabled', type: 'switch', value: r.is_enabled ? 1 : 0, col: 'col-md-6' }]));
+      el.innerHTML = card('Razorpay – ClassNex subscription payments', `<div class="small text-muted mb-2">Class Admins pay for their plans online with these keys. (Each academy configures its own keys for student fees.) Webhook URL: <code>${esc(r.webhook_url)}</code> with events <code>payment.captured</code>, <code>order.paid</code>.</div>` + form([{ name: 'key_id', label: 'Key ID', value: r.key_id, col: 'col-md-6' }, { name: 'key_secret', label: 'Key secret', type: 'password', placeholder: r.key_secret || 'not set', col: 'col-md-6' }, { name: 'webhook_secret', label: 'Webhook secret', type: 'password', placeholder: r.webhook_secret || 'not set', col: 'col-md-6' }, { name: 'is_enabled', label: 'Enabled', type: 'switch', value: r.is_enabled ? 1 : 0, col: 'col-md-6' }]));
     } else if (tab === 'ocr') {
       const o = d.ocr;
       el.innerHTML = card('Document OCR', '<div class="small text-muted mb-2">By default OCR runs on the device (Android ML Kit, browser Tesseract.js) — free and private. Optionally add a Google Cloud Vision API key for higher accuracy server-side OCR. Extracted Aadhaar numbers are always masked and never stored.</div>' + form([{ name: 'provider', label: 'Provider', type: 'select', placeholder: false, value: o.provider, options: [['client', 'On device (default)'], ['google_vision', 'Google Cloud Vision']], col: 'col-md-6' }, { name: 'google_vision_key', label: 'Vision API key', type: 'password', placeholder: o.google_vision_key || 'not set', col: 'col-md-6' }]));
@@ -269,7 +269,7 @@
       $('#sf', el).onsubmit = (e) => { e.preventDefault(); save({ social: readForm(e.target) }); };
     } else if (tab === 'seo') {
       el.innerHTML = `<form class="card mb-3" id="sf"><div class="card-header">Search engine (SEO)</div><div class="card-body">${form([{ name: 'title', label: 'Site title' }, { name: 'description', label: 'Meta description', type: 'textarea', rows: 2 }, { name: 'keywords', label: 'Keywords' }], s.seo || {})}<button class="btn btn-primary mt-3">Save</button></div></form>
-        <form class="card" id="ff"><div class="card-header">Footer</div><div class="card-body">${form([{ name: 'text', label: 'Footer text', type: 'textarea', rows: 2 }, { name: 'copyright', label: 'Copyright' }], s.footer || {})}<button class="btn btn-primary mt-3">Save</button></div></form>`;
+        <form class="card" id="ff"><div class="card-header">Footer</div><div class="card-body">${form([{ name: 'text', label: 'Footer text', type: 'textarea', rows: 2 }, { name: 'copyright', label: 'Copyright' }, { name: 'operated_by', label: 'Platform operated by (company name)' }], s.footer || {})}<button class="btn btn-primary mt-3">Save</button></div></form>`;
       $('#sf', el).onsubmit = (e) => { e.preventDefault(); save({ seo: readForm(e.target) }); };
       $('#ff', el).onsubmit = (e) => { e.preventDefault(); save({ footer: readForm(e.target) }); };
     } else if (tab === 'faq') {
@@ -320,7 +320,7 @@
     const pk = await packages();
     v.innerHTML = head('Global settings') + `<form class="card" id="f"><div class="card-body">${form([
       { name: 'platform_name', label: 'Platform name', col: 'col-md-6' }, { name: 'support_email', label: 'Support email', col: 'col-md-3' }, { name: 'support_phone', label: 'Support phone', col: 'col-md-3' },
-      { name: 'self_registration_enabled', label: 'Allow owners to register from the website', type: 'select', placeholder: false, options: [['1', 'Yes'], ['0', 'No']], col: 'col-md-6' },
+      { name: 'self_registration_enabled', label: 'Allow academies to register from the website', type: 'select', placeholder: false, options: [['1', 'Yes'], ['0', 'No']], col: 'col-md-6' },
       { name: 'default_trial_package_id', label: 'Default trial package', type: 'select', options: pk.packages.map((p) => [p.id, p.name]), col: 'col-md-6' },
       { name: 'grace_days', label: 'Grace days after expiry', type: 'number', col: 'col-md-3' }, { name: 'invoice_advance_days', label: 'Create dues N days early', type: 'number', col: 'col-md-3' },
       { name: 'queue_batch_size', label: 'Queue batch size / run', type: 'number', col: 'col-md-3' }, { name: 'document_retention_days', label: 'Document retention (days)', type: 'number', col: 'col-md-3' },

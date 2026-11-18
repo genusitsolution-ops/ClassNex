@@ -50,7 +50,9 @@
   const time = (t) => { if (!t) return ''; const [h, m] = t.split(':'); const hh = +h; return `${((hh + 11) % 12) + 1}:${m} ${hh < 12 ? 'AM' : 'PM'}`; };
   const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
   const month = () => today().slice(0, 7);
-  const label = (s) => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  // role keys stay as stored (owner, super_admin…); people see the business names
+  const ROLE_NAMES = { owner: 'Class Admin', super_admin: 'ClassNex Super Admin', teacher: 'Teacher', parent: 'Parent', student: 'Student' };
+  const label = (s) => ROLE_NAMES[s] || String(s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   const WEEK = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const STATUS = {
     active: 'b-success', paid: 'b-success', success: 'b-success', sent: 'b-info', delivered: 'b-success', read: 'b-success', present: 'b-success', approved: 'b-success', valid: 'b-success', resolved: 'b-success', converted: 'b-success',
@@ -153,7 +155,7 @@
       case 'phone': input = `<div class="input-group"><select class="form-select flex-grow-0" style="width:90px" name="${esc(f.ccName || 'country_code')}">${['+91', '+1', '+44', '+971', '+65', '+61', '+977', '+880', '+94'].map((c) => `<option ${c === (f.cc || '+91') ? 'selected' : ''}>${c}</option>`).join('')}</select><input type="tel" inputmode="numeric" class="form-control" ${common} value="${esc(val)}" placeholder="${esc(f.placeholder || '10-digit mobile number')}" maxlength="15"></div>`; break;
       case 'file': input = `<input type="file" class="form-control" ${common} ${f.accept ? `accept="${esc(f.accept)}"` : ''}>`; break;
       default: {
-        const type = { number: 'number', email: 'email', date: 'date', time: 'time', password: 'password', month: 'month' }[f.type] || 'text';
+        const type = { number: 'number', email: 'email', date: 'date', time: 'time', password: 'password', month: 'month', 'datetime-local': 'datetime-local' }[f.type] || 'text';
         input = `<input type="${type}" class="form-control" ${common} value="${esc(type === 'time' ? String(val).slice(0, 5) : val)}" placeholder="${esc(f.placeholder || '')}" ${f.min !== undefined ? `min="${f.min}"` : ''} ${f.max !== undefined ? `max="${f.max}"` : ''} ${f.step ? `step="${f.step}"` : ''}>`;
       }
     }

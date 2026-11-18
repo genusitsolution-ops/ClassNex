@@ -48,26 +48,21 @@ return static function (Router $r): void {
         return Http::ok(['date' => $date, 'batches' => $rows]);
     }, $staff);
 
+    // History with branch / activity / batch / student / status filters; view = sessions | students | branches.
+    // ?format=pdf|xlsx|csv exports the same data. Combined academy view = no branch_id.
     $r->get('/attendance/history', static function (Ctx $c) {
-        $w = 'se.academy_id = ?';
-        $p = [$c->academy()];
-        if ($b = (int) Http::query('batch_id')) {
-            $c->assertBatch($b);
-            $w .= ' AND se.batch_id = ?';
-            $p[] = $b;
+        $f = array_intersect_key($_GET, array_flip(['date', 'from', 'to', 'branch_id', 'activity_id', 'batch_id', 'student_id', 'status']));
+        $view = in_array(Http::query('view'), ['students', 'branches'], true) ? Http::query('view') : 'sessions';
+        if (in_array(Http::query('format'), ['pdf', 'xlsx', 'csv'], true)) {
+            ReportService::export(AttendanceService::historyReport($c, $f, $view), Http::query('format'), (string) DB::val('SELECT name FROM academies WHERE id = ?', [$c->academy()]));
         }
-        $scope = $c->batchScope();
-        if ($scope !== null) {
-            $w .= ' AND se.batch_id IN (' . DB::inList($scope) . ')';
-            array_push($p, ...$scope);
+        [$page, $per, $off] = Http::page();
+        $h = AttendanceService::history($c, $f, $view, $per, $off);
+        $meta = ['page' => $page, 'per_page' => $per, 'total' => $h['total'], 'pages' => (int) ceil($h['total'] / $per), 'summary' => $h['summary']];
+        if (empty($f['branch_id']) && $view !== 'branches' && DB::val('SELECT 1 FROM academy_branches WHERE academy_id = ? LIMIT 1', [$c->academy()])) {
+            $meta['by_branch'] = AttendanceService::history($c, $f, 'branches', null)['rows'];
         }
-        $w .= ' AND se.session_date BETWEEN ? AND ?';
-        array_push($p, Http::query('from') ?: date('Y-m-01'), Http::query('to') ?: date('Y-m-d'));
-        return Http::paged("SELECT se.id, se.session_date, b.name AS batch_name, a.name AS activity_name, u.name AS marked_by,
-                              SUM(at.status='present') AS present, SUM(at.status='absent') AS absent, SUM(at.status='late') AS late, SUM(at.status='leave') AS on_leave, COUNT(at.id) AS total
-                            FROM attendance_sessions se JOIN batches b ON b.id = se.batch_id JOIN activities a ON a.id = b.activity_id
-                            LEFT JOIN attendance at ON at.session_id = se.id LEFT JOIN users u ON u.id = se.marked_by
-                            WHERE $w GROUP BY se.id ORDER BY se.session_date DESC, b.name", $p, "SELECT COUNT(*) FROM attendance_sessions se WHERE $w");
+        return Http::ok($h['rows'], 'OK', $meta);
     }, $staff);
 
     $r->get('/students/{id}/attendance', static function (Ctx $c, array $p) {

@@ -113,7 +113,7 @@ final class ReportService
                 array_push($p, $from, $to);
                 $batchFilter('se.batch_id');
                 $stuFilter('at.student_id');
-                $brFilter('b.branch_id');
+                $brFilter('se.branch_id');
                 if (!empty($f['status'])) {
                     $w .= ' AND at.status = ?';
                     $p[] = $f['status'];
@@ -131,7 +131,7 @@ final class ReportService
                 $p = [$mf, $mt, $aid];
                 $batchFilter('se.batch_id');
                 $stuFilter('s.id');
-                $brFilter('b.branch_id');
+                $brFilter('se.branch_id');
                 $rows = DB::all("SELECT s.student_code, s.name, b.name AS batch,
                                  SUM(at.status='present') AS present, SUM(at.status='absent') AS absent, SUM(at.status='late') AS late, SUM(at.status='leave') AS leave_days,
                                  ROUND(100 * SUM(at.status IN ('present','late')) / NULLIF(SUM(at.status IN ('present','late','absent')),0), 1) AS pct
@@ -243,7 +243,7 @@ final class ReportService
                 $rows = DB::all("SELECT a.name AS academy, u.name AS owner, CONCAT(u.country_code,' ',u.mobile) AS mobile, p.name AS package, s.status, s.starts_on, s.ends_on, s.price_paise
                                  FROM owner_subscriptions s JOIN academies a ON a.id = s.academy_id JOIN packages p ON p.id = s.package_id LEFT JOIN users u ON u.id = a.owner_user_id
                                  WHERE s.is_current = 1" . (!empty($f['status']) ? ' AND s.status = ?' : '') . ' ORDER BY s.ends_on', !empty($f['status']) ? [$f['status']] : []);
-                return self::out('Subscription Report', ['Academy', 'Owner', 'Mobile', 'Package', 'Status', 'Starts', 'Ends', 'Price'], array_map(static fn($r) => array_merge($r, ['price_paise' => $money($r['price_paise'])]), $rows));
+                return self::out('Subscription Report', ['Academy', 'Class Admin', 'Mobile', 'Package', 'Status', 'Starts', 'Ends', 'Price'], array_map(static fn($r) => array_merge($r, ['price_paise' => $money($r['price_paise'])]), $rows));
             case 'subscription_payments':
                 $rows = DB::all("SELECT sp.paid_at, a.name AS academy, p.name AS package, sp.amount_paise, sp.method, sp.reference, sp.status FROM subscription_payments sp
                                  JOIN academies a ON a.id = sp.academy_id JOIN packages p ON p.id = sp.package_id WHERE DATE(COALESCE(sp.paid_at, sp.created_at)) BETWEEN ? AND ? ORDER BY sp.id DESC", [$f['from'] ?? date('Y-01-01'), $f['to'] ?? date('Y-m-d')]);
@@ -252,7 +252,7 @@ final class ReportService
                 $rows = DB::all("SELECT a.name, a.code, u.name AS owner, a.city, (SELECT COUNT(*) FROM students s WHERE s.academy_id = a.id AND s.status='active') AS students,
                                  (SELECT COUNT(*) FROM teachers t WHERE t.academy_id = a.id AND t.status='active') AS teachers, a.status, a.created_at
                                  FROM academies a LEFT JOIN users u ON u.id = a.owner_user_id ORDER BY a.created_at DESC");
-                return self::out('Academy Report', ['Academy', 'Code', 'Owner', 'City', 'Students', 'Teachers', 'Status', 'Created'], $rows);
+                return self::out('Academy Report', ['Academy', 'Code', 'Class Admin', 'City', 'Students', 'Teachers', 'Status', 'Created'], $rows);
             case 'notifications':
                 $rows = DB::all("SELECT DATE(created_at) AS day, channel, status, COUNT(*) AS total FROM notification_queue WHERE DATE(created_at) BETWEEN ? AND ? GROUP BY day, channel, status ORDER BY day DESC", [$f['from'] ?? date('Y-m-01'), $f['to'] ?? date('Y-m-d')]);
                 return self::out('Notification Usage', ['Date', 'Channel', 'Status', 'Count'], $rows);

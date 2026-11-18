@@ -104,6 +104,10 @@ return static function (Router $r): void {
             throw ApiException::validation(['target' => 'No students selected.']);
         }
         $channels = array_values(array_intersect((array) ($in['channels'] ?? ['whatsapp', 'inapp', 'push']), NotificationService::CHANNELS));
+        $sendAt = !empty($in['send_at']) ? (string) $in['send_at'] : null; // scheduled message (queue sends it at that time)
+        if ($sendAt && (strtotime($sendAt) === false || strtotime($sendAt) < time() - 60)) {
+            throw ApiException::validation(['send_at' => 'Choose a future date and time.']);
+        }
         $dedupe = 'm' . $c->userId . '-' . substr(hash('sha256', ($in['client_ref'] ?? '') ?: microtime()), 0, 12);
         if (($in['type'] ?? 'message') === 'fee_reminder') {
             // personalised fee reminder per student with their own pending amount
@@ -116,7 +120,7 @@ return static function (Router $r): void {
                 $pending = (int) DB::val("SELECT SUM(total_paise - paid_paise) FROM fee_invoices WHERE student_id = ? AND status IN ('unpaid','partial')", [$sid]);
                 $res = NotificationService::toStudents($aid, $inv['due_date'] < date('Y-m-d') ? 'fee_overdue' : 'fee_due', [(int) $sid], [
                     'fee_title' => $inv['title'], 'amount' => Money::format($pending), 'due_date' => date('j M Y', strtotime($inv['due_date'])),
-                ], ['channels' => $channels, 'dedupe' => "$dedupe-$sid", 'created_by' => $c->userId, 'priority' => 3]);
+                ], ['channels' => $channels, 'dedupe' => "$dedupe-$sid", 'created_by' => $c->userId, 'priority' => 3, 'send_at' => $sendAt]);
                 foreach ($res as $k => $v) {
                     $total[$k] += $v;
                 }
@@ -132,9 +136,39 @@ return static function (Router $r): void {
             throw ApiException::validation(['message' => 'Message is too long (max 1000 characters).']);
         }
         $title = mb_substr(trim((string) ($in['title'] ?? '')) ?: 'Message from ' . DB::val('SELECT name FROM academies WHERE id = ?', [$aid]), 0, 120);
-        $res = NotificationService::toStudents($aid, 'manual_message', $ids, ['message' => $msg, 'title' => $title], ['channels' => $channels, 'dedupe' => $dedupe, 'created_by' => $c->userId, 'priority' => 3]);
+        $res = NotificationService::toStudents($aid, 'manual_message', $ids, ['message' => $msg, 'title' => $title], ['channels' => $channels, 'dedupe' => $dedupe, 'created_by' => $c->userId, 'priority' => 3, 'send_at' => $sendAt]);
         Audit::log($c, 'message.send', null, null, null, ['target' => $target, 'students' => count($ids), 'queued' => $res]);
-        return Http::ok($res, 'Message queued for ' . count($ids) . ' student(s).');
+        return Http::ok($res, ($sendAt ? 'Message scheduled for ' . date('d M Y H:i', strtotime($sendAt)) . ' – ' : 'Message queued for ') . count($ids) . ' student(s).');
+    }, $staff + ['perm' => 'notifications.send']);
+
+    // ---------------------------------------------------------- WhatsApp click-to-send (manual mode)
+    $r->post('/whatsapp/manual/prepare', static fn(Ctx $c) => Http::ok(ManualWhatsApp::prepare($c, Http::input()), 'Messages ready. Tap Send on each one to open WhatsApp.'), $staff + ['perm' => 'notifications.send']);
+    $r->post('/whatsapp/manual/{id}/opened', static function (Ctx $c, array $p) {
+        ManualWhatsApp::markOpened($c->academy(), (int) $p['id']);
+        return Http::ok(null, 'Marked as sent from WhatsApp.');
+    }, $staff);
+    $r->get('/whatsapp/manual/log', static function (Ctx $c) {
+        $w = 'm.academy_id = ?';
+        $p = [$c->academy()];
+        foreach (['purpose' => 'm.purpose', 'status' => 'm.status', 'student_id' => 'm.student_id', 'branch_id' => 'm.branch_id', 'batch_ref' => 'm.batch_ref'] as $k => $col) {
+            if (($v = Http::query($k)) !== null && $v !== '') {
+                $w .= " AND $col = ?";
+                $p[] = $v;
+            }
+        }
+        if ($c->role === 'teacher') {
+            $w .= ' AND m.created_by = ?';
+            $p[] = $c->userId;
+        }
+        $w .= ' AND DATE(m.created_at) BETWEEN ? AND ?';
+        array_push($p, Http::query('from') ?: date('Y-m-d', strtotime('-30 days')), Http::query('to') ?: date('Y-m-d'));
+        $res = Http::paged("SELECT m.id, m.purpose, m.phone, m.recipient_name, m.student_id, s.name AS student_name, s.student_code, br.name AS branch_name, m.message, m.status, m.batch_ref, m.created_at, m.opened_at, u.name AS prepared_by
+                            FROM manual_messages m LEFT JOIN students s ON s.id = m.student_id LEFT JOIN academy_branches br ON br.id = m.branch_id LEFT JOIN users u ON u.id = m.created_by
+                            WHERE $w ORDER BY m.id DESC", $p, "SELECT COUNT(*) FROM manual_messages m WHERE $w");
+        foreach ($res['data'] as &$row) {
+            $row['link'] = ManualWhatsApp::link($row['phone'], $row['message']);
+        }
+        return $res;
     }, $staff + ['perm' => 'notifications.send']);
 
     $r->get('/messages/log', static function (Ctx $c) {

@@ -63,9 +63,18 @@ final class Feature
                 $limits[$k] = $v === null || $v === '' ? null : (int) $v;
             }
         }
-        $waMode = $pkg['whatsapp_mode'] ?? 'full';
-        if ($waMode === 'off') {
-            $features = array_values(array_diff($features, ['whatsapp']));
+        // WhatsApp package mode (set by Super Admin on the package):
+        //   off    – no WhatsApp at all
+        //   manual – click-to-send: ClassNex prepares the message, the user sends it from WhatsApp / WhatsApp Business
+        //   api    – official WhatsApp Business Cloud API, sent in the background by the queue (+ click-to-send)
+        $waMode = in_array($pkg['whatsapp_mode'] ?? 'api', ['off', 'manual', 'api'], true) ? $pkg['whatsapp_mode'] : 'api';
+        $pkgHasWhatsApp = in_array('whatsapp', $features, true);
+        $features = array_values(array_diff($features, ['whatsapp', 'whatsapp_manual']));
+        if ($waMode !== 'off') {
+            $features[] = 'whatsapp_manual';
+        }
+        if ($waMode === 'api' && $pkgHasWhatsApp) {
+            $features[] = 'whatsapp';
         }
         return self::$cache[$academyId] = ['features' => $features, 'limits' => $limits, 'package' => $pkg['name'], 'whatsapp_mode' => $waMode];
     }

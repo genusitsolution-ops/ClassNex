@@ -60,7 +60,7 @@ return static function (Router $r): void {
 
     $r->post('/admin/owners', static function (Ctx $c) {
         $res = AcademyService::createOwner(Http::input(), $c, false);
-        return Http::ok($res, 'Owner and academy created.' . ($res['invite'] ? ' Activation link sent.' : ''));
+        return Http::ok($res, 'Academy and Class Admin created.' . ($res['invite'] ? ' Activation link sent.' : ''));
     }, $sa);
 
     $r->get('/admin/academies/{id}', static function (Ctx $c, array $p) {
@@ -110,13 +110,13 @@ return static function (Router $r): void {
 
     $r->post('/admin/academies/{id}/invite', static function (Ctx $c, array $p) {
         $uid = (int) DB::val('SELECT owner_user_id FROM academies WHERE id = ?', [(int) $p['id']]);
-        $u = DB::one('SELECT * FROM users WHERE id = ?', [$uid]) ?? throw ApiException::notFound('Owner');
+        $u = DB::one('SELECT * FROM users WHERE id = ?', [$uid]) ?? throw ApiException::notFound('Class Admin');
         if ($u['status'] === 'active' && $u['password_hash']) {
             $token = Auth::oneTimeToken($uid, 'password_reset', 86400);
             $link = cnx_url('activate.php?reset=1&t=' . $token);
             NotificationService::direct((int) $p['id'], 'password_reset', ['recipient_name' => $u['name'], 'link' => $link, 'dedupe' => 'sar' . substr($token, 0, 8)], $u['mobile'] ? Phone::wa($u['country_code'], $u['mobile']) : null, $u['email'], $uid);
             Audit::log($c, 'admin.owner_reset_link', 'users', $uid, null, null, (int) $p['id']);
-            return Http::ok(['link' => $link], 'Password reset link sent to the owner.');
+            return Http::ok(['link' => $link], 'Password reset link sent to the Class Admin.');
         }
         return Http::ok(AccountService::invite($uid), 'Activation link sent.');
     }, $sa);
@@ -131,7 +131,7 @@ return static function (Router $r): void {
     }, $sa);
     $savePackage = static function (Ctx $c, ?int $id) {
         $in = Http::input();
-        $rules = ['name' => 'required|max:100', 'description' => 'max:1000', 'price' => 'required|money', 'billing_cycle' => 'required|in:monthly,quarterly,half_yearly,yearly,lifetime,custom', 'billing_days' => 'int', 'whatsapp_mode' => 'in:off,transactional,full',
+        $rules = ['name' => 'required|max:100', 'description' => 'max:1000', 'price' => 'required|money', 'billing_cycle' => 'required|in:monthly,quarterly,half_yearly,yearly,lifetime,custom', 'billing_days' => 'int', 'whatsapp_mode' => 'in:off,manual,api',
                   'trial_days' => 'int', 'student_limit' => 'int', 'teacher_limit' => 'int', 'activity_limit' => 'int', 'batch_limit' => 'int', 'branch_limit' => 'int',
                   'storage_limit_mb' => 'int', 'monthly_whatsapp_limit' => 'int', 'is_public' => 'bool', 'is_featured' => 'bool', 'sort_order' => 'int', 'status' => 'in:active,inactive'];
         $d = Validator::make($in, $id ? array_intersect_key($rules, $in) : $rules, ['price' => 'Price'])->validated();

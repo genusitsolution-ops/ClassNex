@@ -6,38 +6,7 @@ return static function (Router $r): void {
     $staff = ['roles' => ['owner', 'teacher']];
 
     $r->get('/students', static function (Ctx $c) {
-        $aid = $c->academy();
-        $w = 's.academy_id = ?';
-        $p = [$aid];
-        if ($q = Http::query('q')) {
-            $w .= ' AND (s.name LIKE ? OR s.student_code LIKE ? OR s.whatsapp LIKE ? OR s.guardian_name LIKE ?)';
-            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
-            array_push($p, $like, $like, $like, $like);
-        }
-        $status = Http::query('status', 'active');
-        if ($status !== 'all') {
-            $w .= ' AND s.status = ?';
-            $p[] = $status;
-        }
-        if ($br = Http::query('branch_id')) {
-            if ($br === 'none') {
-                $w .= ' AND s.branch_id IS NULL';
-            } else {
-                $w .= ' AND s.branch_id = ?';
-                $p[] = (int) $br;
-            }
-        }
-        foreach (['batch_id' => 'm.batch_id', 'activity_id' => 'm.activity_id'] as $k => $col) {
-            if ($v = (int) Http::query($k)) {
-                $w .= " AND EXISTS (SELECT 1 FROM student_activity_mapping m WHERE m.student_id = s.id AND m.status = 'active' AND $col = ?)";
-                $p[] = $v;
-            }
-        }
-        $scope = $c->batchScope();
-        if ($scope !== null) {
-            $w .= ' AND EXISTS (SELECT 1 FROM student_activity_mapping m WHERE m.student_id = s.id AND m.status = \'active\' AND m.batch_id IN (' . DB::inList($scope) . '))';
-            array_push($p, ...$scope);
-        }
+        [$w, $p] = StudentService::listWhere($c, $_GET);
         $fees = $c->can('fees.view');
         if ($fees && Http::query('dues') === '1') {
             $w .= " AND EXISTS (SELECT 1 FROM fee_invoices i WHERE i.student_id = s.id AND i.status IN ('unpaid','partial'))";
@@ -106,6 +75,16 @@ return static function (Router $r): void {
         return Http::ok(StudentService::changeBranch($c, (int) $p['id'], (int) ($in['branch_id'] ?? 0), !empty($in['batch_id']) ? (int) $in['batch_id'] : null, $in['date'] ?? null), 'Student moved to the new branch. The student count is unchanged.');
     }, ['roles' => ['owner'], 'perm' => 'students.manage']);
 
+    // Bulk branch assignment / transfer for any number of students.
+    // Body: branch_id, optional batch_id (also moves them into that batch), and either student_ids[] or
+    // filter{q,branch_id,activity_id,batch_id} ("all students matching"). preview=1 only returns the count.
+    $r->post('/students/bulk-branch', static function (Ctx $c) {
+        $in = Http::input();
+        $res = StudentService::bulkChangeBranch($c, (int) ($in['branch_id'] ?? 0), !empty($in['batch_id']) ? (int) $in['batch_id'] : null,
+            isset($in['student_ids']) ? array_map('intval', (array) $in['student_ids']) : null, is_array($in['filter'] ?? null) ? $in['filter'] : null, !empty($in['preview']));
+        return Http::ok($res, $res['preview'] ? "{$res['count']} student(s) will be moved." : "{$res['moved']} student(s) moved to {$res['branch_name']}. Student IDs and the student count are unchanged.");
+    }, ['roles' => ['owner'], 'perm' => 'students.manage']);
+
     $r->post('/students/{id}/transfer', static function (Ctx $c, array $p) {
         $in = Http::input();
         return Http::ok(StudentService::transfer($c, (int) $p['id'], (int) ($in['batch_id'] ?? 0), $in['date'] ?? null), 'Batch changed.');
@@ -114,25 +93,22 @@ return static function (Router $r): void {
     $r->post('/students/{id}/enroll', static function (Ctx $c, array $p) {
         $sid = (int) $p['id'];
         $c->assertStudent($sid);
-        $aid = $c->academy();
         $in = Http::input();
-        $act = Crud::find('activities', (int) ($in['activity_id'] ?? 0), $aid, 'Activity');
-        $batch = !empty($in['batch_id']) ? DB::one('SELECT * FROM batches WHERE id = ? AND activity_id = ? AND academy_id = ?', [(int) $in['batch_id'], $act['id'], $aid]) : null;
-        if (DB::val("SELECT 1 FROM student_activity_mapping WHERE student_id = ? AND activity_id = ? AND status = 'active'", [$sid, $act['id']])) {
-            throw new ApiException('Already enrolled in this activity. Use "Change batch" instead.', 409);
-        }
-        $start = $in['start_date'] ?? date('Y-m-d');
-        $eid = DB::insert('student_activity_mapping', ['academy_id' => $aid, 'student_id' => $sid, 'activity_id' => $act['id'], 'batch_id' => $batch['id'] ?? null, 'start_date' => $start]);
-        $monthly = $batch && $batch['monthly_fee_paise'] !== null ? (int) $batch['monthly_fee_paise'] : (int) $act['monthly_fee_paise'];
-        if (!empty($in['monthly_fee'])) {
-            $monthly = Money::toPaise($in['monthly_fee']);
-        }
-        if ($monthly > 0 && filter_var($in['assign_fees'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
-            BillingService::assign($aid, $sid, ['enrollment_id' => $eid, 'name' => $act['name'] . ' Monthly Fee', 'fee_type' => 'recurring', 'frequency_months' => 1, 'amount_paise' => $monthly, 'start_date' => $start], $c);
-        }
-        Audit::log($c, 'student.enroll', 'students', $sid, null, ['activity' => $act['name']]);
-        return Http::ok(StudentService::get($c, $sid), 'Enrolled in ' . $act['name'] . '.');
+        StudentService::enroll($c, $sid, $in);
+        return Http::ok(StudentService::get($c, $sid), 'Enrolled in ' . DB::val('SELECT name FROM activities WHERE id = ?', [(int) ($in['activity_id'] ?? 0)]) . '.');
     }, ['roles' => ['owner'], 'perm' => 'students.manage']);
+
+    // Link existing student (from the duplicate check): re-use the profile instead of creating another.
+    $r->post('/students/{id}/link', static function (Ctx $c, array $p) {
+        return Http::ok(StudentService::linkExisting($c, (int) $p['id'], Http::input()), 'Existing student profile linked. No new student was created.');
+    }, $staff + ['perm' => 'students.manage']);
+
+    // Possible duplicates while typing (Add Student form)
+    $r->get('/students/duplicates', static function (Ctx $c) {
+        $cc = Phone::code(Http::query('country_code') ?: '+91');
+        $wa = Http::query('whatsapp') ? Phone::normalize(Http::query('whatsapp'), $cc) : null;
+        return Http::ok(StudentService::possibleDuplicates($c->academy(), (string) Http::query('name'), $wa ?: null, Http::query('guardian_name'), Http::query('dob') ?: null));
+    }, $staff + ['perm' => 'students.manage']);
 
     $r->post('/students/{id}/invite', static fn(Ctx $c, array $p) => Http::ok(StudentService::inviteFamily($c, (int) $p['id']), 'Activation link sent to the family.'), $staff + ['perm' => 'students.manage']);
 
