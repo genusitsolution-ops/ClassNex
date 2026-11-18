@@ -9,7 +9,7 @@ Date: 18 Nov 2026 · Build: ClassNex 1.0.0
 | `tests/e2e.php` | 107 checks over HTTP covering all 30 mandatory workflows plus edge cases, against a real database | MariaDB 10.11 + PHP 8.3 (dev sandbox) | **107 / 107 passed** |
 | `tests/e2e.php` in GitHub Actions (`backend.yml`) | Same suite | **MySQL 8.0 + PHP 8.2** | **107 / 107 passed** |
 | `tests/ui_smoke.py` | Headless Chrome logs in as owner, teacher, parent and super admin, opens every screen (92 pages incl. website), fails on any JS error or error banner; desktop + mobile screenshots | Chrome + PHP built-in server | **92 / 92 passed** |
-| Android CI (`android.yml`) | Kotlin compile, resource merge, dex, debug APK (+ unsigned release APK/AAB with R8) | GitHub Actions, JDK 17, AGP 8.5 | **Debug APK built** (artifact `classnex-debug-apk`, 40 MB) |
+| Android CI (`android.yml`) | Kotlin compile, resource merge, dex, debug APK (+ unsigned release APK/AAB with R8) | GitHub Actions, JDK 17, AGP 8.5 | **Debug APK built** (`classnex-debug-apk`, 40 MB) and **release APK + AAB built with R8** (`classnex-release-unsigned`, 45 MB) |
 
 The per-check log of the latest run is in [QA_TEST_RUN.md](QA_TEST_RUN.md) (regenerated on every run).
 
