@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** Owner dashboard, messaging, reminders, announcements, reports, subscription, settings, support. */
+/** Class Admin / teacher: dashboard, messaging, reminders, announcements, reports, subscription, settings, support. */
 return static function (Router $r): void {
     $own = ['roles' => ['owner']];
     $staff = ['roles' => ['owner', 'teacher']];

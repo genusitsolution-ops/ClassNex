@@ -73,6 +73,30 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 
 | Group | Method | Path | Access | Permission | Plan feature |
 |---|---|---|---|---|---|
+| academy | GET | `/api/v1/dashboard` | owner, teacher |  |  |
+| academy | POST | `/api/v1/messages/send` | owner, teacher | notifications.send |  |
+| academy | POST | `/api/v1/whatsapp/manual/prepare` | owner, teacher | notifications.send |  |
+| academy | POST | `/api/v1/whatsapp/manual/{id}/opened` | owner, teacher |  |  |
+| academy | GET | `/api/v1/whatsapp/manual/log` | owner, teacher | notifications.send |  |
+| academy | GET | `/api/v1/messages/log` | owner | notifications.send |  |
+| academy | POST | `/api/v1/messages/retry` | owner | notifications.send |  |
+| academy | GET | `/api/v1/notification-settings` | owner |  |  |
+| academy | POST | `/api/v1/notification-settings` | owner | settings.manage |  |
+| academy | POST | `/api/v1/templates` | owner | settings.manage |  |
+| academy | GET | `/api/v1/announcements` | owner, teacher, parent, student |  |  |
+| academy | POST | `/api/v1/announcements` | owner, teacher | notifications.send |  |
+| academy | DELETE | `/api/v1/announcements/{id}` | owner |  |  |
+| academy | GET | `/api/v1/reports` | owner, teacher |  |  |
+| academy | GET | `/api/v1/reports/{name}` | owner, teacher, super_admin |  |  |
+| academy | GET | `/api/v1/subscription` | owner |  |  |
+| academy | POST | `/api/v1/subscription/checkout` | owner |  |  |
+| academy | GET | `/api/v1/payment-gateway` | owner |  |  |
+| academy | POST | `/api/v1/payment-gateway` | owner | settings.manage |  |
+| academy | GET | `/api/v1/audit-logs` | owner | settings.manage |  |
+| academy | GET | `/api/v1/support` | owner, teacher, parent, student |  |  |
+| academy | POST | `/api/v1/support` | owner, teacher, parent, student |  |  |
+| academy | GET | `/api/v1/support/{id}` | owner, teacher, parent, student, super_admin |  |  |
+| academy | POST | `/api/v1/support/{id}/reply` | owner, teacher, parent, student, super_admin |  |  |
 | admin | GET | `/api/v1/admin/dashboard` | super_admin |  |  |
 | admin | GET | `/api/v1/admin/registrations` | super_admin |  |  |
 | admin | POST | `/api/v1/admin/academies/{id}/approve` | super_admin |  |  |
@@ -113,6 +137,15 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 | admin | GET | `/api/v1/admin/health` | super_admin |  |  |
 | admin | POST | `/api/v1/admin/backups` | super_admin |  |  |
 | admin | GET | `/api/v1/admin/backups/{name}` | super_admin |  |  |
+| attendance | GET | `/api/v1/attendance/sheet` | owner, teacher | attendance.mark | attendance |
+| attendance | POST | `/api/v1/attendance` | owner, teacher | attendance.mark | attendance |
+| attendance | GET | `/api/v1/attendance/today` | owner, teacher |  | attendance |
+| attendance | GET | `/api/v1/attendance/history` | owner, teacher |  | attendance |
+| attendance | GET | `/api/v1/students/{id}/attendance` | owner, teacher, parent, student |  |  |
+| attendance | GET | `/api/v1/holidays` | owner, teacher, parent, student |  |  |
+| attendance | POST | `/api/v1/holidays` | owner | settings.manage |  |
+| attendance | DELETE | `/api/v1/holidays/{id}` | owner | settings.manage |  |
+| attendance | POST | `/api/v1/batches/{id}/cancel-class` | owner, teacher | attendance.mark |  |
 | auth | POST | `/api/v1/auth/login` | public |  |  |
 | auth | POST | `/api/v1/auth/logout` | any logged-in user |  |  |
 | auth | GET | `/api/v1/auth/me` | any logged-in user |  |  |
@@ -123,111 +156,33 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 | auth | POST | `/api/v1/devices` | any logged-in user |  |  |
 | auth | GET | `/api/v1/notifications` | any logged-in user |  |  |
 | auth | POST | `/api/v1/notifications/read` | any logged-in user |  |  |
+| fees | GET | `/api/v1/fee-structures` | owner, teacher | fees.view | fees |
+| fees | POST | `/api/v1/fee-structures` | owner, teacher | fees.manage | fees |
+| fees | PUT | `/api/v1/fee-structures/{id}` | owner, teacher | fees.manage | fees |
+| fees | POST | `/api/v1/fee-structures/{id}/apply` | owner | fees.manage | fees |
+| fees | GET | `/api/v1/discounts` | owner, teacher | fees.view | fees |
+| fees | POST | `/api/v1/discounts` | owner | fees.manage | fees |
+| fees | PUT | `/api/v1/discounts/{id}` | owner | fees.manage | fees |
+| fees | POST | `/api/v1/students/{id}/fees` | owner, teacher | fees.manage | fees |
+| fees | PUT | `/api/v1/fee-assignments/{id}` | owner | fees.manage | fees |
+| fees | GET | `/api/v1/invoices` | owner, teacher | fees.view | fees |
+| fees | GET | `/api/v1/invoices/{id}` | owner, teacher | fees.view | fees |
+| fees | POST | `/api/v1/students/{id}/charges` | owner, teacher | fees.manage | fees |
+| fees | POST | `/api/v1/invoices/{id}/cancel` | owner | fees.manage | fees |
+| fees | GET | `/api/v1/students/{id}/dues` | owner, teacher | fees.view | fees |
+| fees | POST | `/api/v1/payments` | owner, teacher | fees.collect | fees |
+| fees | GET | `/api/v1/payments` | owner, teacher | fees.view | fees |
+| fees | GET | `/api/v1/payments/{id}` | owner, teacher | fees.view | fees |
+| fees | POST | `/api/v1/payments/{id}/reverse` | owner, teacher | payments.reverse | fees |
+| fees | POST | `/api/v1/payments/{id}/refund` | owner, teacher | payments.reverse | fees |
+| fees | POST | `/api/v1/payments/{id}/share` | owner, teacher | fees.view | fees |
+| fees | GET | `/api/v1/fees/summary` | owner, teacher | fees.view | fees |
 | files | GET | `/api/v1/files/student-photo/{id}` | any logged-in user |  |  |
 | files | GET | `/api/v1/files/teacher-photo/{id}` | owner, teacher |  |  |
 | files | GET | `/api/v1/files/admission-photo/{id}` | owner |  |  |
 | files | GET | `/api/v1/files/document/{id}` | owner, teacher |  |  |
 | files | GET | `/api/v1/files/admission-document/{id}` | owner |  |  |
 | files | GET | `/api/v1/receipts/{id}/pdf` | owner, teacher, parent, student |  |  |
-| owner attendance | GET | `/api/v1/attendance/sheet` | owner, teacher | attendance.mark | attendance |
-| owner attendance | POST | `/api/v1/attendance` | owner, teacher | attendance.mark | attendance |
-| owner attendance | GET | `/api/v1/attendance/today` | owner, teacher |  | attendance |
-| owner attendance | GET | `/api/v1/attendance/history` | owner, teacher |  | attendance |
-| owner attendance | GET | `/api/v1/students/{id}/attendance` | owner, teacher, parent, student |  |  |
-| owner attendance | GET | `/api/v1/holidays` | owner, teacher, parent, student |  |  |
-| owner attendance | POST | `/api/v1/holidays` | owner | settings.manage |  |
-| owner attendance | DELETE | `/api/v1/holidays/{id}` | owner | settings.manage |  |
-| owner attendance | POST | `/api/v1/batches/{id}/cancel-class` | owner, teacher | attendance.mark |  |
-| owner fees | GET | `/api/v1/fee-structures` | owner, teacher | fees.view | fees |
-| owner fees | POST | `/api/v1/fee-structures` | owner, teacher | fees.manage | fees |
-| owner fees | PUT | `/api/v1/fee-structures/{id}` | owner, teacher | fees.manage | fees |
-| owner fees | POST | `/api/v1/fee-structures/{id}/apply` | owner | fees.manage | fees |
-| owner fees | GET | `/api/v1/discounts` | owner, teacher | fees.view | fees |
-| owner fees | POST | `/api/v1/discounts` | owner | fees.manage | fees |
-| owner fees | PUT | `/api/v1/discounts/{id}` | owner | fees.manage | fees |
-| owner fees | POST | `/api/v1/students/{id}/fees` | owner, teacher | fees.manage | fees |
-| owner fees | PUT | `/api/v1/fee-assignments/{id}` | owner | fees.manage | fees |
-| owner fees | GET | `/api/v1/invoices` | owner, teacher | fees.view | fees |
-| owner fees | GET | `/api/v1/invoices/{id}` | owner, teacher | fees.view | fees |
-| owner fees | POST | `/api/v1/students/{id}/charges` | owner, teacher | fees.manage | fees |
-| owner fees | POST | `/api/v1/invoices/{id}/cancel` | owner | fees.manage | fees |
-| owner fees | GET | `/api/v1/students/{id}/dues` | owner, teacher | fees.view | fees |
-| owner fees | POST | `/api/v1/payments` | owner, teacher | fees.collect | fees |
-| owner fees | GET | `/api/v1/payments` | owner, teacher | fees.view | fees |
-| owner fees | GET | `/api/v1/payments/{id}` | owner, teacher | fees.view | fees |
-| owner fees | POST | `/api/v1/payments/{id}/reverse` | owner, teacher | payments.reverse | fees |
-| owner fees | POST | `/api/v1/payments/{id}/refund` | owner, teacher | payments.reverse | fees |
-| owner fees | POST | `/api/v1/payments/{id}/share` | owner, teacher | fees.view | fees |
-| owner fees | GET | `/api/v1/fees/summary` | owner, teacher | fees.view | fees |
-| owner misc | GET | `/api/v1/dashboard` | owner, teacher |  |  |
-| owner misc | POST | `/api/v1/messages/send` | owner, teacher | notifications.send |  |
-| owner misc | POST | `/api/v1/whatsapp/manual/prepare` | owner, teacher | notifications.send |  |
-| owner misc | POST | `/api/v1/whatsapp/manual/{id}/opened` | owner, teacher |  |  |
-| owner misc | GET | `/api/v1/whatsapp/manual/log` | owner, teacher | notifications.send |  |
-| owner misc | GET | `/api/v1/messages/log` | owner | notifications.send |  |
-| owner misc | POST | `/api/v1/messages/retry` | owner | notifications.send |  |
-| owner misc | GET | `/api/v1/notification-settings` | owner |  |  |
-| owner misc | POST | `/api/v1/notification-settings` | owner | settings.manage |  |
-| owner misc | POST | `/api/v1/templates` | owner | settings.manage |  |
-| owner misc | GET | `/api/v1/announcements` | owner, teacher, parent, student |  |  |
-| owner misc | POST | `/api/v1/announcements` | owner, teacher | notifications.send |  |
-| owner misc | DELETE | `/api/v1/announcements/{id}` | owner |  |  |
-| owner misc | GET | `/api/v1/reports` | owner, teacher |  |  |
-| owner misc | GET | `/api/v1/reports/{name}` | owner, teacher, super_admin |  |  |
-| owner misc | GET | `/api/v1/subscription` | owner |  |  |
-| owner misc | POST | `/api/v1/subscription/checkout` | owner |  |  |
-| owner misc | GET | `/api/v1/payment-gateway` | owner |  |  |
-| owner misc | POST | `/api/v1/payment-gateway` | owner | settings.manage |  |
-| owner misc | GET | `/api/v1/audit-logs` | owner | settings.manage |  |
-| owner misc | GET | `/api/v1/support` | owner, teacher, parent, student |  |  |
-| owner misc | POST | `/api/v1/support` | owner, teacher, parent, student |  |  |
-| owner misc | GET | `/api/v1/support/{id}` | owner, teacher, parent, student, super_admin |  |  |
-| owner misc | POST | `/api/v1/support/{id}/reply` | owner, teacher, parent, student, super_admin |  |  |
-| owner structure | GET | `/api/v1/academy` | owner, teacher |  |  |
-| owner structure | POST | `/api/v1/academy` | owner | settings.manage |  |
-| owner structure | GET | `/api/v1/branches` | owner, teacher |  |  |
-| owner structure | GET | `/api/v1/branches/summary` | owner | reports.view |  |
-| owner structure | GET | `/api/v1/branches/{id}` | owner |  |  |
-| owner structure | POST | `/api/v1/branches` | owner | structure.manage |  |
-| owner structure | PUT | `/api/v1/branches/{id}` | owner | structure.manage |  |
-| owner structure | POST | `/api/v1/branches/{id}/assign` | owner | structure.manage |  |
-| owner structure | GET | `/api/v1/activities` | owner, teacher |  |  |
-| owner structure | POST | `/api/v1/activities` | owner | structure.manage |  |
-| owner structure | PUT | `/api/v1/activities/{id}` | owner | structure.manage |  |
-| owner structure | GET | `/api/v1/batches` | owner, teacher |  |  |
-| owner structure | POST | `/api/v1/batches` | owner | structure.manage |  |
-| owner structure | PUT | `/api/v1/batches/{id}` | owner | structure.manage |  |
-| owner structure | GET | `/api/v1/batches/{id}/students` | owner, teacher |  |  |
-| owner structure | GET | `/api/v1/timetable` | owner, teacher |  |  |
-| owner structure | GET | `/api/v1/teachers` | owner |  |  |
-| owner structure | POST | `/api/v1/teachers` | owner | teachers.manage |  |
-| owner structure | PUT | `/api/v1/teachers/{id}` | owner | teachers.manage |  |
-| owner structure | POST | `/api/v1/teachers/{id}/invite` | owner | teachers.manage |  |
-| owner structure | GET | `/api/v1/permissions` | owner |  |  |
-| owner structure | GET | `/api/v1/leaves` | owner, teacher |  |  |
-| owner structure | POST | `/api/v1/leaves` | teacher |  |  |
-| owner structure | PUT | `/api/v1/leaves/{id}` | owner | teachers.manage |  |
-| owner students | GET | `/api/v1/students` | owner, teacher | students.view |  |
-| owner students | POST | `/api/v1/students` | owner, teacher | students.manage |  |
-| owner students | GET | `/api/v1/students/{id}` | owner, teacher | students.view |  |
-| owner students | POST | `/api/v1/students/{id}` | owner, teacher | students.manage |  |
-| owner students | POST | `/api/v1/students/{id}/branch` | owner | students.manage |  |
-| owner students | POST | `/api/v1/students/bulk-branch` | owner | students.manage |  |
-| owner students | POST | `/api/v1/students/{id}/transfer` | owner, teacher | students.manage |  |
-| owner students | POST | `/api/v1/students/{id}/enroll` | owner | students.manage |  |
-| owner students | POST | `/api/v1/students/{id}/link` | owner, teacher | students.manage |  |
-| owner students | GET | `/api/v1/students/duplicates` | owner, teacher | students.manage |  |
-| owner students | POST | `/api/v1/students/{id}/invite` | owner, teacher | students.manage |  |
-| owner students | GET | `/api/v1/parents` | owner | students.view |  |
-| owner students | POST | `/api/v1/students/{id}/parents` | owner, teacher | students.manage |  |
-| owner students | DELETE | `/api/v1/students/{id}/parents/{pid}` | owner | students.manage |  |
-| owner students | PUT | `/api/v1/parents/{id}` | owner | students.manage |  |
-| owner students | GET | `/api/v1/students/{id}/documents` | owner, teacher | documents.manage | documents |
-| owner students | POST | `/api/v1/students/{id}/documents` | owner, teacher | documents.manage | documents |
-| owner students | DELETE | `/api/v1/documents/{id}` | owner | documents.manage |  |
-| owner students | GET | `/api/v1/admissions` | owner | admissions.manage |  |
-| owner students | POST | `/api/v1/admissions/{id}/approve` | owner | admissions.manage |  |
-| owner students | POST | `/api/v1/admissions/{id}/reject` | owner | admissions.manage |  |
 | portal | GET | `/api/v1/portal/children` | parent, student |  | parent_access |
 | portal | GET | `/api/v1/portal/students/{id}/dashboard` | parent, student |  | parent_access |
 | portal | GET | `/api/v1/portal/students/{id}/fees` | parent, student |  | parent_access |
@@ -241,6 +196,51 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 | public | POST | `/api/v1/public/academy/{slug}/admission` | public |  |  |
 | public | POST | `/api/v1/ocr/parse` | any logged-in user |  |  |
 | public | POST | `/api/v1/ocr/extract` | any logged-in user |  |  |
+| structure | GET | `/api/v1/academy` | owner, teacher |  |  |
+| structure | POST | `/api/v1/academy` | owner | settings.manage |  |
+| structure | GET | `/api/v1/branches` | owner, teacher |  |  |
+| structure | GET | `/api/v1/branches/summary` | owner | reports.view |  |
+| structure | GET | `/api/v1/branches/{id}` | owner |  |  |
+| structure | POST | `/api/v1/branches` | owner | structure.manage |  |
+| structure | PUT | `/api/v1/branches/{id}` | owner | structure.manage |  |
+| structure | POST | `/api/v1/branches/{id}/assign` | owner | structure.manage |  |
+| structure | GET | `/api/v1/activities` | owner, teacher |  |  |
+| structure | POST | `/api/v1/activities` | owner | structure.manage |  |
+| structure | PUT | `/api/v1/activities/{id}` | owner | structure.manage |  |
+| structure | GET | `/api/v1/batches` | owner, teacher |  |  |
+| structure | POST | `/api/v1/batches` | owner | structure.manage |  |
+| structure | PUT | `/api/v1/batches/{id}` | owner | structure.manage |  |
+| structure | GET | `/api/v1/batches/{id}/students` | owner, teacher |  |  |
+| structure | GET | `/api/v1/timetable` | owner, teacher |  |  |
+| structure | GET | `/api/v1/teachers` | owner |  |  |
+| structure | POST | `/api/v1/teachers` | owner | teachers.manage |  |
+| structure | PUT | `/api/v1/teachers/{id}` | owner | teachers.manage |  |
+| structure | POST | `/api/v1/teachers/{id}/invite` | owner | teachers.manage |  |
+| structure | GET | `/api/v1/permissions` | owner |  |  |
+| structure | GET | `/api/v1/leaves` | owner, teacher |  |  |
+| structure | POST | `/api/v1/leaves` | teacher |  |  |
+| structure | PUT | `/api/v1/leaves/{id}` | owner | teachers.manage |  |
+| students | GET | `/api/v1/students` | owner, teacher | students.view |  |
+| students | POST | `/api/v1/students` | owner, teacher | students.manage |  |
+| students | GET | `/api/v1/students/{id}` | owner, teacher | students.view |  |
+| students | POST | `/api/v1/students/{id}` | owner, teacher | students.manage |  |
+| students | POST | `/api/v1/students/{id}/branch` | owner | students.manage |  |
+| students | POST | `/api/v1/students/bulk-branch` | owner | students.manage |  |
+| students | POST | `/api/v1/students/{id}/transfer` | owner, teacher | students.manage |  |
+| students | POST | `/api/v1/students/{id}/enroll` | owner | students.manage |  |
+| students | POST | `/api/v1/students/{id}/link` | owner, teacher | students.manage |  |
+| students | GET | `/api/v1/students/duplicates` | owner, teacher | students.manage |  |
+| students | POST | `/api/v1/students/{id}/invite` | owner, teacher | students.manage |  |
+| students | GET | `/api/v1/parents` | owner | students.view |  |
+| students | POST | `/api/v1/students/{id}/parents` | owner, teacher | students.manage |  |
+| students | DELETE | `/api/v1/students/{id}/parents/{pid}` | owner | students.manage |  |
+| students | PUT | `/api/v1/parents/{id}` | owner | students.manage |  |
+| students | GET | `/api/v1/students/{id}/documents` | owner, teacher | documents.manage | documents |
+| students | POST | `/api/v1/students/{id}/documents` | owner, teacher | documents.manage | documents |
+| students | DELETE | `/api/v1/documents/{id}` | owner | documents.manage |  |
+| students | GET | `/api/v1/admissions` | owner | admissions.manage |  |
+| students | POST | `/api/v1/admissions/{id}/approve` | owner | admissions.manage |  |
+| students | POST | `/api/v1/admissions/{id}/reject` | owner | admissions.manage |  |
 | webhooks | GET | `/api/v1/webhooks/whatsapp` | public |  |  |
 | webhooks | POST | `/api/v1/webhooks/whatsapp` | public |  |  |
 | webhooks | POST | `/api/v1/webhooks/razorpay/{acad}` | public |  |  |

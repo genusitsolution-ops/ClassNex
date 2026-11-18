@@ -13,6 +13,10 @@
 - Web: HTTP-only, SameSite=Lax, Secure (on HTTPS) session cookie with session-id regeneration at login; **CSRF token** required on every state-changing request.
 - Activation / reset links: single-use random tokens (hashed), 7 days / 1 hour validity. "Forgot password" responds identically whether or not the account exists.
 
+- Web sessions use an HttpOnly, SameSite=Lax cookie limited to the installation path (e.g. `/ClassNex/`), Secure on HTTPS; every web write needs the CSRF token (refused with 403 `csrf`).
+- The installer refuses to run once installed (`config/config.php` or `storage/installed.lock`), uses a CSRF token and limits attempts; delete `install.php` after installing.
+- Academies registered from the website cannot log in until the ClassNex Super Admin approves them.
+
 ## Authorisation
 - Roles: super_admin, owner, teacher, student, parent. Owners hold all academy permissions; teachers get `students.view` and `attendance.mark` by default and the owner can grant more per teacher (financial permissions are flagged). Teacher fee access is **off by default**.
 - Package features and limits are enforced in the API router/services (HTTP 402) — hiding a button in the UI is never the only control.

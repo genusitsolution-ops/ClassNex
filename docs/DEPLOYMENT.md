@@ -1,132 +1,145 @@
-# Deployment Guide (cPanel / PHP–MySQL hosting)
+# Deployment Guide – https://genusitsolution.com/ClassNex/
 
-ClassNex runs on ordinary PHP/MySQL hosting. No Composer, Node, Redis or background daemons are required.
+ClassNex is plain PHP + MySQL. It needs no Composer, Node, Redis or background daemon, and it is built to run
+**inside a sub-folder** (`/ClassNex/`), not only at the domain root. This was verified by installing a copy
+under Apache at `http://127.0.0.1:8090/ClassNex/` through the web installer and running the full API suites
+against that address (see [QA_REPORT.md](QA_REPORT.md)).
 
-## 1. Server requirements
+> Commands below use `CPANELUSER` for your cPanel user name. Replace it everywhere.
 
-| Item | Requirement |
-|---|---|
-| PHP | 8.2 or newer (8.3 recommended) |
-| PHP extensions | `pdo_mysql`, `sodium`, `gd`, `curl`, `mbstring`, `openssl`, `zip`, `fileinfo` (recommended: `exif`, `intl`) |
-| Database | MySQL 8.0+ (MariaDB 10.6+ also tested) |
-| Web server | Apache with `mod_rewrite` and `.htaccess` enabled (LiteSpeed works the same) |
-| PHP limits | `upload_max_filesize ≥ 10M`, `post_max_size ≥ 12M`, `memory_limit ≥ 256M`, `max_execution_time ≥ 60` |
-| Cron | One cron entry running every minute |
-| SSL | Required in production (free AutoSSL / Let's Encrypt in cPanel) |
+## 1. PHP version
 
-cPanel: **Select PHP Version** → choose 8.2/8.3 → tick the extensions above → **Options** to set the limits.
+cPanel → **Select PHP Version** (or *MultiPHP Manager*) → choose **PHP 8.2 or 8.3** for `genusitsolution.com`.
 
-## 2. Upload the files
+## 2. Required PHP extensions
 
-1. Download the repository ZIP from GitHub (or `git clone` over SSH).
-2. Upload the *contents* into `public_html` (or a sub-domain's document root). The `android/`, `tests/` and `docs/` folders are not needed on the server and may be omitted.
-3. Folder permissions: directories `755`, files `644`. `storage/`, `uploads/` and `config/` must be writable by PHP (`755` is enough on suPHP/LSAPI; use `775` if your host runs PHP as a different user).
+In *Select PHP Version → Extensions* tick: `pdo_mysql`, `sodium`, `gd`, `curl`, `mbstring`, `openssl`, `zip`, `fileinfo`
+(recommended `exif`, `intl`). In *Options* set `upload_max_filesize = 10M`, `post_max_size = 12M`,
+`memory_limit = 256M`, `max_execution_time = 60`. The installer checks all of these and shows ✅ / ❌.
 
-Private folders (`config`, `classes`, `services`, `storage`, `database`, `cli`, `cron` …) are blocked by `.htaccess` files. For maximum safety you can move `storage/` outside `public_html` and set `storage_path` in `config/config.php`.
+## 3. MySQL database
 
-## 3. Database
+cPanel → **MySQL Databases**:
+1. Create database, e.g. `CPANELUSER_classnex`.
+2. Create user, e.g. `CPANELUSER_cnx`, with a long random password.
+3. *Add user to database* → **ALL PRIVILEGES**.
 
-cPanel → **MySQL Databases**: create a database (e.g. `user_classnex`) and a user with a strong password, and add the user to the database with **ALL PRIVILEGES**.
+## 4. Upload the files and database import
 
-## 4. Install
+1. Unzip **ClassNex-Web-Complete.zip** on your computer.
+2. cPanel → **File Manager** → `public_html` → create folder **`ClassNex`** → upload the ZIP into it → *Extract*.
+   You should now have `public_html/ClassNex/index.php`, `public_html/ClassNex/.htaccess`, `…/api/`, `…/class-admin/` etc.
+3. Database — choose **one**:
+   - **Web installer (recommended):** go to step 5; it creates all tables itself.
+   - **phpMyAdmin:** select the empty database → *Import* → `database/install.sql`; then create the Super Admin
+     with SSH/Terminal (`php cli/create-superadmin.php …`, step 5b) and create `config/config.php` by hand (step 5c).
 
-Open `https://your-domain/install.php`:
+## 5. Config file setup (installer)
 
-1. The wizard checks PHP version, extensions and folder permissions.
-2. Enter database details, the site address (`https://www.your-domain.com`) and the Super Admin account.
-3. It writes `config/config.php` (with a freshly generated encryption key), creates all tables and the Super Admin.
-4. Delete `install.php` afterwards (it refuses to run again anyway).
+Open **https://genusitsolution.com/ClassNex/install.php**:
+1. All requirement rows must show ✅.
+2. Database: host `localhost`, port `3306`, the database name, user and password from step 3.
+3. Website address: **`https://genusitsolution.com/ClassNex`** (no trailing slash).
+4. Super Admin: name, mobile, email (login) and a strong password.
+5. *Install*. The installer writes `config/config.php` (with a fresh encryption key), runs every migration,
+   creates the Super Admin and writes `storage/installed.lock`. After that it refuses to run again (HTTP 403).
+6. Delete `install.php` from the server (recommended).
 
-**Back up `config/config.php`.** The `app_key` in it encrypts integration credentials and student documents — without it encrypted documents cannot be read.
-
-Command-line alternative (SSH):
-
+5b. Super Admin from Terminal (only if you imported `install.sql`):
 ```bash
-cp config/config.sample.php config/config.php     # edit db, app_url, app_key
-php -r "echo base64_encode(random_bytes(32)), PHP_EOL;"   # → app_key
-php cli/migrate.php
-php cli/create-superadmin.php "Admin Name" admin@your-domain.com 9876543210 'StrongPass123'
+cd ~/public_html/ClassNex
+php cli/create-superadmin.php "Your Name" admin@genusitsolution.com 9XXXXXXXXX 'Strong#Pass123'
 ```
+5c. Manual config (only if you did not use the installer): copy `config/config.sample.php` to `config/config.php`
+and set `app_url = 'https://genusitsolution.com/ClassNex'`, the `db` block, `env = 'production'`, `debug = false`
+and a new `app_key` (`php -r "echo base64_encode(random_bytes(32));"`).
 
-Upgrading later: upload the new files (keep `config/`, `storage/`, `uploads/`), then run `php cli/migrate.php` (or re-open any page — new migrations are applied by the CLI only; use cPanel *Terminal* or a one-off cron).
+**Back up `config/config.php` immediately.** Its `app_key` decrypts stored integration credentials and student documents.
 
-## 5. SSL and HTTPS
+## 6. Folder permissions
 
-1. cPanel → **SSL/TLS Status** → *Run AutoSSL* (or install your certificate).
-2. In `.htaccess` uncomment the *Force HTTPS* block and the `Strict-Transport-Security` header.
-3. Make sure `app_url` in `config/config.php` starts with `https://`.
+Directories `755`, files `644`. PHP must be able to write to `ClassNex/storage/`, `ClassNex/uploads/` and
+(during installation only) `ClassNex/config/`. After installing you can set `config/config.php` to `640`.
 
-## 6. Cron (required)
+## 7. Upload directories
 
-cPanel → **Cron Jobs** → *Once Per Minute* (`* * * * *`):
+Nothing to create by hand: `uploads/` holds public images (academy logos, website images) and only image
+files can be served from it (`uploads/.htaccess`). Student photos, documents, backups and logs go to
+`storage/private/`, which is never reachable from the web. For extra safety you may move `storage/` outside
+`public_html` and set `storage_path` in `config/config.php`.
 
+## 8. .htaccess
+
+`ClassNex/.htaccess` is included and works inside the sub-folder (all rules are relative). It:
+- routes `/ClassNex/api/v1/...` to the API and passes the `Authorization` header (Android bearer tokens),
+- blocks `config`, `classes`, `services`, `includes`, `database`, `storage`, `cli`, `cron`, `tests`, `docs`, `android`
+  and `*.sql|log|md|json|…` files (verified: all return 403),
+- sets security headers and caching for static files.
+
+If your host runs PHP-FPM, `php_value` lines inside `<IfModule mod_php.c>` are ignored automatically; set the
+same limits in *Select PHP Version → Options*.
+
+## 9. SSL
+
+cPanel → **SSL/TLS Status** → *Run AutoSSL*. Then in `ClassNex/.htaccess` un-comment the *Force HTTPS* lines and the
+`Strict-Transport-Security` header. `app_url` must start with `https://`.
+
+## 10. API URL
+
+The API lives at **`https://genusitsolution.com/ClassNex/api/v1/`**. Quick check in a browser:
+`https://genusitsolution.com/ClassNex/api/v1/public/packages` returns JSON with your packages.
+
+## 11. Android API configuration
+
+The app already points to `https://genusitsolution.com/ClassNex/api/v1/` (one setting: `classnexApiUrl` in
+`android/gradle.properties`; CI uses the repository variable `CLASSNEX_API_URL` if you set one). See [ANDROID.md](ANDROID.md).
+
+## 12. Cron job (required)
+
+cPanel → **Cron Jobs** → *Common settings: Once Per Minute* (`* * * * *`) → command:
 ```
-/usr/local/bin/php /home/CPANELUSER/public_html/cron/run.php all >/dev/null 2>&1
+/usr/local/bin/php /home/CPANELUSER/public_html/ClassNex/cron/run.php all >/dev/null 2>&1
 ```
+`/usr/local/bin/php` is the standard cPanel PHP command-line binary. **Verify it on your server** (I could not
+access the server): cPanel → *Terminal* → `which php` and `php -v` (must show 8.2+). If your PHP version is
+selected per domain, use the version-specific binary instead, e.g. `/opt/cpanel/ea-php82/root/usr/bin/php`.
+After 5 minutes, *Super Admin → System Health* must show recent runs. Details: [CRON.md](CRON.md).
 
-Use the PHP path shown by your host (`which php` in Terminal; on some hosts `/opt/cpanel/ea-php83/root/usr/bin/php`). Details in [CRON.md](CRON.md). Check *Super Admin → System Health* after a few minutes: every task should show a recent run.
+## 13. Firebase (push notifications) → [FIREBASE.md](FIREBASE.md)
+## 14. WhatsApp → [WHATSAPP.md](WHATSAPP.md)
 
-## 7. Integrations
+## 15. SMTP (email)
 
-Configure in **Super Admin → Integrations**. Each channel has **Off / Test / Live** modes; *Test* runs the whole pipeline and logs messages without sending.
+*Super Admin → Integrations → Email*: host (e.g. `mail.genusitsolution.com`), port `465` (SSL) or `587` (TLS),
+mailbox user and password, sender name/email. *Send test*, then switch the mode to **Live**.
 
-### WhatsApp Business Cloud API (official)
-1. Create a Meta Business account and an app at developers.facebook.com → add the **WhatsApp** product.
-2. Add and verify your business phone number. Note **Phone Number ID** and **WhatsApp Business Account ID**.
-3. Create a **System User** (Business Settings → Users → System users), give it the app and the WhatsApp account, and generate a **permanent access token** with `whatsapp_business_messaging` and `whatsapp_business_management`.
-4. App → Settings → Basic → copy the **App Secret** (used to verify webhook signatures).
-5. Webhook: callback URL `https://your-domain/api/v1/webhooks/whatsapp`, verify token = the one shown in ClassNex; subscribe to the `messages` field.
-6. In WhatsApp Manager create these **Utility** templates (language `en`) and enter the names in ClassNex:
+## 16. Razorpay
 
-| Template name | Body (variables in this order) |
-|---|---|
-| `classnex_fee_due` | Dear Parent, the {{1}} of {{2}} for {{3}} is due on {{4}}. Please complete the payment. Thank you – {{5}}. |
-| `classnex_fee_overdue` | Dear Parent, the {{1}} of {{2}} for {{3}} was due on {{4}} and is still pending. Please pay at the earliest. – {{5}} |
-| `classnex_payment` | Payment of {{1}} received for {{2}}. Receipt No: {{3}}. Balance: {{4}}. Download: {{5}} – {{6}} |
-| `classnex_attendance` | {{1}} was marked {{2}} on {{3}} at {{4}}. |
-| `classnex_admission` | Welcome {{1}}! Admission to {{2}} at {{3}} is confirmed. Student ID: {{4}}. |
-| `classnex_general` | {{1}} |
-| `classnex_invite` | {{1}} has invited you to ClassNex. Activate your account: {{2}} |
-| `classnex_password_reset` | Reset your ClassNex password: {{1}} (valid for 1 hour). |
-| `classnex_subscription` | Your ClassNex {{1}} plan for {{2}} expires on {{3}}. Please renew from your dashboard. |
+- **Platform keys** (*Super Admin → Integrations → Razorpay*): Class Admins pay their ClassNex subscription online.
+  Webhook: `https://genusitsolution.com/ClassNex/api/v1/webhooks/razorpay/platform`.
+- **Academy keys** (*Class Admin → Settings → Online payments*): parents pay fees to the academy. The webhook URL is shown on that screen.
+- Events: `payment.captured`, `order.paid`. Use test keys first, then live keys.
 
-7. Use **Send test** (sends Meta's pre-approved `hello_world`), then switch to **Live**.
+## 17. Backups → [BACKUP_RESTORE.md](BACKUP_RESTORE.md)
 
-Recipients who reply **STOP** are opted out automatically (START re-subscribes). Meta conversation charges apply per your Meta billing.
+Daily automatic database backups are made by the cron job; also enable cPanel backups and keep off-site copies.
 
-### Firebase push notifications
-1. console.firebase.google.com → create project → add an **Android app** with package `in.classnex.app` (and `in.classnex.app.debug` for debug builds).
-2. Download `google-services.json` → store it as the GitHub secret `GOOGLE_SERVICES_JSON` (see [ANDROID.md](ANDROID.md)).
-3. Project settings → Service accounts → **Generate new private key** → paste the JSON in ClassNex → Firebase.
+## 18. Production verification checklist
 
-### Email (SMTP)
-Any SMTP mailbox: cPanel email account (`mail.your-domain.com`, port 465 SSL or 587 TLS), Google Workspace (App Password), Zoho, Amazon SES. Send a test email from the integration screen.
+- [ ] `https://genusitsolution.com/ClassNex/` opens the website; *Login* works for the Super Admin.
+- [ ] `https://genusitsolution.com/ClassNex/config/config.php` → **403**; same for `/storage/`, `/database/install.sql`.
+- [ ] `config/config.php`: `env = production`, `debug = false`, https `app_url`, `app_key` backed up.
+- [ ] HTTPS forced; `install.php` deleted.
+- [ ] Cron shows recent runs in *System Health*.
+- [ ] Packages reviewed (*Super Admin → Packages*), WhatsApp mode chosen per package.
+- [ ] Register a test academy on the website → it appears in *Registration Requests* → approve → log in as Class Admin.
+- [ ] Add a branch, a batch and a student; mark attendance; collect a fee; open the receipt.
+- [ ] Integrations tested in *Test* mode, then switched to *Live*.
+- [ ] Android app installed from the release build, logs in against the live API.
 
-### SMS (optional)
-Works with any HTTP SMS gateway — fill in endpoint, method and the parameter template. In India the text must match a DLT-registered template.
+## Upgrading to a future version
 
-### Razorpay
-- *Platform keys* (Super Admin → Integrations → Razorpay): owners pay their ClassNex subscription online. Webhook `…/api/v1/webhooks/razorpay/platform`.
-- *Academy keys* (Owner → Settings → Online payments): parents pay fees directly to the academy. Webhook URL is shown on that screen.
-Events: `payment.captured`, `order.paid`. Payments are recorded only after server-side signature verification.
-
-### OCR
-Default: on-device (Android ML Kit, browser Tesseract.js) — free and private. Optional: Google Cloud Vision API key for server-side OCR.
-
-## 8. Backups and restore
-
-- The cron task `backup` writes a compressed SQL dump daily to `storage/private/backups/` (14 kept). *Super Admin → System Health* can create and download backups on demand.
-- Also enable cPanel's own backups / JetBackup, and keep off-site copies of `storage/private/` (documents, photos) and `config/config.php`.
-- Restore (SSH): `php cli/backup.php restore storage/private/backups/classnex-YYYYMMDD-HHMMSS.sql.gz` (type `YES` to confirm). Or import the `.sql.gz` with phpMyAdmin.
-
-## 9. Production checklist
-
-- [ ] `config/config.php`: `env = production`, `debug = false`, `https://` app_url, unique `app_key` (backed up)
-- [ ] HTTPS forced and HSTS enabled in `.htaccess`
-- [ ] `install.php` deleted
-- [ ] Cron running every minute (System Health shows recent runs)
-- [ ] Integrations tested, then switched from *Test* to *Live*
-- [ ] Super Admin password strong and unique; support email set in Global Settings
-- [ ] Website content, pricing and legal pages reviewed in Website CMS
-- [ ] Off-site backups configured
-- [ ] Android app built with the production API URL ([ANDROID.md](ANDROID.md))
+1. Back up the database and `config/config.php`, `storage/`, `uploads/`.
+2. Upload the new files **over** the old ones (never overwrite `config/config.php`, `storage/`, `uploads/`).
+3. Run `php cli/migrate.php` (Terminal) — only new migrations are applied; existing data is kept.
+4. Check *System Health*.

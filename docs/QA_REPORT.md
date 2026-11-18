@@ -1,64 +1,69 @@
-# QA Report
+# QA Report – ClassNex (final delivery, 18 Nov 2026)
 
-Date: 18 Nov 2026 · Build: ClassNex 1.0.0
+Everything below actually ran. Nothing is reported as passed unless it ran and passed. Items that could not be tested
+are listed as **pending** with the reason.
 
-## How the platform was tested
+## Summary
 
-| Suite | What it covers | Environment | Result |
-|---|---|---|---|
-| `tests/e2e.php` | 107 checks over HTTP covering all 30 mandatory workflows plus edge cases, against a real database | MariaDB 10.11 + PHP 8.3 (dev sandbox) | **107 / 107 passed** |
-| `tests/e2e.php` in GitHub Actions (`backend.yml`) | Same suite | **MySQL 8.0 + PHP 8.2** | **107 / 107 passed** |
-| `tests/e2e_branches.php` | 78 checks: unlimited branches on the smallest plan, one academy-wide student quota, exact limit message, 16th student blocked at any branch, existing work continues at the limit, deactivation frees quota, re-activation re-checked, branch transfers / bulk assign keep the count, duplicate prevention (cannot be forced), upgrade to 100 applies to all branches, custom 45-day cycle, **8 parallel registrations with one slot left → exactly one succeeds**, branch-wise and combined reports (PDF/XLSX/CSV), branch receipts, Super Admin branch stats, cross-academy isolation, WhatsApp transactional mode | MariaDB 10.11 + PHP 8.3 (dev sandbox) | **78 / 78 passed** ([QA_BRANCHES_RUN.md](QA_BRANCHES_RUN.md)) |
-| `tests/ui_smoke.py` | Headless Chrome logs in as owner, teacher, parent and super admin, opens every screen (95 pages incl. website and the new Branches screens), fails on any JS error or error banner; desktop + mobile screenshots | Chrome + PHP built-in server | **95 / 95 passed** |
-| Android CI (`android.yml`) | Kotlin compile, resource merge, dex, debug APK (+ unsigned release APK/AAB with R8) | GitHub Actions, JDK 17, AGP 8.5 | **Debug APK built** (`classnex-debug-apk`, 40 MB) and **release APK + AAB built with R8** (`classnex-release-unsigned`, 45 MB) |
-
-The per-check log of the latest run is in [QA_TEST_RUN.md](QA_TEST_RUN.md) (regenerated on every run).
-
-## Mandatory end-to-end scenarios
-
-| # | Scenario | Status |
+| Area | Result | Where it ran |
 |---|---|---|
-| 1 | Super Admin creates a package | ✅ automated |
-| 2 | Super Admin creates a Class Owner | ✅ automated |
-| 3 | Owner receives a subscription | ✅ automated |
-| 4 | Owner creates / completes academy profile (logo) | ✅ automated |
-| 5 | Owner creates activities | ✅ automated |
-| 6 | Owner creates batches with schedule | ✅ automated |
-| 7 | Owner registers a student (quick registration) | ✅ automated |
-| 8 | Owner captures student photo (stored privately, compressed) | ✅ automated (upload path); camera UI verified in browser screenshots |
-| 9 | Owner uploads a document (encrypted at rest) | ✅ automated |
-| 10 | OCR extracts available information (name, DOB, gender, address, guardian; Aadhaar masked) | ✅ automated (parser); on-device OCR runs in ML Kit / Tesseract.js |
-| 11 | Owner verifies and saves registration | ✅ automated |
-| 12 | Parent account linked, invited, activated | ✅ automated |
-| 13 | Teacher marks attendance | ✅ automated |
-| 14 | Parent receives attendance notification | ✅ automated (in-app + WhatsApp queue) |
-| 15 | Owner assigns monthly fees | ✅ automated (auto-assigned on admission) |
-| 16 | Owner collects full / partial payment | ✅ automated |
-| 17 | System generates receipt | ✅ automated |
-| 18 | Parent downloads receipt (PDF) | ✅ automated |
-| 19 | System calculates outstanding balance | ✅ automated |
-| 20 | Automatic reminder is scheduled | ✅ automated |
-| 21 | Cron processes the reminder | ✅ automated |
-| 22 | WhatsApp sends the message when configured | ✅ automated in TEST mode (full pipeline, provider call simulated). Live sending needs real Meta credentials. |
-| 23 | Failed messages are retried safely | ✅ automated (backoff, manual retry, webhook delivery status, STOP opt-out) |
-| 24 | Super Admin changes a package | ✅ automated |
-| 25 | Permissions update correctly | ✅ automated (WhatsApp/reports blocked instantly, student limit enforced) |
-| 26 | Owner cannot access another owner's records | ✅ automated |
-| 27 | Parent cannot access another family's records | ✅ automated |
-| 28 | Web changes appear in Android API | ✅ automated (session-cookie client vs bearer client) |
-| 29 | Android changes appear on web | ✅ automated |
-| 30 | Payment and receipt consistent across platforms | ✅ automated |
+| Automated API / business tests – 3 suites, **284 checks** | **284 / 284 passed** | (a) PHP 8.3 + MariaDB 10.11 dev server; (b) **Apache 2.4 + mod_php, installed under `/ClassNex/` through `install.php`**; (c) GitHub Actions, PHP 8.2 + **MySQL 8.0** |
+| Browser tests (headless Chrome) – every screen of every role, desktop **and** phone width | **187 / 187 passed** | (a) dev server; (b) Apache `/ClassNex/` installation |
+| Android – compile, API contract unit tests, debug APK, release APK + AAB (R8) | **Passed** | GitHub Actions (see run IDs in DELIVERY_REPORT.md) |
+| Android on a physical device | **Pending** – no device available to the developer | checklist below |
+| WhatsApp Cloud API, Firebase push, SMTP, SMS, Razorpay **live** | **Awaiting credentials** – not verified against the real services | see “External integrations” |
+| Live server https://genusitsolution.com/ClassNex/ | **Not deployed by me** (no server access); an identical Apache sub-folder install was tested | DEPLOYMENT.md |
 
-## Additional checks (all automated, passing)
+## Automated suites
 
-Duplicate registration · duplicate attendance · duplicate payment (idempotency key) · invalid mobile number · guardian required for minors · negative amounts · unauthorised role access (403) · teacher batch scope · teacher no-fee-by-default · old-attendance correction needs permission · expired session token · revoked token after logout · account lockout after repeated wrong passwords · CSRF rejection on web · expired subscription → read-only, data still readable, renewal restores access · online admission creates a pending application, approval registers the student · advance payment kept as credit and auto-applied · refund from advance · reversal re-opens dues and cancels receipt · ledger reconciliation (invoice paid totals = allocation ledger) · invoice cron idempotent · reminder cron idempotent · all cron tasks error-free · reports in JSON, CSV, XLSX and PDF · backup and restore into a fresh database.
+| Suite | Checks | What it covers | Per-check log |
+|---|---|---|---|
+| `tests/e2e_final.php` | 97 | Website registration → pending → login refused with explanation → Super Admin notified → approve with package (trial starts on approval, audited) → login; rejection with reason; unauthorized approval. **Attendance history**: combined totals (students, present, absent, late, leave, %), branch-wise breakdown, single branch, single date, date range, activity, batch, student, status, branch view, history stays with the old branch after a student **or a whole batch** moves, PDF / Excel / CSV exports, teacher sees only own batches. **Duplicates**: siblings sharing a number admitted, same name + number + guardian flagged (high), same name + guardian (medium), different DOBs not flagged, teacher cannot override, Class Admin override with reason → audit log, link existing student (no new profile), live check while typing. **Large data**: 3,000 extra students, page 40 of 61, page size capped, search by Student ID / WhatsApp / name with timings, “not in this branch” filter, preview count, “all matching” bulk move of 3,000 students, bulk transfer into a batch, wrong-branch batch refused, teacher refused, quota unchanged. **WhatsApp modes**: API / Manual / Disabled packages, manual never queues API messages, click-to-send prepared for fee reminder, receipt, attendance, admission, announcement and custom (personalised) with correct wa.me links, history with “opened”, purpose filter, receipt share logged, history private per academy, disabled mode refused, API mode queue with duplicate prevention, scheduled message waits in the queue and is not sent early, past schedule refused. **Web ↔ Android**: branch created on web visible via token, student created via token visible on web, transfer on web visible on Android, identical history totals, identical quota refusal. **Unauthorized** access cases, **subscription expiry** (writes blocked, history readable, attendance blocked), role names, `/class-admin/` redirect, old `/owner/` 301. | QA_FINAL_RUN.md |
+| `tests/e2e_branches.php` | 80 | Unlimited branches on the smallest package, one academy-wide student quota, exact limit message, 16th student blocked at any branch, work continues at the limit, deactivation frees a slot, re-activation re-checked, transfers / bulk assign keep the count, duplicate override cannot bypass the limit, upgrade to 100 applies to all branches, custom 45-day cycle, **8 parallel registrations with 1 slot left → exactly 1 succeeds**, branch-wise and combined reports (PDF/XLSX/CSV), branch receipts, Super Admin branch stats, cross-academy isolation, WhatsApp manual vs API behaviour | QA_BRANCHES_RUN.md |
+| `tests/e2e.php` | 107 | The 30 original business workflows (packages, academy, quick registration with photo/documents/OCR, parents, attendance + corrections, fees: monthly, one-time, partial, advance, discounts, late fee, reversals, refunds, receipts, reminders, queue retries, WhatsApp webhook, opt-out, tenant isolation, web+Android consistency, subscriptions, online admissions, reports, sessions, cron idempotency, **backup + restore into a new database**, account lockout) | QA_TEST_RUN.md |
+| `tests/ui_smoke.py` | 187 | Logs in as Class Admin, teacher, parent and Super Admin; opens every screen (incl. Branches, branch detail, attendance history views, WhatsApp history, registration requests); fails on any JavaScript error or error banner; then opens **every screen again at 390 px phone width** and fails if the page is wider than the screen. Also the public website pages. | console output |
+| `tests/subdir_install_test.sh` | – | Copies the project into an Apache web root as `/ClassNex/`, runs **install.php over HTTP**, checks the installer locks itself (403) and that `config/`, `storage/`, `database/install.sql`, `docs/`, `cron/`, `classes/`, `includes/`, `.git/` all return **403**. All four suites above were then run against `http://127.0.0.1:8090/ClassNex`. | – |
+| `android/.../ApiContractTest.kt` | 7 tests | Real API responses (21 fixtures captured by `tests/android_fixtures.php`) parsed with the app's own models: Me + WhatsApp mode, dashboard quota, branches / summary / detail, branch students, attendance history (3 views), reports, bulk preview, duplicate candidates, WhatsApp click-to-send, invoices, payments | GitHub Actions log |
 
-## Known limitations / items needing your input
+## Bugs found and fixed during this final phase
 
-| Item | Detail |
+| Found by | Problem | Fix |
+|---|---|---|
+| Apache `/ClassNex/` test | CSRF failures returned HTTP 419, which Apache turns into **500** | CSRF now answers 403 with code `csrf` |
+| Apache `/ClassNex/` test | Session cookie path was `/` (shared with other sites on the domain) | Cookie limited to the installation path |
+| Audit | `uploads/.htaccess` used `php_flag`, which breaks PHP-FPM hosts with a 500 | wrapped in `<IfModule>` |
+| Audit | Website registrations went live without Super Admin approval (business rule) | Approval workflow (web + Android) |
+| e2e_final | Attendance history **student and status filters returned nothing** (SQL parameters bound in the wrong order) | fixed |
+| e2e_final | Registration requests list used a non-existent column | fixed |
+| e2e_final | Searching a name containing numbers also matched phone digits | phone match only for number-like searches |
+| Router review | `/students/bulk-branch` could be captured by `/students/{id}` | `{id}` parameters match digits only |
+| Android CI | JVM signature clash in the student list ViewModel | renamed |
+
+## Performance (3,000-student academy, dev server, single PHP process)
+
+Student list page 40 (50 per page) and searches by Student ID / name / WhatsApp each returned well under 2 seconds
+(the suite fails above 2 s); moving all 3,000 students to another branch in one “all matching” operation stayed under the
+15-second limit of the test. Exact timings are printed in each run.
+
+## External integrations
+
+| Integration | Status |
 |---|---|
-| Live WhatsApp, FCM, SMTP, SMS, Razorpay | Fully implemented and tested in *Test* mode; real sending requires your credentials (see DEPLOYMENT.md §7). Meta template approval is required before live WhatsApp fee reminders. |
-| Android on a physical device | The APK compiles and packages in CI; it has not been run on a device or emulator in this environment (no Android SDK available here). Please install the debug APK and run through owner, teacher and parent flows before release. |
-| Release signing | Signed release APK/AAB are produced once the four signing secrets are added (ANDROID.md). |
-| Online fee payment in the Android app | Parents tap *Pay online*, which opens the secure web portal checkout (Razorpay). A native Razorpay SDK screen can be added later. |
-| Production deployment | Not deployed to your server from here; follow DEPLOYMENT.md. |
+| WhatsApp manual click-to-send | **Working and tested** (no credentials needed) |
+| WhatsApp Cloud API | Request building, queue, retries (non-retryable 401 vs retryable errors), webhook status updates, STOP opt-out and duplicate prevention are tested against a simulated endpoint. **Live sending awaits** Meta business verification, number, token, app secret and approved templates. |
+| Firebase push (FCM v1) | Code in place (queueing is covered by the tests; actual delivery is not); **awaits** `google-services.json` + service-account key. Not verified end-to-end. |
+| SMTP / SMS | Code in place; **not verified** – needs a mailbox / gateway to test against. |
+| Razorpay | Code in place (order creation, signature verification, webhooks); **not covered by the automated tests and not verified** – needs test keys first, then live keys. |
+
+## Physical device checklist (pending – please run on 1–2 real phones)
+
+1. Install `ClassNex-debug.apk` from Releases → *android-latest*; log in as Class Admin.
+2. Dashboard shows *N of M students · all branches*. Branches → add a branch, edit it, deactivate / activate it.
+3. Branch → Assign students → search, select several, assign (confirmation shows the count).
+4. Students → branch filter; open a student → Change branch → Student ID unchanged.
+5. Add Student with camera photo and document scan (OCR fills fields); register a sibling with the same number (allowed); register the same child again (duplicate dialog → Link this student).
+6. Attendance → everyone pre-marked present → mark one absent → Save (manual-WhatsApp package: “Prepare WhatsApp” opens WhatsApp).
+7. Attendance history → filters, By branch, download PDF and Excel (opens in a viewer).
+8. Collect a fee → receipt PDF opens / shares; Pending fees → Remind all overdue.
+9. Log in as a teacher and as a parent; check menus and data; register a new academy from the login screen (waits for approval).
+10. With Firebase configured: a message from the web arrives as a push notification.
