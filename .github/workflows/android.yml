@@ -12,6 +12,9 @@ on:
         description: 'Backend API URL (ends with /api/v1/)'
         required: false
 
+permissions:
+  contents: write   # lets the workflow publish the APKs to the "android-latest" release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -98,3 +101,18 @@ jobs:
           path: |
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/bundle/release/*.aab
+
+      # Download link that does not expire: Releases → android-latest (debug APK + release APK/AAB).
+      - name: Publish APK / AAB to the android-latest release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Built automatically from commit ${GITHUB_SHA::7} on $(date -u +'%Y-%m-%d %H:%M UTC'). API: $API_URL. The debug APK installs directly; the release APK/AAB are unsigned unless signing secrets are configured (see docs/ANDROID.md)."
+          gh release view android-latest >/dev/null 2>&1 || gh release create android-latest --prerelease --title "ClassNex Android – latest build" --notes "$NOTES" --target "$GITHUB_SHA"
+          gh release edit android-latest --notes "$NOTES"
+          cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/ClassNex-debug.apk"
+          FILES="$RUNNER_TEMP/ClassNex-debug.apk"
+          for f in app/build/outputs/apk/release/*.apk; do [ -f "$f" ] && cp "$f" "$RUNNER_TEMP/ClassNex-release.apk" && FILES="$FILES $RUNNER_TEMP/ClassNex-release.apk"; done
+          for f in app/build/outputs/bundle/release/*.aab; do [ -f "$f" ] && cp "$f" "$RUNNER_TEMP/ClassNex-release.aab" && FILES="$FILES $RUNNER_TEMP/ClassNex-release.aab"; done
+          gh release upload android-latest $FILES --clobber

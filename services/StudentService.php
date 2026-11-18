@@ -417,7 +417,7 @@ final class StudentService
         $p = [$c->academy()];
         if (($t = trim((string) ($q['q'] ?? ''))) !== '') {
             $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $t) . '%';
-            $digits = preg_replace('/\D/', '', $t);
+            $digits = preg_match('/\pL/u', $t) ? '' : preg_replace('/\D/', '', $t); // phone search only for number-like queries
             $w .= ' AND (s.name LIKE ? OR s.student_code LIKE ? OR s.guardian_name LIKE ?' . (strlen($digits) >= 4 ? ' OR s.whatsapp LIKE ?' : '') . ')';
             array_push($p, $like, $like, $like);
             if (strlen($digits) >= 4) {

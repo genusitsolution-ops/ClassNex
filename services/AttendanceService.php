@@ -234,7 +234,7 @@ final class AttendanceService
     public static function history(Ctx $ctx, array $f, string $view, ?int $limit, int $offset = 0): array
     {
         [$w, $p, $rw, $rp, $from, $to] = self::historyWhere($ctx, $f);
-        $pp = array_merge($p, $rp);
+        $pp = array_merge($rp, $p); // row filters sit in the JOIN, before the WHERE
         $join = " JOIN attendance at ON at.session_id = se.id AND at.status <> 'holiday'$rw";
         $lim = $limit ? " LIMIT $limit OFFSET $offset" : '';
         $sum = DB::one('SELECT ' . self::H_COUNTS . ', COUNT(DISTINCT se.id) AS sessions ' . self::H_FROM . $join . " WHERE $w", $pp);

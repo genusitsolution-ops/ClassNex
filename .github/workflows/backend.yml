@@ -46,6 +46,8 @@ jobs:
           sleep 2
       - name: Branch & student-quota E2E (unlimited branches, central quota, concurrency)
         run: CNX_DB=classnex_test php tests/e2e_branches.php http://127.0.0.1:8081
+      - name: Final integration suite (approval, history filters, 3,000-student paging, duplicates, WhatsApp modes, web/Android sync)
+        run: CNX_DB=classnex_test php tests/e2e_final.php http://127.0.0.1:8081
       - name: End-to-end workflow tests (MySQL 8)
         run: CNX_DB=classnex_test php tests/e2e.php http://127.0.0.1:8081
       - name: Server log
@@ -58,3 +60,4 @@ jobs:
           path: |
             docs/QA_TEST_RUN.md
             docs/QA_BRANCHES_RUN.md
+            docs/QA_FINAL_RUN.md

@@ -24,7 +24,7 @@ USERS = {
     "teacher": ("9123456780", "Teach@123", "teacher", ["#/", "#/attendance", "#/attendance-history", "#/batches", "#/students", "#/timetable", "#/announcements", "#/leaves", "#/support"]),
     "parent": ("9876511111", "Parent@123", "parent", ["#/", "#/attendance", "#/fees", "#/timetable", "#/announcements", "#/holidays", "#/notifications", "#/support"]),
     "admin": ("qa-admin@classnex.test", "Admin@12345", "admin", [
-        "#/", "#/owners", "#/owners/1", "#/packages", "#/sub-payments", "#/integrations", "#/integrations?tab=firebase", "#/integrations?tab=email",
+        "#/", "#/registrations", "#/registrations?status=rejected", "#/owners", "#/owners/1", "#/packages", "#/sub-payments", "#/integrations", "#/integrations?tab=firebase", "#/integrations?tab=email",
         "#/integrations?tab=sms", "#/integrations?tab=razorpay", "#/integrations?tab=ocr", "#/templates", "#/reminders", "#/queue", "#/cms",
         "#/cms?tab=about", "#/cms?tab=seo", "#/cms?tab=faq", "#/cms?tab=testimonials", "#/cms?tab=pages", "#/enquiries", "#/support",
         "#/reports", "#/audit", "#/settings", "#/health"]),
@@ -89,13 +89,22 @@ with sync_playwright() as p:
                 failures.append((role, rt, bad + alert))
             if rt in shots.get(role, []):
                 page.screenshot(path=f"{OUT}/{role}_{rt.strip('#/').replace('/', '_').replace('?', '_').replace('=', '-') or 'dashboard'}.png", full_page=True)
-        if role == "owner":
-            m = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, storage_state=ctx.storage_state())
-            mp = m.new_page()
-            for rt in ["#/", "#/attendance/1", "#/students/new"]:
-                mp.goto(f"{BASE}/{panel}/{rt}"); mp.wait_for_load_state("networkidle"); mp.wait_for_timeout(300)
+        # mobile responsiveness: every screen of every role at phone width, no sideways scrolling of the page
+        m = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, storage_state=ctx.storage_state())
+        mp = m.new_page()
+        merrs = []
+        mp.on("pageerror", lambda e: merrs.append(str(e)))
+        for rt in routes:
+            merrs.clear()
+            mp.goto(f"{BASE}/{panel}/{rt}"); mp.wait_for_load_state("networkidle"); mp.wait_for_timeout(250)
+            over = mp.evaluate("document.documentElement.scrollWidth - window.innerWidth")
+            okm = over <= 2 and not merrs
+            print(("PASS" if okm else "FAIL"), "mobile", role, rt, f"overflow={over}px", merrs[:1])
+            if not okm:
+                failures.append(("mobile " + role, rt, [f"page wider than the screen by {over}px"] + merrs[:1]))
+            if role == "owner" and rt in ["#/", "#/attendance/1", "#/students/new", "#/branches", "#/attendance-history"]:
                 mp.screenshot(path=f"{OUT}/mobile_owner_{rt.strip('#/').replace('/', '_') or 'dashboard'}.png", full_page=True)
-            m.close()
+        m.close()
         ctx.close()
     browser.close()
 

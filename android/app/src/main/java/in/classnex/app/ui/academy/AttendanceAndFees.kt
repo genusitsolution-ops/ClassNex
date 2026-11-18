@@ -147,6 +147,8 @@ class AttendanceSheetVm @Inject constructor(private val repo: Repository) : Load
             val s = call { repo.api.attendanceSheet(id, today()) }.data!!
             marks.clear()
             s.students.forEach { st -> st.status?.let { marks[st.id] = it } }
+            // present by default: a new register starts with everyone present; only exceptions are tapped
+            if (!s.already_marked && s.holiday == null) s.students.forEach { st -> if (st.id !in marks) marks[st.id] = "present" }
             s
         }
     }
@@ -187,6 +189,7 @@ fun AttendanceSheetScreen(batchId: Long, snack: SnackbarHostState, back: () -> U
     LoadContent(st, { vm.open(batchId) }) { sheet ->
         Column(Modifier.fillMaxSize()) {
             if (sheet.already_marked) Text("Already marked today – changes are saved as corrections.", color = Green, modifier = Modifier.padding(16.dp, 8.dp), fontSize = 13.sp)
+            else if (sheet.holiday == null) Text("Everyone is marked present. Tap only the absent, late or on-leave students, then Save.", color = Green, modifier = Modifier.padding(16.dp, 8.dp), fontSize = 13.sp)
             sheet.holiday?.let { Text("Holiday: $it", color = Purple, modifier = Modifier.padding(horizontal = 16.dp)) }
             Row(Modifier.padding(16.dp, 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { vm.all("present") }, colors = ButtonDefaults.buttonColors(containerColor = Green)) { Text("All present") }

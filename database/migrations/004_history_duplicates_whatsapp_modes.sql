@@ -64,9 +64,9 @@ ALTER TABLE academies MODIFY status ENUM('pending','active','inactive','suspende
   ADD COLUMN rejection_reason VARCHAR(255) NULL AFTER approved_by;
 INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('registration_requires_approval', '1');
 INSERT IGNORE INTO notification_templates (academy_id, event_key, channel, title, body, wa_template_name, wa_language, wa_params) VALUES
-(NULL,'academy_approved','whatsapp','Academy approved','Your academy {academy_name} is approved on ClassNex. Log in: {link}','classnex_message','en','["message"]'),
+(NULL,'academy_approved','whatsapp','Academy approved','Your academy {academy_name} is approved on ClassNex. Log in: {link}','classnex_general','en','["message"]'),
 (NULL,'academy_approved','email','Your ClassNex academy is approved','Hello {recipient_name},\n\nYour academy {academy_name} has been approved. You can log in now: {link}\n\nTeam ClassNex',NULL,NULL,NULL),
 (NULL,'academy_approved','sms','Academy approved','ClassNex: {academy_name} is approved. Log in: {link}',NULL,NULL,NULL),
-(NULL,'academy_rejected','whatsapp','Registration not approved','Your ClassNex registration for {academy_name} was not approved. {reason} Contact us for help.','classnex_message','en','["message"]'),
+(NULL,'academy_rejected','whatsapp','Registration not approved','Your ClassNex registration for {academy_name} was not approved. {reason} Contact us for help.','classnex_general','en','["message"]'),
 (NULL,'registration_pending','inapp','New academy registration','{academy_name} registered on the website and is waiting for your approval (Super Admin → Registration requests).',NULL,NULL,NULL),
 (NULL,'academy_rejected','email','ClassNex registration','Hello {recipient_name},\n\nYour registration for {academy_name} was not approved. {reason}\n\nPlease reply to this email if you need help.\n\nTeam ClassNex',NULL,NULL,NULL);

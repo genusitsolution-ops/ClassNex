@@ -36,7 +36,7 @@ return static function (Router $r): void {
     // ------------------------------------------------ registration requests (website sign-ups awaiting approval)
     $r->get('/admin/registrations', static function () {
         $st = in_array(Http::query('status'), ['pending', 'rejected'], true) ? Http::query('status') : 'pending';
-        return Http::ok(DB::all("SELECT a.id AS academy_id, a.name AS academy_name, a.city, a.category, a.created_at, a.status, a.rejection_reason,
+        return Http::ok(DB::all("SELECT a.id AS academy_id, a.name AS academy_name, a.city, a.created_at, a.status, a.rejection_reason,
                                   u.name AS owner_name, u.country_code, u.mobile, u.email, p.id AS package_id, p.name AS package_name, p.trial_days
                                  FROM academies a LEFT JOIN users u ON u.id = a.owner_user_id LEFT JOIN packages p ON p.id = a.requested_package_id
                                  WHERE a.status = ? ORDER BY a.id DESC LIMIT 500", [$st]));

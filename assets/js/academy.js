@@ -454,11 +454,12 @@
     const day = p.date || C.today();
     const r = (await get(`/attendance/sheet?batch_id=${p.batch}&date=${day}`)).data;
     const b = (LK?.batches || (await lookups()).batches).find((x) => String(x.id) === String(p.batch)) || {};
-    const state = Object.fromEntries(r.students.map((s) => [s.id, s.status || (r.holiday ? 'holiday' : null)]));
+    // present by default: a new register starts with everyone present; the teacher only taps the exceptions
+    const state = Object.fromEntries(r.students.map((s) => [s.id, s.status || (r.holiday ? 'holiday' : (r.already_marked ? null : 'present'))]));
     const opts = [['present', 'P'], ['absent', 'A'], ['late', 'L'], ['leave', 'Lv']];
     v.innerHTML = head(`${b.name || 'Batch'} · ${date(day)}`, `${esc(b.activity_name || '')} · ${r.students.length} students ${r.already_marked ? '· <span class="text-success fw-bold">already marked – you can update it</span>' : ''}`, `<a class="btn btn-light" href="#/attendance?date=${day}">Back</a>`) +
       (r.holiday ? `<div class="alert alert-info">Holiday: ${esc(r.holiday)}</div>` : '') +
-      (r.students.length ? `<div class="d-flex flex-wrap gap-2 mb-3"><button class="btn btn-success" id="allP"><i class="bi bi-check2-all"></i> Mark all present</button><button class="btn btn-outline-danger" id="allA">Mark all absent</button><input class="form-control ms-auto" style="max-width:260px" placeholder="Find student…" id="find"></div>
+      (r.students.length ? `${!r.already_marked && !r.holiday ? '<div class="alert alert-success py-2 small mb-2"><i class="bi bi-check2-all"></i> Everyone is marked <b>present</b>. Tap only the students who are absent, late or on leave, then Save.</div>' : ''}<div class="d-flex flex-wrap gap-2 mb-3"><button class="btn btn-success" id="allP"><i class="bi bi-check2-all"></i> Mark all present</button><button class="btn btn-outline-danger" id="allA">Mark all absent</button><input class="form-control ms-auto" style="max-width:260px" placeholder="Find student…" id="find"></div>
       <div class="att-list" id="al">${r.students.map((s) => `<div class="att-row" data-sid="${s.id}">${person(s.name, esc(s.student_code), s.photo_url)}<div class="att-btns">${opts.map(([k, l]) => `<button type="button" class="att-btn" data-st="${k}" title="${label(k)}">${l}</button>`).join('')}</div></div>`).join('')}</div>
       <div class="sticky-save"><div class="card"><div class="card-body d-flex align-items-center gap-3 py-2"><div class="small" id="cnt"></div><button class="btn btn-primary btn-lg ms-auto px-5" id="saveAtt"><i class="bi bi-check2-circle"></i> Save</button></div></div></div>` : '<div class="card"><div class="empty"><i class="bi bi-people"></i>No students in this batch.</div></div>');
     const paint = () => {

@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 /**
  * ClassNex cron runner. One cPanel cron line is enough:
- *   * * * * * /usr/local/bin/php /home/USER/public_html/cron/run.php all >/dev/null 2>&1
+ *   * * * * * /usr/local/bin/php /home/USER/public_html/ClassNex/cron/run.php all >/dev/null 2>&1
  * Or run individual tasks: php cron/run.php queue | invoices | reminders | subscriptions | announcements | maintenance | backup
+ * (cron/queue.php, cron/reminders.php and cron/subscriptions.php are shortcuts for the same tasks.)
  *
  * Every task takes a MySQL named lock (GET_LOCK), so overlapping runs are skipped, and every
  * task is idempotent, so running it twice never duplicates invoices, reminders or messages.

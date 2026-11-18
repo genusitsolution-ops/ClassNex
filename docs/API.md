@@ -74,6 +74,9 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 | Group | Method | Path | Access | Permission | Plan feature |
 |---|---|---|---|---|---|
 | admin | GET | `/api/v1/admin/dashboard` | super_admin |  |  |
+| admin | GET | `/api/v1/admin/registrations` | super_admin |  |  |
+| admin | POST | `/api/v1/admin/academies/{id}/approve` | super_admin |  |  |
+| admin | POST | `/api/v1/admin/academies/{id}/reject` | super_admin |  |  |
 | admin | GET | `/api/v1/admin/owners` | super_admin |  |  |
 | admin | POST | `/api/v1/admin/owners` | super_admin |  |  |
 | admin | GET | `/api/v1/admin/academies/{id}` | super_admin |  |  |
@@ -158,6 +161,9 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 | owner fees | GET | `/api/v1/fees/summary` | owner, teacher | fees.view | fees |
 | owner misc | GET | `/api/v1/dashboard` | owner, teacher |  |  |
 | owner misc | POST | `/api/v1/messages/send` | owner, teacher | notifications.send |  |
+| owner misc | POST | `/api/v1/whatsapp/manual/prepare` | owner, teacher | notifications.send |  |
+| owner misc | POST | `/api/v1/whatsapp/manual/{id}/opened` | owner, teacher |  |  |
+| owner misc | GET | `/api/v1/whatsapp/manual/log` | owner, teacher | notifications.send |  |
 | owner misc | GET | `/api/v1/messages/log` | owner | notifications.send |  |
 | owner misc | POST | `/api/v1/messages/retry` | owner | notifications.send |  |
 | owner misc | GET | `/api/v1/notification-settings` | owner |  |  |
@@ -206,8 +212,11 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 | owner students | GET | `/api/v1/students/{id}` | owner, teacher | students.view |  |
 | owner students | POST | `/api/v1/students/{id}` | owner, teacher | students.manage |  |
 | owner students | POST | `/api/v1/students/{id}/branch` | owner | students.manage |  |
+| owner students | POST | `/api/v1/students/bulk-branch` | owner | students.manage |  |
 | owner students | POST | `/api/v1/students/{id}/transfer` | owner, teacher | students.manage |  |
 | owner students | POST | `/api/v1/students/{id}/enroll` | owner | students.manage |  |
+| owner students | POST | `/api/v1/students/{id}/link` | owner, teacher | students.manage |  |
+| owner students | GET | `/api/v1/students/duplicates` | owner, teacher | students.manage |  |
 | owner students | POST | `/api/v1/students/{id}/invite` | owner, teacher | students.manage |  |
 | owner students | GET | `/api/v1/parents` | owner | students.view |  |
 | owner students | POST | `/api/v1/students/{id}/parents` | owner, teacher | students.manage |  |

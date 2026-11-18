@@ -116,7 +116,7 @@
     v.innerHTML = head('Registration requests', 'Academies that registered on the website. Approve to activate the account and start the trial.',
       `<div class="btn-group"><a class="btn ${status === 'pending' ? 'btn-primary' : 'btn-light'}" href="#/registrations">Pending</a><a class="btn ${status === 'rejected' ? 'btn-primary' : 'btn-light'}" href="#/registrations?status=rejected">Rejected</a></div>`) +
       table([
-        { label: 'Academy', render: (r) => `<strong>${esc(r.academy_name)}</strong><div class="small text-muted">${esc([r.city, r.category].filter(Boolean).join(' · '))}</div>` },
+        { label: 'Academy', render: (r) => `<strong>${esc(r.academy_name)}</strong><div class="small text-muted">${esc(r.city || "")}</div>` },
         { label: 'Class Admin', render: (r) => `${esc(r.owner_name || '')}<div class="small text-muted">${esc((r.country_code || '') + ' ' + (r.mobile || ''))} ${esc(r.email || '')}</div>` },
         { label: 'Requested plan', render: (r) => esc(r.package_name || 'Default trial') },
         { label: 'Registered', render: (r) => dateTime(r.created_at) + (r.rejection_reason ? `<div class="small text-danger">${esc(r.rejection_reason)}</div>` : '') },
