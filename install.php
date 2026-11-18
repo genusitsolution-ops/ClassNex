@@ -27,7 +27,8 @@ $done = false;
 $checks = [
     'PHP 8.2 or newer'            => version_compare(PHP_VERSION, '8.2.0', '>='),
     'PDO MySQL extension'         => extension_loaded('pdo_mysql'),
-    'Sodium (encryption)'         => extension_loaded('sodium'),
+    // libsodium is used when present; otherwise OpenSSL AES-256-GCM (most shared hosts have one of the two)
+    'Encryption (sodium or OpenSSL AES-GCM)' => extension_loaded('sodium') || (extension_loaded('openssl') && in_array('aes-256-gcm', openssl_get_cipher_methods(), true)),
     'GD (image processing)'       => extension_loaded('gd'),
     'cURL (WhatsApp, FCM, payments)' => extension_loaded('curl'),
     'mbstring'                    => extension_loaded('mbstring'),

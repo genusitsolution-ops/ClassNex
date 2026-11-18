@@ -34,7 +34,7 @@ Production address: **https://genusitsolution.com/ClassNex/** (the app works in 
 
 ## Requirements
 
-PHP 8.2+ (pdo_mysql, sodium, gd, curl, mbstring, openssl, zip, fileinfo), MySQL 8+ (MariaDB 10.6+ also works), Apache with mod_rewrite (cPanel hosting is fine). No Redis, Supervisor or Composer needed — background work runs on cron.
+PHP 8.2+ (pdo_mysql, sodium or OpenSSL AES-GCM, gd, curl, mbstring, openssl, zip, fileinfo), MySQL 8+ (MariaDB 10.6+ also works), Apache with mod_rewrite (cPanel hosting is fine). No Redis, Supervisor or Composer needed — background work runs on cron.
 
 ## Quick start
 

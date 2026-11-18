@@ -30,7 +30,7 @@
 
 ## Files
 - Student photos and documents live in `storage/private` (blocked from the web) and are streamed only after authentication + tenant checks.
-- Documents are encrypted at rest with libsodium `secretbox` using the installation `app_key`; uploads are type-checked by content (finfo), images re-encoded with GD (strips EXIF/GPS and hidden payloads), PDFs validated.
+- Documents are encrypted at rest with libsodium `secretbox` (or OpenSSL AES-256-GCM when the sodium extension is not installed – both authenticated) using the installation `app_key`; uploads are type-checked by content (finfo), images re-encoded with GD (strips EXIF/GPS and hidden payloads), PDFs validated.
 - `uploads/` (public logos/CMS images) cannot execute scripts.
 - Document retention: auto-deleted after the configured period (default 3 years); owners can delete any document permanently.
 

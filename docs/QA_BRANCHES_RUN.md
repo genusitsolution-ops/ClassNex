@@ -1,6 +1,6 @@
 # Branch & student-quota test run
 
-Run: 2026-11-18 16:04:45 · Database: classnex_subdir_test · PHP 8.3.6
+Run: 2026-11-18 16:39:51 · Database: classnex_test · PHP 8.3.6
 
 **80 / 80 passed**
 

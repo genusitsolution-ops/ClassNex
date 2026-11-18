@@ -182,7 +182,7 @@ $r = api('POST', "/students/$stu/documents", ['doc_type' => 'aadhaar', 'ocr_fiel
 $docId = $r['json']['data']['id'] ?? 0;
 ok($r['status'] === 200 && $docId, '9. Owner uploads a document', $r['body']);
 $raw = file_get_contents(Config::storage(q('SELECT storage_path FROM student_documents WHERE id = ?', [$docId])));
-ok(str_starts_with($raw, 'CNX1') && !str_contains((string) q('SELECT ocr_fields FROM student_documents WHERE id = ?', [$docId]), '123456789012'), 'Document encrypted at rest; identity number not stored');
+ok((str_starts_with($raw, 'CNX1') || str_starts_with($raw, 'CNX2')) && !str_contains((string) q('SELECT ocr_fields FROM student_documents WHERE id = ?', [$docId]), '123456789012'), 'Document encrypted at rest; identity number not stored');
 $r = api('GET', "/files/document/$docId", null, $own);
 ok($r['status'] === 200 && str_starts_with($r['body'], "\xFF\xD8"), 'Authorised user can view the decrypted document');
 $r = api('POST', "/students/$stu", ['dob' => '2014-08-14', 'address' => $o['address'], 'gender' => 'male'], $own);

@@ -158,7 +158,7 @@ final class Upload
             return null;
         }
         $raw = (string) file_get_contents($abs);
-        return str_starts_with($raw, 'CNX1') ? Crypto::decryptBytes($raw) : $raw;
+        return preg_match('/^CNX[12]/', $raw) ? Crypto::decryptBytes($raw) : $raw; // CNX1 = sodium, CNX2 = AES-GCM
     }
 
     public static function delete(?string $rel): void

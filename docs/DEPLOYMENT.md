@@ -13,7 +13,7 @@ cPanel → **Select PHP Version** (or *MultiPHP Manager*) → choose **PHP 8.2 o
 
 ## 2. Required PHP extensions
 
-In *Select PHP Version → Extensions* tick: `pdo_mysql`, `sodium`, `gd`, `curl`, `mbstring`, `openssl`, `zip`, `fileinfo`
+In *Select PHP Version → Extensions* tick: `pdo_mysql`, `sodium` (recommended; if your host does not offer it, ClassNex uses OpenSSL AES-256-GCM instead), `gd`, `curl`, `mbstring`, `openssl`, `zip`, `fileinfo`
 (recommended `exif`, `intl`). In *Options* set `upload_max_filesize = 10M`, `post_max_size = 12M`,
 `memory_limit = 256M`, `max_execution_time = 60`. The installer checks all of these and shows ✅ / ❌.
 
