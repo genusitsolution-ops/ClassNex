@@ -28,7 +28,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -216,3 +223,42 @@ fun openUrl(context: Context, url: String) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 }
 
+// ------------------------------------------------------------- shared bits
+/** Business names of the roles (keys stay as stored: "owner" = Class Admin). */
+fun roleName(role: String?): String = when (role) {
+    "owner" -> "Class Admin"
+    "super_admin" -> "ClassNex Super Admin"
+    else -> label(role)
+}
+
+fun pct(v: Double?): String = if (v == null) "–" else if (v % 1.0 == 0.0) "${v.toInt()}%" else "$v%"
+
+fun mimeFor(format: String): String = when (format) {
+    "pdf" -> "application/pdf"
+    "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else -> "text/csv"
+}
+
+/** Simple dropdown: options are (value, text); a null value means "all" / "none". */
+@Composable
+fun OptionPicker(label: String, options: List<Pair<String?, String>>, selected: String?, modifier: Modifier = Modifier, onSelect: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(options.firstOrNull { it.first == selected }?.second ?: label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEach { (v, t) -> DropdownMenuItem(text = { Text(t) }, onClick = { open = false; onSelect(v) }) }
+        }
+    }
+}
+
+@Composable
+fun MiniStat(title: String, value: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    AppCard(modifier) {
+        Column {
+            Text(title, color = Muted, fontSize = 11.sp, maxLines = 1)
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = color, maxLines = 1)
+        }
+    }
+}

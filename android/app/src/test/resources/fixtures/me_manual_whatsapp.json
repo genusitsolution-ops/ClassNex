@@ -1,0 +1,68 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": {
+        "id": 4,
+        "name": "Other Owner",
+        "role": "owner",
+        "email": null,
+        "mobile": "9833333333",
+        "country_code": "+91",
+        "must_change_password": false,
+        "permissions": [
+            "admissions.manage",
+            "attendance.correct",
+            "attendance.mark",
+            "dashboard.view",
+            "documents.manage",
+            "fees.collect",
+            "fees.manage",
+            "fees.view",
+            "notifications.send",
+            "payments.reverse",
+            "reports.financial",
+            "reports.view",
+            "settings.manage",
+            "structure.manage",
+            "students.manage",
+            "students.view",
+            "teachers.manage"
+        ],
+        "academy": {
+            "id": 2,
+            "name": "Other Academy",
+            "code": "OAT",
+            "slug": "other-academy",
+            "logo_path": null,
+            "mobile": "9833333333",
+            "whatsapp": "9833333333",
+            "email": null,
+            "status": "active",
+            "logo_url": null
+        },
+        "subscription": {
+            "id": 3,
+            "status": "active",
+            "writable": true,
+            "package_id": 5,
+            "package_name": "QA Starter 15",
+            "starts_on": "2026-11-18",
+            "ends_on": "2026-12-17",
+            "days_left": 29,
+            "custom_limits": []
+        },
+        "features": [
+            "attendance",
+            "auto_reminders",
+            "fees",
+            "inapp",
+            "manual_reminders",
+            "parent_access",
+            "push",
+            "reports",
+            "whatsapp_manual"
+        ],
+        "children": [],
+        "whatsapp_mode": "manual"
+    }
+}

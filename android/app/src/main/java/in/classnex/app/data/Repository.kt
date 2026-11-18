@@ -20,7 +20,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** A failed call with a user-friendly message and optional field errors. */
-class ApiError(message: String, val status: Int = 0, val fieldErrors: Map<String, String> = emptyMap(), val code: String? = null) : Exception(message)
+class ApiError(message: String, val status: Int = 0, val fieldErrors: Map<String, String> = emptyMap(), val code: String? = null, val body: kotlinx.serialization.json.JsonObject? = null) : Exception(message)
 
 /** Runs an API call and unwraps {success, data}; maps every failure to ApiError. */
 suspend fun <T> call(block: suspend () -> ApiResponse<T>): ApiResponse<T> = withContext(Dispatchers.IO) {
@@ -32,8 +32,9 @@ suspend fun <T> call(block: suspend () -> ApiResponse<T>): ApiResponse<T> = with
         val raw = e.response()?.errorBody()?.string()
         val obj = runCatching { AppJson.parseToJsonElement(raw ?: "").jsonObject }.getOrNull()
         val msg = obj?.get("message")?.jsonPrimitive?.content ?: "Server error (${e.code()})"
-        val errs = runCatching { obj?.get("errors")?.jsonObject?.mapValues { it.value.jsonPrimitive.content } }.getOrNull() ?: emptyMap()
-        throw ApiError(msg, e.code(), errs, obj?.get("code")?.jsonPrimitive?.content)
+        // field errors are strings; extra data (e.g. duplicate candidates) stays available in body
+        val errs = runCatching { obj?.get("errors")?.jsonObject?.filterValues { it is kotlinx.serialization.json.JsonPrimitive }?.mapValues { it.value.jsonPrimitive.content } }.getOrNull() ?: emptyMap()
+        throw ApiError(msg, e.code(), errs, obj?.get("code")?.jsonPrimitive?.content, obj)
     } catch (e: IOException) {
         throw ApiError("No internet connection. Please check your network and try again.")
     } catch (e: ApiError) {

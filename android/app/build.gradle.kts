@@ -30,7 +30,7 @@ android {
         targetSdk = 35
         versionCode = (System.getenv("CLASSNEX_VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("CLASSNEX_VERSION_NAME") ?: "1.0.0"
-        val api = (project.findProperty("classnexApiUrl") as String?) ?: "https://www.example.com/api/v1/"
+        val api = (project.findProperty("classnexApiUrl") as String?) ?: "https://genusitsolution.com/ClassNex/api/v1/"
         buildConfigField("String", "API_BASE_URL", "\"${if (api.endsWith("/")) api else "$api/"}\"")
         vectorDrawables { useSupportLibrary = true }
     }

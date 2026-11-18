@@ -1,0 +1,9 @@
+{
+    "success": true,
+    "message": "1 student(s) will be moved.",
+    "data": {
+        "preview": true,
+        "count": 1,
+        "branch_name": "Vijay Nagar"
+    }
+}

@@ -1,0 +1,52 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": [
+        {
+            "id": 1,
+            "session_date": "2026-11-18",
+            "branch_id": 1,
+            "branch_name": "Vijay Nagar",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "marked_by": "Branch Owner",
+            "total_students": 8,
+            "present": 8,
+            "absent": 0,
+            "late": 0,
+            "on_leave": "0",
+            "leave": 0,
+            "attendance_pct": 100
+        }
+    ],
+    "meta": {
+        "page": 1,
+        "per_page": 25,
+        "total": 1,
+        "pages": 1,
+        "summary": {
+            "total_students": 8,
+            "present": 8,
+            "absent": 0,
+            "late": 0,
+            "leave": 0,
+            "attendance_pct": 100,
+            "sessions": 1,
+            "from": "2026-11-01",
+            "to": "2026-11-18"
+        },
+        "by_branch": [
+            {
+                "branch_id": 1,
+                "branch_name": "Vijay Nagar",
+                "sessions": 1,
+                "total_students": 8,
+                "present": 8,
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "attendance_pct": 100
+            }
+        ]
+    }
+}

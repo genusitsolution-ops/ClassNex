@@ -1,0 +1,42 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": {
+        "id": 1,
+        "academy_id": 1,
+        "name": "Vijay Nagar",
+        "address": "Vijay Nagar, Indore",
+        "contact_number": "9865494531",
+        "email": "vn@academy.test",
+        "manager_name": "Coach VN",
+        "manager_teacher_id": 1,
+        "status": "active",
+        "created_at": "2026-11-18 15:47:11",
+        "updated_at": "2026-11-18 15:47:11",
+        "manager_teacher_name": "Coach VN",
+        "figures": {
+            "students": 4,
+            "new_admissions": 4,
+            "teachers": 0,
+            "batches": 1,
+            "collected_paise": 100000,
+            "payments": 1,
+            "pending_paise": 800000,
+            "overdue_paise": 0,
+            "attendance_pct": 100
+        },
+        "batches": [
+            {
+                "id": 1,
+                "name": "VN Morning",
+                "activity_name": "Cricket",
+                "start_time": "06:30:00",
+                "end_time": "08:00:00",
+                "teacher_name": null,
+                "students": 7,
+                "attendance_pct": "100.0"
+            }
+        ],
+        "teachers": []
+    }
+}

@@ -1,0 +1,268 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": {
+        "role": "owner",
+        "subscription": {
+            "id": 2,
+            "status": "active",
+            "writable": true,
+            "package_id": 6,
+            "package_name": "QA Growth 100",
+            "starts_on": "2026-11-18",
+            "ends_on": "2027-01-01",
+            "days_left": 44,
+            "custom_limits": []
+        },
+        "total_students": 23,
+        "active_students": 23,
+        "new_admissions": 23,
+        "pending_online_admissions": 0,
+        "total_teachers": 1,
+        "total_batches": 2,
+        "total_activities": 1,
+        "today_attendance": {
+            "present": 8,
+            "absent": 0,
+            "marked": 8
+        },
+        "batches_not_marked": 1,
+        "recent_notifications": [
+            {
+                "event_key": "fee_overdue",
+                "channel": "whatsapp",
+                "recipient_name": "Student 12",
+                "status": "pending",
+                "created_at": "2026-11-18 15:47:12"
+            },
+            {
+                "event_key": "admission_confirmation",
+                "channel": "whatsapp",
+                "recipient_name": "Upgrade 5",
+                "status": "pending",
+                "created_at": "2026-11-18 15:47:12"
+            },
+            {
+                "event_key": "admission_confirmation",
+                "channel": "whatsapp",
+                "recipient_name": "Upgrade 4",
+                "status": "pending",
+                "created_at": "2026-11-18 15:47:12"
+            },
+            {
+                "event_key": "admission_confirmation",
+                "channel": "whatsapp",
+                "recipient_name": "Upgrade 3",
+                "status": "pending",
+                "created_at": "2026-11-18 15:47:12"
+            },
+            {
+                "event_key": "admission_confirmation",
+                "channel": "whatsapp",
+                "recipient_name": "Upgrade 2",
+                "status": "pending",
+                "created_at": "2026-11-18 15:47:12"
+            },
+            {
+                "event_key": "admission_confirmation",
+                "channel": "whatsapp",
+                "recipient_name": "Upgrade 1",
+                "status": "pending",
+                "created_at": "2026-11-18 15:47:12"
+            }
+        ],
+        "student_quota": {
+            "active": 23,
+            "limit": 100
+        },
+        "branches": [
+            {
+                "students": 5,
+                "new_admissions": 5,
+                "teachers": 1,
+                "batches": 0,
+                "collected_paise": 0,
+                "payments": 0,
+                "pending_paise": 200000,
+                "overdue_paise": 0,
+                "attendance_pct": null,
+                "branch_id": 3,
+                "name": "Bhawarkua",
+                "status": "active"
+            },
+            {
+                "students": 1,
+                "new_admissions": 1,
+                "teachers": 0,
+                "batches": 0,
+                "collected_paise": 0,
+                "payments": 0,
+                "pending_paise": 100000,
+                "overdue_paise": 0,
+                "attendance_pct": null,
+                "branch_id": 5,
+                "name": "Nipania",
+                "status": "active"
+            },
+            {
+                "students": 11,
+                "new_admissions": 11,
+                "teachers": 0,
+                "batches": 1,
+                "collected_paise": 40000,
+                "payments": 1,
+                "pending_paise": 860000,
+                "overdue_paise": 0,
+                "attendance_pct": null,
+                "branch_id": 2,
+                "name": "Palasia",
+                "status": "active"
+            },
+            {
+                "students": 1,
+                "new_admissions": 1,
+                "teachers": 0,
+                "batches": 0,
+                "collected_paise": 0,
+                "payments": 0,
+                "pending_paise": 100000,
+                "overdue_paise": 0,
+                "attendance_pct": null,
+                "branch_id": 4,
+                "name": "Rau",
+                "status": "active"
+            },
+            {
+                "students": 4,
+                "new_admissions": 4,
+                "teachers": 0,
+                "batches": 1,
+                "collected_paise": 100000,
+                "payments": 1,
+                "pending_paise": 800000,
+                "overdue_paise": 0,
+                "attendance_pct": 100,
+                "branch_id": 1,
+                "name": "Vijay Nagar",
+                "status": "active"
+            },
+            {
+                "students": 1,
+                "new_admissions": 1,
+                "teachers": 0,
+                "batches": 0,
+                "collected_paise": 0,
+                "payments": 0,
+                "pending_paise": 100000,
+                "overdue_paise": 0,
+                "attendance_pct": null,
+                "branch_id": 6,
+                "name": "Mhow",
+                "status": "inactive"
+            }
+        ],
+        "setup": {
+            "activities": true,
+            "batches": true,
+            "students": true,
+            "logo": false
+        },
+        "month_collection_paise": 140000,
+        "today_collection_paise": 140000,
+        "pending_fees_paise": 2160000,
+        "overdue_fees_paise": 0,
+        "overdue_students": 0,
+        "upcoming_dues": [
+            {
+                "id": 2,
+                "student_id": 2,
+                "student_name": "Student 2",
+                "title": "Cricket Monthly Fee – Nov 2026",
+                "due_date": "2026-11-18",
+                "balance_paise": 100000
+            },
+            {
+                "id": 15,
+                "student_id": 15,
+                "student_name": "Student 15",
+                "title": "Cricket Monthly Fee – Nov 2026",
+                "due_date": "2026-11-18",
+                "balance_paise": 100000
+            },
+            {
+                "id": 16,
+                "student_id": 16,
+                "student_name": "Student 16",
+                "title": "Cricket Monthly Fee – Nov 2026",
+                "due_date": "2026-11-18",
+                "balance_paise": 100000
+            },
+            {
+                "id": 17,
+                "student_id": 17,
+                "student_name": "Upgrade 0",
+                "title": "Cricket Monthly Fee – Nov 2026",
+                "due_date": "2026-11-18",
+                "balance_paise": 100000
+            },
+            {
+                "id": 18,
+                "student_id": 18,
+                "student_name": "Upgrade 1",
+                "title": "Cricket Monthly Fee – Nov 2026",
+                "due_date": "2026-11-18",
+                "balance_paise": 100000
+            },
+            {
+                "id": 19,
+                "student_id": 19,
+                "student_name": "Upgrade 2",
+                "title": "Cricket Monthly Fee – Nov 2026",
+                "due_date": "2026-11-18",
+                "balance_paise": 100000
+            },
+            {
+                "id": 20,
+                "student_id": 20,
+                "student_name": "Upgrade 3",
+                "title": "Cricket Monthly Fee – Nov 2026",
+                "due_date": "2026-11-18",
+                "balance_paise": 100000
+            },
+            {
+                "id": 21,
+                "student_id": 21,
+                "student_name": "Upgrade 4",
+                "title": "Cricket Monthly Fee – Nov 2026",
+                "due_date": "2026-11-18",
+                "balance_paise": 100000
+            }
+        ],
+        "recent_payments": [
+            {
+                "id": 2,
+                "student_name": "Student 12",
+                "amount_paise": 40000,
+                "method": "upi",
+                "paid_on": "2026-11-18",
+                "status": "success",
+                "receipt_no": "RCPT/2026-27/00002"
+            },
+            {
+                "id": 1,
+                "student_name": "Student 1",
+                "amount_paise": 100000,
+                "method": "cash",
+                "paid_on": "2026-11-18",
+                "status": "success",
+                "receipt_no": "RCPT/2026-27/00001"
+            }
+        ],
+        "collection_trend": [
+            {
+                "month": "2026-11",
+                "total": "140000"
+            }
+        ]
+    }
+}

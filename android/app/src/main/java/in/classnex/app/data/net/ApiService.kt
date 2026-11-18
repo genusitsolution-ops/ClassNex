@@ -7,6 +7,8 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.QueryMap
 import retrofit2.http.Part
 import retrofit2.http.PartMap
 import retrofit2.http.Path
@@ -28,7 +30,7 @@ interface ApiService {
     @GET("dashboard") suspend fun dashboard(): ApiResponse<Dashboard>
     @GET("activities") suspend fun activities(@Query("status") status: String = "active"): ApiResponse<List<Activity>>
     @GET("batches") suspend fun batches(@Query("status") status: String = "active"): ApiResponse<List<Batch>>
-    @GET("students") suspend fun students(@Query("q") q: String?, @Query("page") page: Int = 1, @Query("per_page") perPage: Int = 50, @Query("dues") dues: String? = null): ApiResponse<List<StudentRow>>
+    @GET("students") suspend fun students(@Query("q") q: String?, @Query("page") page: Int = 1, @Query("per_page") perPage: Int = 50, @Query("dues") dues: String? = null, @Query("branch_id") branchId: String? = null, @Query("not_branch_id") notBranchId: Long? = null): ApiResponse<List<StudentRow>>
     @GET("students/{id}") suspend fun student(@Path("id") id: Long): ApiResponse<StudentDetail>
     @Multipart @POST("students") suspend fun createStudent(@PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>, @Part photo: MultipartBody.Part?): ApiResponse<CreateStudentData>
     @Multipart @POST("students/{id}/documents") suspend fun uploadDocument(@Path("id") id: Long, @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>, @Part file: MultipartBody.Part): ApiResponse<Map<String, Long>>
@@ -52,5 +54,28 @@ interface ApiService {
 
     // super admin
     @GET("admin/dashboard") suspend fun adminDashboard(): ApiResponse<AdminDashboard>
+    @GET("admin/academies/{id}") suspend fun adminAcademy(@Path("id") id: Long): ApiResponse<kotlinx.serialization.json.JsonObject>
     @GET("admin/owners") suspend fun owners(@Query("q") q: String? = null, @Query("per_page") perPage: Int = 100): ApiResponse<List<OwnerRow>>
+
+    // branches (unlimited; one academy-wide student quota)
+    @GET("branches") suspend fun branches(@Query("status") status: String? = null): ApiResponse<List<Branch>>
+    @GET("branches/summary") suspend fun branchSummary(@Query("from") from: String? = null, @Query("to") to: String? = null): ApiResponse<BranchSummary>
+    @GET("branches/{id}") suspend fun branch(@Path("id") id: Long, @Query("from") from: String? = null, @Query("to") to: String? = null): ApiResponse<BranchDetail>
+    @POST("branches") suspend fun createBranch(@Body body: BranchSave): ApiResponse<SavedId>
+    @PUT("branches/{id}") suspend fun updateBranch(@Path("id") id: Long, @Body body: BranchSave): ApiResponse<SavedId>
+    @GET("teachers") suspend fun teachers(@Query("status") status: String = "active"): ApiResponse<List<TeacherRow>>
+    @POST("students/{id}/branch") suspend fun changeBranch(@Path("id") id: Long, @Body body: ChangeBranch): ApiResponse<StudentDetail>
+    @POST("students/bulk-branch") suspend fun bulkBranch(@Body body: BulkBranch): ApiResponse<BulkBranchResult>
+    @POST("students/{id}/link") suspend fun linkExisting(@Path("id") id: Long, @Body body: LinkExisting): ApiResponse<StudentDetail>
+
+    // attendance history: filters date/from/to/branch_id/activity_id/batch_id/student_id/status, view=sessions|students|branches
+    @GET("attendance/history") suspend fun attendanceHistory(@QueryMap filters: Map<String, String>): ApiResponse<List<HistoryRow>>
+
+    // reports (branch_id filter; combined report = branch_summary)
+    @GET("reports/{name}") suspend fun report(@Path("name") name: String, @QueryMap filters: Map<String, String>): ApiResponse<ReportData>
+
+    // WhatsApp click-to-send (manual mode) – the user sends from WhatsApp; history is kept on the server
+    @POST("whatsapp/manual/prepare") suspend fun waPrepare(@Body body: ManualPrepare): ApiResponse<ManualBatch>
+    @POST("whatsapp/manual/{id}/opened") suspend fun waOpened(@Path("id") id: Long, @Body body: Map<String, String> = emptyMap()): ApiResponse<Unit?>
+    @GET("whatsapp/manual/log") suspend fun waLog(@Query("page") page: Int = 1, @Query("per_page") perPage: Int = 50, @Query("purpose") purpose: String? = null): ApiResponse<List<ManualLogRow>>
 }

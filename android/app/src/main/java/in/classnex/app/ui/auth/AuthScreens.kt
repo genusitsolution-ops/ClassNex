@@ -212,7 +212,7 @@ fun LoginScreen(vm: AuthViewModel) {
         Image(painterResource(R.drawable.classnex_logo), "ClassNex", Modifier.width(210.dp))
         Spacer(Modifier.height(24.dp))
         Text("Welcome back", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-        Text("Owners, teachers, parents and students", color = Muted)
+        Text("Class Admins, teachers, parents and students", color = Muted)
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(id, { id = it }, label = { Text("Mobile number or email") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next))
@@ -238,7 +238,7 @@ fun LoginScreen(vm: AuthViewModel) {
                     ui.accounts.forEach { a ->
                         Row(Modifier.fillMaxWidth().selectable(sel == a.id) { sel = a.id }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(sel == a.id, { sel = a.id })
-                            Column { Text(a.academy ?: "", fontWeight = FontWeight.Bold); Text("${a.role.replace('_', ' ')} · ${a.name}", color = Muted, fontSize = 13.sp) }
+                            Column { Text(a.academy ?: "", fontWeight = FontWeight.Bold); Text("${`in`.classnex.app.ui.common.roleName(a.role)} · ${a.name}", color = Muted, fontSize = 13.sp) }
                         }
                     }
                 }

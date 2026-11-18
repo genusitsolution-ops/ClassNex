@@ -1,0 +1,124 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": [
+        {
+            "session_date": "2026-11-18",
+            "status": "present",
+            "remarks": null,
+            "student_id": 1,
+            "student_code": "MBA0001",
+            "student_name": "Student 1",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "branch_name": "Vijay Nagar"
+        },
+        {
+            "session_date": "2026-11-18",
+            "status": "present",
+            "remarks": null,
+            "student_id": 2,
+            "student_code": "MBA0002",
+            "student_name": "Student 2",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "branch_name": "Vijay Nagar"
+        },
+        {
+            "session_date": "2026-11-18",
+            "status": "present",
+            "remarks": null,
+            "student_id": 3,
+            "student_code": "MBA0003",
+            "student_name": "Student 3",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "branch_name": "Vijay Nagar"
+        },
+        {
+            "session_date": "2026-11-18",
+            "status": "present",
+            "remarks": null,
+            "student_id": 4,
+            "student_code": "MBA0004",
+            "student_name": "Student 4",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "branch_name": "Vijay Nagar"
+        },
+        {
+            "session_date": "2026-11-18",
+            "status": "present",
+            "remarks": null,
+            "student_id": 5,
+            "student_code": "MBA0005",
+            "student_name": "Student 5",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "branch_name": "Vijay Nagar"
+        },
+        {
+            "session_date": "2026-11-18",
+            "status": "present",
+            "remarks": null,
+            "student_id": 6,
+            "student_code": "MBA0006",
+            "student_name": "Student 6",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "branch_name": "Vijay Nagar"
+        },
+        {
+            "session_date": "2026-11-18",
+            "status": "present",
+            "remarks": null,
+            "student_id": 7,
+            "student_code": "MBA0007",
+            "student_name": "Student 7",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "branch_name": "Vijay Nagar"
+        },
+        {
+            "session_date": "2026-11-18",
+            "status": "present",
+            "remarks": null,
+            "student_id": 8,
+            "student_code": "MBA0008",
+            "student_name": "Student 8",
+            "batch_name": "VN Morning",
+            "activity_name": "Cricket",
+            "branch_name": "Vijay Nagar"
+        }
+    ],
+    "meta": {
+        "page": 1,
+        "per_page": 10,
+        "total": 8,
+        "pages": 1,
+        "summary": {
+            "total_students": 8,
+            "present": 8,
+            "absent": 0,
+            "late": 0,
+            "leave": 0,
+            "attendance_pct": 100,
+            "sessions": 1,
+            "from": "2026-11-01",
+            "to": "2026-11-18"
+        },
+        "by_branch": [
+            {
+                "branch_id": 1,
+                "branch_name": "Vijay Nagar",
+                "sessions": 1,
+                "total_students": 8,
+                "present": 8,
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "attendance_pct": 100
+            }
+        ]
+    }
+}

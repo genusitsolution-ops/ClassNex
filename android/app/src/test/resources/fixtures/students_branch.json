@@ -1,0 +1,80 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": [
+        {
+            "id": 1,
+            "student_code": "MBA0001",
+            "name": "Student 1",
+            "guardian_name": null,
+            "branch_id": 1,
+            "branch_name": "Vijay Nagar",
+            "country_code": "+91",
+            "whatsapp": "9700000001",
+            "status": "active",
+            "admission_date": "2026-11-18",
+            "has_photo": 0,
+            "is_minor": 0,
+            "enrolled_in": "Cricket · VN Morning",
+            "pending_paise": "0",
+            "photo_url": null
+        },
+        {
+            "id": 7,
+            "student_code": "MBA0007",
+            "name": "Student 7",
+            "guardian_name": null,
+            "branch_id": 1,
+            "branch_name": "Vijay Nagar",
+            "country_code": "+91",
+            "whatsapp": "9700000007",
+            "status": "active",
+            "admission_date": "2026-11-18",
+            "has_photo": 0,
+            "is_minor": 0,
+            "enrolled_in": "Cricket · VN Morning",
+            "pending_paise": "100000",
+            "photo_url": null
+        },
+        {
+            "id": 8,
+            "student_code": "MBA0008",
+            "name": "Student 8",
+            "guardian_name": null,
+            "branch_id": 1,
+            "branch_name": "Vijay Nagar",
+            "country_code": "+91",
+            "whatsapp": "9700000008",
+            "status": "active",
+            "admission_date": "2026-11-18",
+            "has_photo": 0,
+            "is_minor": 0,
+            "enrolled_in": "Cricket · VN Morning",
+            "pending_paise": "100000",
+            "photo_url": null
+        },
+        {
+            "id": 17,
+            "student_code": "MBA0017",
+            "name": "Upgrade 0",
+            "guardian_name": null,
+            "branch_id": 1,
+            "branch_name": "Vijay Nagar",
+            "country_code": "+91",
+            "whatsapp": "9600000000",
+            "status": "active",
+            "admission_date": "2026-11-18",
+            "has_photo": 0,
+            "is_minor": 0,
+            "enrolled_in": "Cricket · VN Morning",
+            "pending_paise": "100000",
+            "photo_url": null
+        }
+    ],
+    "meta": {
+        "page": 1,
+        "per_page": 5,
+        "total": 4,
+        "pages": 1
+    }
+}

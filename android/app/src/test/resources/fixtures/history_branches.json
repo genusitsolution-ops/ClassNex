@@ -1,0 +1,34 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": [
+        {
+            "branch_id": 1,
+            "branch_name": "Vijay Nagar",
+            "sessions": 1,
+            "total_students": 8,
+            "present": 8,
+            "absent": 0,
+            "late": 0,
+            "leave": 0,
+            "attendance_pct": 100
+        }
+    ],
+    "meta": {
+        "page": 1,
+        "per_page": 25,
+        "total": 1,
+        "pages": 1,
+        "summary": {
+            "total_students": 8,
+            "present": 8,
+            "absent": 0,
+            "late": 0,
+            "leave": 0,
+            "attendance_pct": 100,
+            "sessions": 1,
+            "from": "2026-11-01",
+            "to": "2026-11-18"
+        }
+    }
+}

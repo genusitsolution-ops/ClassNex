@@ -136,6 +136,9 @@ fun AttendanceListScreen(nav: (String) -> Unit, vm: AttendanceListVm = hiltViewM
 @HiltViewModel
 class AttendanceSheetVm @Inject constructor(private val repo: Repository) : LoadVm<AttSheet>() {
     val marks = mutableStateMapOf<Long, String>()
+    /** Manual WhatsApp mode: after saving, offer click-to-send messages for absent / late students. */
+    var manualWhatsApp = false
+    val absentToNotify = MutableStateFlow(0)
     val saving = MutableStateFlow(false)
     var batchId = 0L
     fun open(id: Long) {
@@ -155,15 +158,29 @@ class AttendanceSheetVm @Inject constructor(private val repo: Repository) : Load
             try {
                 val r = call { repo.api.saveAttendance(AttSave(batchId, today(), marks.map { AttEntry(it.key, it.value) })) }
                 say(r.message + if ((r.data?.notifications ?: 0) > 0) " Parents notified: ${r.data?.notifications}." else "")
-                done()
+                absentToNotify.value = marks.values.count { it == "absent" || it == "late" }
+                if (absentToNotify.value == 0 || !manualWhatsApp) done()
             } catch (e: Exception) { say(errorText(e)) } finally { saving.value = false }
         }
     }
 }
 
 @Composable
-fun AttendanceSheetScreen(batchId: Long, snack: SnackbarHostState, back: () -> Unit, vm: AttendanceSheetVm = hiltViewModel()) {
+fun AttendanceSheetScreen(batchId: Long, snack: SnackbarHostState, back: () -> Unit, me: Me? = null, vm: AttendanceSheetVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
+    vm.manualWhatsApp = me?.whatsappManualOnly == true && me.can("notifications.send")
     LaunchedEffect(batchId) { vm.open(batchId) }
+    val absentN by vm.absentToNotify.collectAsState()
+    val waItems by wa.items.collectAsState()
+    var asked by remember { mutableStateOf(false) }
+    WhatsAppSendDialog(wa, "Attendance alerts")
+    LaunchedEffect(waItems, asked) { if (asked && waItems.isEmpty()) back() }
+    if (vm.manualWhatsApp && absentN > 0 && !asked) AlertDialog(
+        onDismissRequest = { back() },
+        title = { Text("Message parents on WhatsApp?") },
+        text = { Text("$absentN student(s) absent or late. Prepare WhatsApp messages for their parents?") },
+        confirmButton = { Button(onClick = { asked = true; wa.prepare(`in`.classnex.app.data.net.ManualPrepare(purpose = "attendance", batch_id = batchId, date = today())) }) { Text("Prepare") } },
+        dismissButton = { TextButton(onClick = { back() }) { Text("Skip") } },
+    )
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
     val st by vm.state.collectAsState()
     val saving by vm.saving.collectAsState()
@@ -325,8 +342,10 @@ class FeesVm @Inject constructor(private val repo: Repository) : LoadVm<List<Inv
 }
 
 @Composable
-fun PendingFeesScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit, vm: FeesVm = hiltViewModel()) {
+fun PendingFeesScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit, vm: FeesVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
     val st by vm.state.collectAsState()
+    LaunchedEffect(Unit) { wa.messages.collect { snack.showSnackbar(it) } }
+    WhatsAppSendDialog(wa, "Overdue fee reminders")
     var tab by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     var confirm by remember { mutableStateOf(false) }
@@ -353,7 +372,12 @@ fun PendingFeesScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit, v
         }
     }
     if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text("Send reminders?") }, text = { Text("Every family with overdue fees gets a reminder with their own amount.") },
-        confirmButton = { Button(onClick = { confirm = false; vm.remindAll { m -> scope.launch { snack.showSnackbar(m) } } }) { Text("Send") } },
+        confirmButton = { Button(onClick = {
+            confirm = false
+            vm.remindAll { m -> scope.launch { snack.showSnackbar(m) } }
+            // manual mode: one click-to-send WhatsApp message per family (bulk reminder preparation)
+            if (me.whatsappManualOnly) wa.prepare(`in`.classnex.app.data.net.ManualPrepare(purpose = "fee_reminder", target = "dues", overdue_only = 1))
+        }) { Text("Send") } },
         dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } })
 }
 
@@ -408,7 +432,7 @@ class MessageVm @Inject constructor(private val repo: Repository) : LoadVm<List<
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun MessageScreen(me: Me, studentId: Long?, snack: SnackbarHostState, back: () -> Unit, vm: MessageVm = hiltViewModel()) {
+fun MessageScreen(me: Me, studentId: Long?, snack: SnackbarHostState, back: () -> Unit, vm: MessageVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
     val st by vm.state.collectAsState()
     val busy by vm.busy.collectAsState()
@@ -416,7 +440,9 @@ fun MessageScreen(me: Me, studentId: Long?, snack: SnackbarHostState, back: () -
     var batch by remember { mutableStateOf<Long?>(null) }
     var type by remember { mutableStateOf("message") }
     var text by remember { mutableStateOf("") }
-    val channels = remember { mutableStateMapOf<String, Boolean>().apply { listOf("whatsapp", "inapp", "push").filter { me.has(it) }.forEach { put(it, true) } } }
+    val channels = remember { mutableStateMapOf<String, Boolean>().apply { listOf("whatsapp", "inapp", "push").filter { me.has(it) }.forEach { put(it, true) }; if (me.has("whatsapp_manual")) put("wa_manual", me.whatsappManualOnly) } }
+    LaunchedEffect(Unit) { wa.messages.collect { snack.showSnackbar(it) } }
+    WhatsAppSendDialog(wa, if (type == "fee_reminder") "Fee reminders" else "Message")
     LoadContent(st, {}) { batches ->
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (studentId == null) {
@@ -433,9 +459,12 @@ fun MessageScreen(me: Me, studentId: Long?, snack: SnackbarHostState, back: () -
             if (type == "message") OutlinedTextField(text, { if (it.length <= 1000) text = it }, label = { Text("Message") }, minLines = 4, modifier = Modifier.fillMaxWidth(), supportingText = { Text("${text.length}/1000") })
             else Text("Each family receives a reminder with their own pending amount.", color = Muted)
             Text("Send via", fontWeight = FontWeight.Bold)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { channels.keys.toList().forEach { c -> FilterChip(channels[c] == true, { channels[c] = !(channels[c] ?: false) }, label = { Text(if (c == "inapp") "App inbox" else label(c)) }) } }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { channels.keys.toList().forEach { c -> FilterChip(channels[c] == true, { channels[c] = !(channels[c] ?: false) }, label = { Text(when (c) { "inapp" -> "App inbox"; "whatsapp" -> "WhatsApp (automatic)"; "wa_manual" -> "WhatsApp – click to send"; else -> label(c) }) }) } }
             Button(onClick = {
-                vm.send(MessageRequest(target = target, batch_id = batch, student_ids = listOfNotNull(studentId), message = text, type = type, channels = channels.filterValues { it }.keys.toList(), client_ref = UUID.randomUUID().toString()), back)
+                val chosen = channels.filterValues { it }.keys.toList()
+                val auto = chosen - "wa_manual"
+                if ("wa_manual" in chosen) wa.prepare(`in`.classnex.app.data.net.ManualPrepare(purpose = if (type == "fee_reminder") "fee_reminder" else "custom", target = target, batch_id = batch, student_ids = listOfNotNull(studentId), message = text))
+                if (auto.isNotEmpty()) vm.send(MessageRequest(target = target, batch_id = batch, student_ids = listOfNotNull(studentId), message = text, type = type, channels = auto, client_ref = UUID.randomUUID().toString())) { if ("wa_manual" !in chosen) back() }
             }, enabled = !busy && (type == "fee_reminder" || text.length >= 2), modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Send") }
         }
     }

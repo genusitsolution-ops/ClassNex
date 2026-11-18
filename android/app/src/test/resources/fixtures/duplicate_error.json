@@ -1,0 +1,27 @@
+{
+    "success": false,
+    "message": "Possible duplicate: Student 1 (MBA0001, active) – same name, same WhatsApp number. Open or link the existing profile, or create a separate student after checking.",
+    "code": "duplicate_student",
+    "errors": {
+        "duplicate_id": 1,
+        "duplicate_status": "active",
+        "candidates": [
+            {
+                "id": 1,
+                "student_code": "MBA0001",
+                "name": "Student 1",
+                "status": "active",
+                "branch_name": "Vijay Nagar",
+                "guardian_name": null,
+                "dob": null,
+                "whatsapp_last4": "0001",
+                "reasons": [
+                    "same name",
+                    "same WhatsApp number"
+                ],
+                "level": "high"
+            }
+        ],
+        "can_override": true
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "success": true,
+    "message": "Messages ready. Tap Send on each one to open WhatsApp.",
+    "data": {
+        "batch_ref": "261118154723-1a47af",
+        "purpose": "admission",
+        "items": [
+            {
+                "id": 3,
+                "student_id": 24,
+                "student_name": "Mode Kid",
+                "name": "Mode Kid",
+                "phone": "+919200000001",
+                "text": "Welcome Mode Kid! Admission to Dance at Other Academy is confirmed. Student ID: OAT0001.",
+                "link": "https://wa.me/919200000001?text=Welcome%20Mode%20Kid%21%20Admission%20to%20Dance%20at%20Other%20Academy%20is%20confirmed.%20Student%20ID%3A%20OAT0001."
+            }
+        ]
+    }
+}

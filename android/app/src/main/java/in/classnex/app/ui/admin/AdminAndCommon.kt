@@ -56,6 +56,7 @@ import `in`.classnex.app.ui.common.LoadVm
 import `in`.classnex.app.ui.common.StatCard
 import `in`.classnex.app.ui.common.StatusChip
 import `in`.classnex.app.ui.common.label
+import `in`.classnex.app.ui.common.roleName
 import `in`.classnex.app.ui.common.money
 import `in`.classnex.app.ui.common.openUrl
 import `in`.classnex.app.ui.common.prettyDate
@@ -102,8 +103,8 @@ fun AdminDashboardScreen(vm: AdminVm = hiltViewModel()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(o.academy_name, fontWeight = FontWeight.Bold)
-                            Text("${o.owner_name ?: ""} · ${o.mobile ?: ""}", color = Muted, fontSize = 12.sp)
-                            Text("${o.package_name ?: "No plan"}${o.ends_on?.let { " · till ${prettyDate(it)}" } ?: ""} · ${o.students} students", color = Muted, fontSize = 12.sp)
+                            Text("Class Admin: ${o.owner_name ?: "–"} · ${o.mobile ?: ""}", color = Muted, fontSize = 12.sp)
+                            Text("${o.package_name ?: "No plan"}${o.ends_on?.let { " · till ${prettyDate(it)}" } ?: ""} · ${o.students}${o.student_limit?.let { "/$it" } ?: ""} students · ${o.branches} branch(es)", color = Muted, fontSize = 12.sp)
                         }
                         o.sub_status?.let { StatusChip(it) }
                     }
@@ -141,7 +142,7 @@ class ProfileVm @Inject constructor(private val repo: Repository) : LoadVm<Unit>
 }
 
 @Composable
-fun ProfileScreen(me: Me, snack: SnackbarHostState, onLogout: () -> Unit, vm: ProfileVm = hiltViewModel()) {
+fun ProfileScreen(me: Me, snack: SnackbarHostState, onLogout: () -> Unit, nav: (String) -> Unit = {}, vm: ProfileVm = hiltViewModel()) {
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
     var cur by remember { mutableStateOf("") }
     var new by remember { mutableStateOf("") }
@@ -149,13 +150,27 @@ fun ProfileScreen(me: Me, snack: SnackbarHostState, onLogout: () -> Unit, vm: Pr
         AppCard {
             Column {
                 Text(me.name, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                Text(label(me.role), color = Muted)
+                Text(roleName(me.role), color = Muted)
                 Spacer(Modifier.height(8.dp))
                 KeyValue("Mobile", "${me.country_code ?: ""} ${me.mobile ?: "–"}")
                 KeyValue("Email", me.email ?: "–")
                 me.academy?.let { KeyValue("Academy", it.name) }
                 me.subscription?.let { KeyValue("Plan", "${it.package_name ?: "–"} (${label(it.status)})") }
                 KeyValue("App version", BuildConfig.VERSION_NAME)
+            }
+        }
+        if (me.isStaff) AppCard {
+            // "More" menu for Class Admins and teachers – the same modules as the web panel
+            Column {
+                val links = buildList {
+                    if (me.isClassAdmin) add("Branches" to "branches")
+                    if (me.has("attendance")) add("Attendance history" to "history")
+                    if (me.has("fees") && me.can("fees.view")) add("Payments & receipts" to "payments")
+                    if (me.isClassAdmin && me.can("reports.view")) add("Combined branch report" to "report/branch_summary")
+                    if (me.has("manual_reminders") && me.can("notifications.send")) add("Send message / reminder" to "message")
+                    if (me.has("whatsapp_manual") && me.can("notifications.send")) add("WhatsApp history" to "waLog")
+                }
+                links.forEach { (t, r) -> androidx.compose.material3.TextButton(onClick = { nav(r) }, modifier = Modifier.fillMaxWidth()) { Text(t, modifier = Modifier.fillMaxWidth()) } }
             }
         }
         AppCard {

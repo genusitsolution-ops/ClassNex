@@ -1,0 +1,69 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": {
+        "id": 2,
+        "name": "Branch Owner",
+        "role": "owner",
+        "email": null,
+        "mobile": "9811111111",
+        "country_code": "+91",
+        "must_change_password": false,
+        "permissions": [
+            "admissions.manage",
+            "attendance.correct",
+            "attendance.mark",
+            "dashboard.view",
+            "documents.manage",
+            "fees.collect",
+            "fees.manage",
+            "fees.view",
+            "notifications.send",
+            "payments.reverse",
+            "reports.financial",
+            "reports.view",
+            "settings.manage",
+            "structure.manage",
+            "students.manage",
+            "students.view",
+            "teachers.manage"
+        ],
+        "academy": {
+            "id": 1,
+            "name": "Multi Branch Academy",
+            "code": "MBA",
+            "slug": "multi-branch-academy",
+            "logo_path": null,
+            "mobile": "9811111111",
+            "whatsapp": "9811111111",
+            "email": null,
+            "status": "active",
+            "logo_url": null
+        },
+        "subscription": {
+            "id": 2,
+            "status": "active",
+            "writable": true,
+            "package_id": 6,
+            "package_name": "QA Growth 100",
+            "starts_on": "2026-11-18",
+            "ends_on": "2027-01-01",
+            "days_left": 44,
+            "custom_limits": []
+        },
+        "features": [
+            "attendance",
+            "auto_reminders",
+            "fees",
+            "inapp",
+            "manual_reminders",
+            "parent_access",
+            "push",
+            "reports",
+            "whatsapp_manual",
+            "whatsapp"
+        ],
+        "children": [],
+        "whatsapp_mode": "api"
+    }
+}

@@ -1,0 +1,112 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": {
+        "title": "Branch-wise & Combined Academy Report (01 Nov 2026 – 18 Nov 2026)",
+        "columns": [
+            "Branch",
+            "Active students",
+            "New admissions",
+            "Teachers",
+            "Batches",
+            "Attendance %",
+            "Collected",
+            "Payments",
+            "Pending",
+            "Overdue"
+        ],
+        "rows": [
+            [
+                "Bhawarkua",
+                5,
+                5,
+                1,
+                0,
+                "-",
+                "₹0.00",
+                0,
+                "₹2,000.00",
+                "₹0.00"
+            ],
+            [
+                "Nipania",
+                1,
+                1,
+                0,
+                0,
+                "-",
+                "₹0.00",
+                0,
+                "₹1,000.00",
+                "₹0.00"
+            ],
+            [
+                "Palasia",
+                11,
+                11,
+                0,
+                1,
+                "-",
+                "₹400.00",
+                1,
+                "₹8,600.00",
+                "₹0.00"
+            ],
+            [
+                "Rau",
+                1,
+                1,
+                0,
+                0,
+                "-",
+                "₹0.00",
+                0,
+                "₹1,000.00",
+                "₹0.00"
+            ],
+            [
+                "Vijay Nagar",
+                4,
+                4,
+                0,
+                1,
+                "100%",
+                "₹1,000.00",
+                1,
+                "₹8,000.00",
+                "₹0.00"
+            ],
+            [
+                "Mhow",
+                1,
+                1,
+                0,
+                0,
+                "-",
+                "₹0.00",
+                0,
+                "₹1,000.00",
+                "₹0.00"
+            ],
+            [
+                "All branches",
+                23,
+                23,
+                1,
+                2,
+                "100%",
+                "₹1,400.00",
+                2,
+                "₹21,600.00",
+                "₹0.00"
+            ]
+        ],
+        "totals": {
+            "Branches": 6,
+            "Total active students (unique)": 23,
+            "Total collection": "₹1,400.00",
+            "Total pending": "₹21,600.00"
+        },
+        "generated_at": "18 Nov 2026 15:47"
+    }
+}

@@ -43,6 +43,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import `in`.classnex.app.data.net.Me
 import `in`.classnex.app.ui.academy.AddStudentScreen
+import `in`.classnex.app.ui.academy.AssignStudentsScreen
+import `in`.classnex.app.ui.academy.AttendanceHistoryScreen
+import `in`.classnex.app.ui.academy.BranchDetailScreen
+import `in`.classnex.app.ui.academy.BranchesScreen
+import `in`.classnex.app.ui.academy.ReportScreen
+import `in`.classnex.app.ui.academy.WhatsAppHistoryScreen
 import `in`.classnex.app.ui.academy.AttendanceListScreen
 import `in`.classnex.app.ui.academy.AttendanceSheetScreen
 import `in`.classnex.app.ui.academy.CollectFeeScreen
@@ -65,7 +71,8 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 private val titles = mapOf(
     "dashboard" to "Dashboard", "students" to "Students", "addStudent" to "Add Student", "attendance" to "Attendance",
     "fees" to "Pending Fees", "payments" to "Payments", "notifications" to "Notifications", "profile" to "Profile",
-    "portal" to "Home", "portalAttendance" to "Attendance", "portalFees" to "Fees & Receipts", "admin" to "ClassNex Admin",
+    "portal" to "Home", "portalAttendance" to "Attendance", "portalFees" to "Fees & Receipts", "admin" to "ClassNex Super Admin",
+    "branches" to "Branches", "history" to "Attendance History", "waLog" to "WhatsApp History", "branchStudents" to "Branch Students",
 )
 
 /** One app for every role: the menu, start screen and permissions come from the logged-in user. */
@@ -126,10 +133,21 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
         NavHost(nav, startDestination = start, modifier = Modifier.padding(pad)) {
             composable("dashboard") { DashboardScreen(me, go) }
             composable("students") { StudentsScreen(me, go) }
-            composable("student/{id}", listOf(navArgument("id") { type = NavType.LongType })) { StudentDetailScreen(it.arguments!!.getLong("id"), me, go) }
+            composable("student/{id}", listOf(navArgument("id") { type = NavType.LongType })) { StudentDetailScreen(it.arguments!!.getLong("id"), me, go, snack) }
+            composable("branchStudents/{branch}", listOf(navArgument("branch") { type = NavType.LongType })) { StudentsScreen(me, go, branchId = it.arguments!!.getLong("branch")) }
+            composable("branches") { BranchesScreen(me, snack, go) }
+            composable("branch/{id}", listOf(navArgument("id") { type = NavType.LongType })) { BranchDetailScreen(it.arguments!!.getLong("id"), me, snack, go) }
+            composable("assign/{branch}", listOf(navArgument("branch") { type = NavType.LongType })) { AssignStudentsScreen(it.arguments!!.getLong("branch"), snack, back = { nav.popBackStack() }) }
+            composable("history?branch={branch}&student={student}", listOf(navArgument("branch") { type = NavType.LongType; defaultValue = 0L }, navArgument("student") { type = NavType.LongType; defaultValue = 0L })) {
+                AttendanceHistoryScreen(it.arguments!!.getLong("branch").takeIf { b -> b > 0 }, it.arguments!!.getLong("student").takeIf { s -> s > 0 }, snack)
+            }
+            composable("report/{name}?branch={branch}", listOf(navArgument("name") { type = NavType.StringType }, navArgument("branch") { type = NavType.LongType; defaultValue = 0L })) {
+                ReportScreen(it.arguments!!.getString("name") ?: "branch_summary", it.arguments!!.getLong("branch").takeIf { b -> b > 0 }, snack)
+            }
+            composable("waLog") { WhatsAppHistoryScreen(snack) }
             composable("addStudent") { AddStudentScreen(snack, onSaved = { id -> nav.popBackStack(); nav.navigate("student/$id") }) }
             composable("attendance") { AttendanceListScreen(go) }
-            composable("attendance/{batch}", listOf(navArgument("batch") { type = NavType.LongType })) { AttendanceSheetScreen(it.arguments!!.getLong("batch"), snack, back = { nav.popBackStack() }) }
+            composable("attendance/{batch}", listOf(navArgument("batch") { type = NavType.LongType })) { AttendanceSheetScreen(it.arguments!!.getLong("batch"), snack, back = { nav.popBackStack() }, me = me) }
             composable("collect/{student}", listOf(navArgument("student") { type = NavType.LongType })) { CollectFeeScreen(it.arguments!!.getLong("student"), me, snack, go) }
             composable("fees") { PendingFeesScreen(me, snack, go) }
             composable("payments") { PaymentsScreen(snack) }
@@ -142,7 +160,7 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
             composable("portalFees") { PortalFeesScreen(me, snack) }
             composable("admin") { AdminDashboardScreen() }
             composable("notifications") { NotificationsScreen() }
-            composable("profile") { ProfileScreen(me, snack, onLogout) }
+            composable("profile") { ProfileScreen(me, snack, onLogout, go) }
         }
     }
 }
@@ -152,5 +170,8 @@ private fun titleFor(route: String) = when {
     route.startsWith("attendance/") -> "Mark Attendance"
     route.startsWith("collect/") -> "Collect Fee"
     route.startsWith("message") -> "Send Message"
+    route.startsWith("branch/") -> "Branch"
+    route.startsWith("assign/") -> "Assign Students"
+    route.startsWith("report/") -> "Report"
     else -> "ClassNex"
 }

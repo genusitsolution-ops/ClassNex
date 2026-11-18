@@ -1,0 +1,42 @@
+{
+    "success": true,
+    "message": "OK",
+    "data": {
+        "title": "Fee Collection Report – Vijay Nagar",
+        "columns": [
+            "Date",
+            "Receipt No",
+            "Branch",
+            "Student ID",
+            "Student",
+            "Method",
+            "Reference",
+            "Amount",
+            "Refunded",
+            "Balance After",
+            "Collected By",
+            "Status"
+        ],
+        "rows": [
+            [
+                "2026-11-18",
+                "RCPT/2026-27/00001",
+                "Vijay Nagar",
+                "MBA0001",
+                "Student 1",
+                "Cash",
+                null,
+                "₹1,000.00",
+                "₹0.00",
+                "₹0.00",
+                "Branch Owner",
+                "Success"
+            ]
+        ],
+        "totals": {
+            "Net collected": "₹1,000.00",
+            "Payments": 1
+        },
+        "generated_at": "18 Nov 2026 15:47"
+    }
+}

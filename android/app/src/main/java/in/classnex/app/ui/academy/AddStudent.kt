@@ -96,7 +96,7 @@ import java.util.UUID
 import javax.inject.Inject
 
 data class StudentForm(
-    val name: String = "", val whatsapp: String = "", val activityId: Long? = null, val batchId: Long? = null,
+    val name: String = "", val whatsapp: String = "", val activityId: Long? = null, val batchId: Long? = null, val branchId: Long? = null,
     val minor: Boolean = true, val guardian: String = "", val dob: String = "", val gender: String = "", val email: String = "", val address: String = "",
     val consent: Boolean = true, val sendMessage: Boolean = true, val invite: Boolean = false,
 )
@@ -106,6 +106,9 @@ class AddStudentVm @Inject constructor(private val repo: Repository, @Applicatio
     val form = MutableStateFlow(StudentForm())
     val activities = MutableStateFlow<List<Activity>>(emptyList())
     val batches = MutableStateFlow<List<Batch>>(emptyList())
+    val branches = MutableStateFlow<List<`in`.classnex.app.data.net.Branch>>(emptyList())
+    /** Possible duplicates returned by the server (name + WhatsApp + guardian + DOB). */
+    val duplicates = MutableStateFlow<Duplicates?>(null)
     val photo = MutableStateFlow<File?>(null)
     val document = MutableStateFlow<File?>(null)
     val docType = MutableStateFlow("birth_certificate")
@@ -121,6 +124,7 @@ class AddStudentVm @Inject constructor(private val repo: Repository, @Applicatio
             runCatching {
                 activities.value = call { repo.api.activities() }.data ?: emptyList()
                 batches.value = call { repo.api.batches() }.data ?: emptyList()
+                branches.value = runCatching { call { repo.api.branches("active") }.data }.getOrNull() ?: emptyList()
                 if (activities.value.size == 1) update { it.copy(activityId = activities.value[0].id) }
             }.onFailure { message.tryEmit(it.message ?: "Could not load activities") }
         }
@@ -129,8 +133,8 @@ class AddStudentVm @Inject constructor(private val repo: Repository, @Applicatio
     fun update(f: (StudentForm) -> StudentForm) {
         val before = form.value
         var next = f(before)
-        if (next.activityId != before.activityId) {
-            val list = batches.value.filter { it.activity_id == next.activityId }
+        if (next.activityId != before.activityId || next.branchId != before.branchId) {
+            val list = batches.value.filter { it.activity_id == next.activityId && (next.branchId == null || it.branch_id == null || it.branch_id == next.branchId) }
             next = next.copy(batchId = list.singleOrNull()?.id)
         }
         form.value = next
@@ -174,7 +178,18 @@ class AddStudentVm @Inject constructor(private val repo: Repository, @Applicatio
         }
     }
 
-    fun save(confirmDuplicate: Boolean = false, onDuplicate: (String) -> Unit) {
+    /** Link existing student: enrol the existing profile instead of creating a second one. */
+    fun linkExisting(id: Long) = viewModelScope.launch {
+        val f = form.value
+        try {
+            val r = call { repo.api.linkExisting(id, `in`.classnex.app.data.net.LinkExisting(f.activityId ?: 0, f.batchId)) }
+            duplicates.value = null
+            message.tryEmit(r.message)
+            saved.tryEmit(id)
+        } catch (e: Exception) { message.tryEmit((e as? ApiError)?.message ?: "Could not link") }
+    }
+
+    fun save(confirmDuplicate: Boolean = false, reason: String? = null, onDuplicate: (String) -> Unit) {
         val f = form.value
         val errs = mutableMapOf<String, String>()
         if (f.name.isBlank()) errs["name"] = "Student name is required."
@@ -194,7 +209,8 @@ class AddStudentVm @Inject constructor(private val repo: Repository, @Applicatio
                 put("is_minor", if (f.minor) "1" else "0"); put("guardian_name", f.guardian)
                 put("dob", f.dob); put("gender", f.gender); put("email", f.email); put("address", f.address)
                 put("consent_given", if (f.consent) "1" else "0"); put("send_message", if (f.sendMessage) "1" else "0"); put("invite_parent", if (f.invite) "1" else "0")
-                if (confirmDuplicate) put("confirm_duplicate", "1")
+                put("branch_id", f.branchId?.toString())
+                if (confirmDuplicate) { put("confirm_duplicate", "1"); put("duplicate_reason", reason) }
                 val photoPart = photo.value?.let { MultipartBody.Part.createFormData("photo", "photo.jpg", it.asRequestBody("image/jpeg".toMediaType())) }
                 val res = call { repo.api.createStudent(fields, photoPart) }.data!!
                 val sid = res.student.id
@@ -208,7 +224,13 @@ class AddStudentVm @Inject constructor(private val repo: Repository, @Applicatio
                 message.tryEmit("${res.student.name} registered · ID ${res.student.student_code}")
                 saved.tryEmit(sid)
             } catch (e: ApiError) {
-                if (e.code == "duplicate_student") onDuplicate(e.message ?: "") else {
+                if (e.code == "duplicate_student") {
+                    val errs = e.body?.get("errors") as? kotlinx.serialization.json.JsonObject
+                    val list = runCatching { AppJson.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(`in`.classnex.app.data.net.DuplicateCandidate.serializer()), errs!!["candidates"]!!) }.getOrDefault(emptyList())
+                    val canOverride = (errs?.get("can_override") as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
+                    duplicates.value = Duplicates(e.message ?: "", list, canOverride)
+                    onDuplicate(e.message ?: "")
+                } else {
                     errors.value = e.fieldErrors
                     message.tryEmit(e.fieldErrors.values.firstOrNull() ?: e.message ?: "Could not save")
                 }
@@ -228,6 +250,8 @@ fun AddStudentScreen(snack: SnackbarHostState, onSaved: (Long) -> Unit, vm: AddS
     val doc by vm.document.collectAsState()
     val errs by vm.errors.collectAsState()
     val busy by vm.busy.collectAsState()
+    val branchList by vm.branches.collectAsState()
+    val dups by vm.duplicates.collectAsState()
     val filled by vm.ocrFilled.collectAsState()
     val ocr by vm.ocr.collectAsState()
     var more by remember { mutableStateOf(false) }
@@ -264,8 +288,9 @@ fun AddStudentScreen(snack: SnackbarHostState, onSaved: (Long) -> Unit, vm: AddS
                 }
                 Field("Student name *", f.name, errs["name"], hl("name")) { v -> vm.update { it.copy(name = v) } }
                 Field("WhatsApp number *", f.whatsapp, errs["whatsapp"], keyboard = KeyboardType.Phone, prefix = "+91 ", help = "Parent's number for students under 18") { v -> vm.update { it.copy(whatsapp = v.filter { c -> c.isDigit() }.take(10)) } }
+                if (branchList.isNotEmpty()) Picker("Branch (optional – same as batch)", branchList.map { it.id to it.name }, f.branchId, null) { id -> vm.update { it.copy(branchId = id) } }
                 Picker("Activity / Class *", acts.map { it.id to it.name }, f.activityId, errs["activity_id"]) { id -> vm.update { it.copy(activityId = id) } }
-                val bs = allBatches.filter { it.activity_id == f.activityId }
+                val bs = allBatches.filter { it.activity_id == f.activityId && (f.branchId == null || it.branch_id == null || it.branch_id == f.branchId) }
                 if (bs.isNotEmpty()) Picker("Batch", bs.map { it.id to (it.name + (it.start_time?.let { t -> " · ${t.take(5)}" } ?: "")) }, f.batchId, errs["batch_id"]) { id -> vm.update { it.copy(batchId = id) } }
                 Row(verticalAlignment = Alignment.CenterVertically) { Text("Student is under 18", Modifier.weight(1f)); Switch(f.minor, { v -> vm.update { it.copy(minor = v) } }) }
                 if (f.minor) Field("Parent / Guardian name *", f.guardian, errs["guardian_name"], hl("guardian")) { v -> vm.update { it.copy(guardian = v) } }
@@ -307,11 +332,7 @@ fun AddStudentScreen(snack: SnackbarHostState, onSaved: (Long) -> Unit, vm: AddS
         }
         Spacer(Modifier.height(24.dp))
     }
-    dup?.let { msg ->
-        androidx.compose.material3.AlertDialog(onDismissRequest = { dup = null }, title = { Text("Already registered?") }, text = { Text(msg) },
-            confirmButton = { Button(onClick = { dup = null; vm.save(true) {} }) { Text("Register anyway") } },
-            dismissButton = { TextButton(onClick = { dup = null }) { Text("Cancel") } })
-    }
+    dups?.let { d -> DuplicateDialog(d, onDismiss = { dup = null; vm.duplicates.value = null }, onOpen = { id -> vm.duplicates.value = null; onSaved(id) }, onLink = vm::linkExisting) { reason -> vm.duplicates.value = null; vm.save(true, reason) {} } }
 }
 
 @Composable
@@ -340,3 +361,40 @@ fun CheckRow(text: String, checked: Boolean, onChange: (Boolean) -> Unit) {
 }
 
 @Suppress("unused") private fun uid() = UUID.randomUUID().toString()
+
+data class Duplicates(val message: String, val candidates: List<`in`.classnex.app.data.net.DuplicateCandidate>, val canOverride: Boolean)
+
+/**
+ * Possible duplicate: open the existing profile, link it (no new profile), or – Class Admin only –
+ * create a separate student after checking, with a reason that goes to the audit log. Never merges automatically.
+ */
+@Composable
+fun DuplicateDialog(d: Duplicates, onDismiss: () -> Unit, onOpen: (Long) -> Unit, onLink: (Long) -> Unit, onSeparate: (String) -> Unit) {
+    var reason by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Possible duplicate student") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Brothers and sisters can share a parent's WhatsApp number – check the name, guardian and date of birth.", color = Muted, fontSize = 12.sp)
+                d.candidates.forEach { c ->
+                    AppCard {
+                        Column {
+                            Text("${c.name} · ${c.student_code}", fontWeight = FontWeight.Bold)
+                            Text((if (c.level == "high") "Likely the same student · " else "Possible match · ") + c.reasons.joinToString(", "), color = if (c.level == "high") Red else Muted, fontSize = 12.sp)
+                            Text("Guardian: ${c.guardian_name ?: "–"} · DOB: ${c.dob ?: "–"} · ${c.branch_name ?: "Main"} · ${c.status}", color = Muted, fontSize = 12.sp)
+                            Row {
+                                TextButton(onClick = { onOpen(c.id) }) { Text("Open") }
+                                TextButton(onClick = { onLink(c.id) }) { Text("Link this student") }
+                            }
+                        }
+                    }
+                }
+                if (d.canOverride) OutlinedTextField(reason, { reason = it }, label = { Text("Reason (if this is a different student)") }, modifier = Modifier.fillMaxWidth())
+                else Text("Only the Class Admin can create a separate profile when a possible duplicate exists.", color = Muted, fontSize = 12.sp)
+            }
+        },
+        confirmButton = { if (d.canOverride) Button(enabled = reason.trim().length >= 5, onClick = { onSeparate(reason.trim()) }) { Text("Create separate") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
