@@ -55,3 +55,18 @@ DELETE pf FROM package_features pf JOIN packages p ON p.id = pf.package_id
 UPDATE cms_pages SET content = REPLACE(content, 'The academy owner is responsible', 'The Class Admin (academy administrator) is responsible') WHERE slug = 'terms';
 UPDATE website_settings SET setting_value = JSON_SET(setting_value, '$.operated_by', 'Genus IT Solution')
  WHERE setting_key = 'footer' AND JSON_VALID(setting_value) AND JSON_EXTRACT(setting_value, '$.operated_by') IS NULL;
+
+-- 7. Academy registration with Super Admin approval
+ALTER TABLE academies MODIFY status ENUM('pending','active','inactive','suspended','rejected') NOT NULL DEFAULT 'active',
+  ADD COLUMN requested_package_id INT UNSIGNED NULL AFTER status,
+  ADD COLUMN approved_at DATETIME NULL AFTER requested_package_id,
+  ADD COLUMN approved_by INT UNSIGNED NULL AFTER approved_at,
+  ADD COLUMN rejection_reason VARCHAR(255) NULL AFTER approved_by;
+INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('registration_requires_approval', '1');
+INSERT IGNORE INTO notification_templates (academy_id, event_key, channel, title, body, wa_template_name, wa_language, wa_params) VALUES
+(NULL,'academy_approved','whatsapp','Academy approved','Your academy {academy_name} is approved on ClassNex. Log in: {link}','classnex_message','en','["message"]'),
+(NULL,'academy_approved','email','Your ClassNex academy is approved','Hello {recipient_name},\n\nYour academy {academy_name} has been approved. You can log in now: {link}\n\nTeam ClassNex',NULL,NULL,NULL),
+(NULL,'academy_approved','sms','Academy approved','ClassNex: {academy_name} is approved. Log in: {link}',NULL,NULL,NULL),
+(NULL,'academy_rejected','whatsapp','Registration not approved','Your ClassNex registration for {academy_name} was not approved. {reason} Contact us for help.','classnex_message','en','["message"]'),
+(NULL,'registration_pending','inapp','New academy registration','{academy_name} registered on the website and is waiting for your approval (Super Admin → Registration requests).',NULL,NULL,NULL),
+(NULL,'academy_rejected','email','ClassNex registration','Hello {recipient_name},\n\nYour registration for {academy_name} was not approved. {reason}\n\nPlease reply to this email if you need help.\n\nTeam ClassNex',NULL,NULL,NULL);

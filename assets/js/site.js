@@ -30,7 +30,7 @@
         if (form.dataset.onSuccess === 'redirect' && json.data?.redirect) { location.href = json.data.redirect; return; }
         if (form.dataset.onSuccess === 'accounts' && json.data?.choose_account) {
           const sel = form.querySelector('[data-accounts]');
-          sel.innerHTML = '<label class="form-label">This number has more than one account. Which one?</label>' + json.data.accounts.map((a, i) => `<label class="d-flex gap-2 align-items-center border rounded-3 p-2 mb-2"><input type="radio" name="account_id" value="${a.id}" ${i ? '' : 'checked'}> <span><strong>${a.academy}</strong><br><small class="text-muted">${a.role.replace('_', ' ')} · ${a.name}</small></span></label>`).join('');
+          sel.innerHTML = '<label class="form-label">This number has more than one account. Which one?</label>' + json.data.accounts.map((a, i) => `<label class="d-flex gap-2 align-items-center border rounded-3 p-2 mb-2"><input type="radio" name="account_id" value="${a.id}" ${i ? '' : 'checked'}> <span><strong>${a.academy}</strong><br><small class="text-muted">${a.role_name || a.role.replace('_', ' ')} · ${a.name}</small></span></label>`).join('');
           sel.hidden = false;
           btn.innerHTML = old; btn.disabled = false;
           return;

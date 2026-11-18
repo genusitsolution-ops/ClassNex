@@ -24,6 +24,7 @@ return static function (Router $r): void {
             'whatsapp_month'    => (int) DB::val("SELECT COUNT(*) FROM notification_queue WHERE channel = 'whatsapp' AND created_at >= ?", [$m0]),
             'notification_stats'=> DB::all("SELECT channel, status, COUNT(*) AS total FROM notification_queue WHERE created_at >= ? GROUP BY channel, status", [$m0]),
             'new_enquiries'     => (int) DB::val("SELECT COUNT(*) FROM enquiries WHERE status = 'new'"),
+            'pending_registrations' => (int) DB::val("SELECT COUNT(*) FROM academies WHERE status = 'pending'"),
             'open_tickets'      => (int) DB::val("SELECT COUNT(*) FROM support_tickets WHERE scope = 'platform' AND status IN ('open','in_progress')"),
             'revenue_trend'     => DB::all("SELECT DATE_FORMAT(paid_at, '%Y-%m') AS month, SUM(amount_paise) AS total FROM subscription_payments WHERE status = 'paid' AND paid_at >= DATE_SUB(?, INTERVAL 5 MONTH) GROUP BY month ORDER BY month", [$m0]),
             'recent_academies'  => DB::all('SELECT a.id, a.name, a.city, a.created_at, u.name AS owner FROM academies a LEFT JOIN users u ON u.id = a.owner_user_id ORDER BY a.id DESC LIMIT 6'),
@@ -32,6 +33,27 @@ return static function (Router $r): void {
     }, $sa);
 
     // ----------------------------------------------------------- owners/academies
+    // ------------------------------------------------ registration requests (website sign-ups awaiting approval)
+    $r->get('/admin/registrations', static function () {
+        $st = in_array(Http::query('status'), ['pending', 'rejected'], true) ? Http::query('status') : 'pending';
+        return Http::ok(DB::all("SELECT a.id AS academy_id, a.name AS academy_name, a.city, a.category, a.created_at, a.status, a.rejection_reason,
+                                  u.name AS owner_name, u.country_code, u.mobile, u.email, p.id AS package_id, p.name AS package_name, p.trial_days
+                                 FROM academies a LEFT JOIN users u ON u.id = a.owner_user_id LEFT JOIN packages p ON p.id = a.requested_package_id
+                                 WHERE a.status = ? ORDER BY a.id DESC LIMIT 500", [$st]));
+    }, $sa);
+    $r->post('/admin/academies/{id}/approve', static function (Ctx $c, array $p) {
+        AcademyService::approve($c, (int) $p['id'], !empty(Http::input()['package_id']) ? (int) Http::input()['package_id'] : null);
+        return Http::ok(null, 'Academy approved. The Class Admin can log in now and has been notified.');
+    }, $sa);
+    $r->post('/admin/academies/{id}/reject', static function (Ctx $c, array $p) {
+        $reason = trim((string) (Http::input()['reason'] ?? ''));
+        if (mb_strlen($reason) < 3) {
+            throw ApiException::validation(['reason' => 'Give a short reason (it is sent to the applicant).']);
+        }
+        AcademyService::reject($c, (int) $p['id'], $reason);
+        return Http::ok(null, 'Registration rejected.');
+    }, $sa);
+
     $r->get('/admin/owners', static function () {
         $w = '1=1';
         $p = [];

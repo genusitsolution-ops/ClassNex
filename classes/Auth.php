@@ -63,12 +63,18 @@ final class Auth
             $rows = DB::all("SELECT * FROM users WHERE mobile = ? AND status IN ('active','invited')", [$digits]);
         }
         $ok = [];
+        $waiting = null;
         foreach ($rows as $u) {
             if ($u['locked_until'] && strtotime($u['locked_until']) > time()) {
                 throw new ApiException('Too many failed attempts. Try again in 15 minutes.', 429);
             }
             if ($u['password_hash'] && password_verify($password, $u['password_hash'])) {
                 if ($u['status'] === 'invited') {
+                    continue;
+                }
+                $acStatus = $u['academy_id'] ? DB::val('SELECT status FROM academies WHERE id = ?', [$u['academy_id']]) : 'active';
+                if (in_array($acStatus, ['pending', 'rejected'], true)) {
+                    $waiting = $acStatus; // registration not approved (yet) by the ClassNex Super Admin
                     continue;
                 }
                 $ok[] = $u;
@@ -83,6 +89,11 @@ final class Auth
                 ], 'id = ?', [$u['id']]);
             }
         }
+        if (!$ok && $waiting) {
+            throw $waiting === 'pending'
+                ? new ApiException('Your academy registration is waiting for approval by the ClassNex team. You will get a message as soon as it is approved.', 403, [], 'pending_approval')
+                : new ApiException('Your academy registration was not approved. Please contact ClassNex support.', 403, [], 'registration_rejected');
+        }
         if (!$ok) {
             throw new ApiException('Incorrect mobile number / email or password.', 401, [], 'invalid_credentials');
         }
@@ -95,7 +106,7 @@ final class Auth
     public static function accountLabel(array $u): array
     {
         $academy = $u['academy_id'] ? DB::val('SELECT name FROM academies WHERE id = ?', [$u['academy_id']]) : 'ClassNex Platform';
-        return ['id' => (int) $u['id'], 'role' => $u['role'], 'name' => $u['name'], 'academy' => $academy];
+        return ['id' => (int) $u['id'], 'role' => $u['role'], 'role_name' => cnx_role_name($u['role']), 'name' => $u['name'], 'academy' => $academy];
     }
 
     public static function issueToken(array $user, string $client = 'android', ?string $device = null): string

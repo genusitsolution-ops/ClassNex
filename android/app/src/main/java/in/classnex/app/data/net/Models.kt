@@ -153,6 +153,11 @@ data class ApiResponse<T>(
 @Serializable data class ReadRequest(val ids: List<Long> = emptyList())
 @Serializable data class DeviceRequest(val fcm_token: String)
 @Serializable data class ForgotRequest(val identifier: String)
+@Serializable data class RegisterAcademy(
+    val owner_name: String, val mobile: String, val academy_name: String, val password: String, val city: String? = null, val email: String? = null,
+    val country_code: String = "+91", val accept_terms: Int = 1, val client: String = "android",
+)
+@Serializable data class RegisterResult(val pending: FBool = false, val token: String? = null)
 @Serializable data class ChangePassword(val current_password: String, val new_password: String)
 
 // --------------------------------------------------------------- portal

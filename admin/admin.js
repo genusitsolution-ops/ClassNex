@@ -15,6 +15,7 @@
     d.notification_stats.forEach((r) => { (ns[r.channel] ||= {})[r.status] = +r.total; });
     const max = Math.max(1, ...d.revenue_trend.map((r) => +r.total));
     v.innerHTML = head('Platform overview', date(C.today()), '<a class="btn btn-primary" href="#/owners?new=1"><i class="bi bi-person-plus"></i> Add academy</a>') + `
+      ${d.pending_registrations ? `<a class="alert alert-warning d-flex align-items-center gap-2 text-decoration-none" href="#/registrations"><i class="bi bi-person-check fs-4"></i><span><strong>${d.pending_registrations}</strong> academy registration(s) waiting for your approval</span><i class="bi bi-chevron-right ms-auto"></i></a>` : ''}
       <div class="row g-3 mb-3">
         ${st('#/owners', 'bi-building', 'ic-blue', d.total_academies, 'Academies', `${d.active_owners} active · ${d.inactive_owners} inactive academies`)}
         ${st('#/owners', 'bi-people', 'ic-purple', d.total_students.toLocaleString('en-IN'), 'Active students')}
@@ -108,6 +109,33 @@
 
   // ============================================================= PACKAGES
   const cycle = (p) => p.billing_cycle === 'custom' ? `${p.billing_days} days` : label(p.billing_cycle);
+  // Website registrations wait here until the ClassNex Super Admin approves them (the trial starts on approval).
+  route('/registrations', async (v, p) => {
+    const status = p.status || 'pending';
+    const [rows, pk] = await Promise.all([get('/admin/registrations?status=' + status), get('/admin/packages')]);
+    v.innerHTML = head('Registration requests', 'Academies that registered on the website. Approve to activate the account and start the trial.',
+      `<div class="btn-group"><a class="btn ${status === 'pending' ? 'btn-primary' : 'btn-light'}" href="#/registrations">Pending</a><a class="btn ${status === 'rejected' ? 'btn-primary' : 'btn-light'}" href="#/registrations?status=rejected">Rejected</a></div>`) +
+      table([
+        { label: 'Academy', render: (r) => `<strong>${esc(r.academy_name)}</strong><div class="small text-muted">${esc([r.city, r.category].filter(Boolean).join(' · '))}</div>` },
+        { label: 'Class Admin', render: (r) => `${esc(r.owner_name || '')}<div class="small text-muted">${esc((r.country_code || '') + ' ' + (r.mobile || ''))} ${esc(r.email || '')}</div>` },
+        { label: 'Requested plan', render: (r) => esc(r.package_name || 'Default trial') },
+        { label: 'Registered', render: (r) => dateTime(r.created_at) + (r.rejection_reason ? `<div class="small text-danger">${esc(r.rejection_reason)}</div>` : '') },
+        { label: '', cls: 'text-end text-nowrap', render: (r) => `<button class="btn btn-sm btn-success" data-ok="${r.academy_id}">Approve</button>${status === 'pending' ? ` <button class="btn btn-sm btn-outline-danger" data-no="${r.academy_id}">Reject</button>` : ''}` },
+      ], rows.data, { empty: status === 'pending' ? 'No registrations waiting for approval.' : 'No rejected registrations.' });
+    $$('[data-ok]', v).forEach((b) => b.onclick = () => {
+      const r = rows.data.find((x) => String(x.academy_id) === b.dataset.ok);
+      formModal({ title: 'Approve ' + r.academy_name, okText: 'Approve', values: { package_id: r.package_id },
+        intro: '<p class="small text-muted">The Class Admin can log in immediately and gets a WhatsApp / email message.</p>',
+        fields: [{ name: 'package_id', label: 'Package', type: 'select', placeholder: false, options: pk.data.filter((x) => x.status === 'active').map((x) => [x.id, `${x.name} – ${x.student_limit ?? '∞'} students${x.trial_days ? ' · ' + x.trial_days + ' days trial' : ''}`]) }],
+        submit: async (d) => { const res = await post(`/admin/academies/${r.academy_id}/approve`, d); toast(res.message); C.dispatch(); } });
+    });
+    $$('[data-no]', v).forEach((b) => b.onclick = async () => {
+      const reason = await confirm('Reject this registration? The applicant is told the reason.', { input: 'Reason', ok: 'Reject', danger: true });
+      if (!reason) return;
+      try { const res = await post(`/admin/academies/${b.dataset.no}/reject`, { reason }); toast(res.message); C.dispatch(); } catch (e) { fail(e); }
+    });
+  }, 'Registration Requests');
+
   route('/packages', async (v) => {
     const pk = await packages(true);
     v.innerHTML = head('Packages', 'Limits and features are enforced by the backend for web and Android.', '<button class="btn btn-primary" id="add"><i class="bi bi-plus-lg"></i> New package</button>') + `<div class="row g-3">${pk.packages.map((p) => `<div class="col-md-6 col-xl-4"><div class="card h-100 ${+p.is_featured ? 'border-primary' : ''}" role="button" data-id="${p.id}"><div class="card-body"><div class="d-flex"><div class="fw-bold fs-5">${esc(p.name)}</div><div class="ms-auto">${badge(p.status)} ${+p.is_public ? '' : '<span class="badge b-muted">Hidden</span>'}</div></div>

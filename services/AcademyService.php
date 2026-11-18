@@ -81,11 +81,63 @@ final class AcademyService
             if (!in_array($status, ['trial', 'active'], true)) {
                 $status = 'trial';
             }
-            Subscription::assign($aid, (int) $pkg['id'], $selfService ? ($pkg['trial_days'] > 0 ? 'trial' : 'active') : $status, $in['starts_on'] ?? null, $in['ends_on'] ?? null, (int) $pkg['price_paise'], $by, $selfService ? 'Self registration' : 'Created by Super Admin');
+            if ($selfService && self::needsApproval()) {
+                // website registration waits for the ClassNex Super Admin; the trial starts on approval
+                DB::update('academies', ['status' => 'pending', 'requested_package_id' => (int) $pkg['id']], 'id = ?', [$aid]);
+            } else {
+                Subscription::assign($aid, (int) $pkg['id'], $selfService ? ($pkg['trial_days'] > 0 ? 'trial' : 'active') : $status, $in['starts_on'] ?? null, $in['ends_on'] ?? null, (int) $pkg['price_paise'], $by, $selfService ? 'Self registration' : 'Created by Super Admin');
+            }
             Audit::log($by, 'owner.create', 'academies', $aid, null, ['academy' => $d['academy_name'], 'owner' => $d['owner_name'], 'self' => $selfService], $aid);
             return ['academy_id' => $aid, 'user_id' => $uid];
         });
         $result['invite'] = empty($d['password']) ? AccountService::invite($result['user_id']) : null;
+        $result['pending'] = DB::val('SELECT status FROM academies WHERE id = ?', [$result['academy_id']]) === 'pending';
         return $result;
+    }
+
+    public static function needsApproval(): bool
+    {
+        return Settings::get('registration_requires_approval', '1') === '1';
+    }
+
+    /** Super Admin approves a website registration: academy active, trial (or plan) starts now, Class Admin notified. */
+    public static function approve(Ctx $by, int $academyId, ?int $packageId = null): void
+    {
+        $a = DB::one('SELECT * FROM academies WHERE id = ?', [$academyId]) ?? throw ApiException::notFound('Academy');
+        if (!in_array($a['status'], ['pending', 'rejected'], true)) {
+            throw new ApiException('This academy is not waiting for approval.', 409);
+        }
+        $pkg = DB::one("SELECT * FROM packages WHERE id = ? AND status = 'active'", [$packageId ?: ($a['requested_package_id'] ?: Settings::int('default_trial_package_id', 2))]);
+        if (!$pkg) {
+            throw ApiException::validation(['package_id' => 'Choose an active package.']);
+        }
+        DB::tx(static function () use ($by, $a, $pkg) {
+            DB::update('academies', ['status' => 'active', 'approved_at' => date('Y-m-d H:i:s'), 'approved_by' => $by->userId, 'rejection_reason' => null], 'id = ?', [$a['id']]);
+            if (!DB::val('SELECT 1 FROM owner_subscriptions WHERE academy_id = ? AND is_current = 1', [$a['id']])) {
+                Subscription::assign((int) $a['id'], (int) $pkg['id'], $pkg['trial_days'] > 0 ? 'trial' : 'active', null, null, (int) $pkg['price_paise'], $by, 'Approved website registration');
+            }
+            Audit::log($by, 'academy.approve', 'academies', (int) $a['id'], ['status' => $a['status']], ['status' => 'active', 'package' => $pkg['name']], (int) $a['id']);
+        });
+        self::notifyDecision($a, 'academy_approved', ['link' => cnx_url('login.php')]);
+    }
+
+    public static function reject(Ctx $by, int $academyId, string $reason): void
+    {
+        $a = DB::one('SELECT * FROM academies WHERE id = ?', [$academyId]) ?? throw ApiException::notFound('Academy');
+        if ($a['status'] !== 'pending') {
+            throw new ApiException('Only pending registrations can be rejected.', 409);
+        }
+        DB::update('academies', ['status' => 'rejected', 'rejection_reason' => mb_substr($reason, 0, 255)], 'id = ?', [$academyId]);
+        Audit::log($by, 'academy.reject', 'academies', $academyId, ['status' => 'pending'], ['status' => 'rejected', 'reason' => $reason], $academyId);
+        self::notifyDecision($a, 'academy_rejected', ['reason' => $reason]);
+    }
+
+    private static function notifyDecision(array $a, string $event, array $vars): void
+    {
+        $u = DB::one('SELECT * FROM users WHERE id = ?', [$a['owner_user_id']]);
+        if ($u) {
+            $msg = $event === 'academy_approved' ? "Your academy {$a['name']} is approved on ClassNex. Log in: {$vars['link']}" : "Your ClassNex registration for {$a['name']} was not approved. " . ($vars['reason'] ?? '');
+            NotificationService::direct(null, $event, $vars + ['academy_name' => $a['name'], 'recipient_name' => $u['name'], 'message' => $msg, 'dedupe' => $event . $a['id'] . '-' . time()], $u['mobile'] ? Phone::wa($u['country_code'], $u['mobile']) : null, $u['email'], (int) $u['id']);
+        }
     }
 }

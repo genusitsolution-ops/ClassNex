@@ -20,6 +20,7 @@ interface ApiService {
     @POST("auth/login") suspend fun login(@Body body: LoginRequest): ApiResponse<LoginData>
     @GET("auth/me") suspend fun me(): ApiResponse<Me>
     @POST("auth/logout") suspend fun logout(@Body body: Map<String, String>): ApiResponse<Unit?>
+    @POST("public/register-owner") suspend fun registerAcademy(@Body body: RegisterAcademy): ApiResponse<RegisterResult>
     @POST("auth/forgot-password") suspend fun forgot(@Body body: ForgotRequest): ApiResponse<Unit?>
     @POST("auth/change-password") suspend fun changePassword(@Body body: ChangePassword): ApiResponse<Unit?>
     @POST("devices") suspend fun registerDevice(@Body body: DeviceRequest): ApiResponse<Unit?>

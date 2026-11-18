@@ -38,6 +38,10 @@ return static function (Router $r): void {
             throw ApiException::validation(['accept_terms' => 'Please accept the Terms and Privacy Policy.']);
         }
         $res = AcademyService::createOwner($in, null, true);
+        if ($res['pending']) {
+            NotificationService::toUsers(null, 'registration_pending', DB::col("SELECT id FROM users WHERE role = 'super_admin' AND status = 'active'"), ['academy_name' => (string) ($in['academy_name'] ?? '')], ['channels' => ['inapp']]);
+            return Http::ok(['pending' => true], 'Thank you! Your academy is registered and is waiting for approval by the ClassNex team. You will get a WhatsApp / email message once it is approved.');
+        }
         $user = DB::one('SELECT * FROM users WHERE id = ?', [$res['user_id']]);
         if (($in['client'] ?? 'web') === 'web') {
             Auth::loginSession($user);

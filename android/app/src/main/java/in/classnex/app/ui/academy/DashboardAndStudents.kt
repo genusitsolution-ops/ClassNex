@@ -181,19 +181,19 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
 class StudentsVm @Inject constructor(private val repo: Repository) : LoadVm<List<StudentRow>>() {
     private var job: Job? = null
     var query = ""
-    var branch: String? = null
+    private var branchFilter: String? = null
     val branches = kotlinx.coroutines.flow.MutableStateFlow<List<`in`.classnex.app.data.net.Branch>>(emptyList())
     init {
         viewModelScope.launch { branches.value = runCatching { call { repo.api.branches() }.data }.getOrNull() ?: emptyList() }
     }
-    fun start(b: Long?) { branch = b?.toString(); search(query) }
-    fun setBranch(b: String?) { branch = b; search(query) }
+    fun start(b: Long?) { branchFilter = b?.toString(); search(query) }
+    fun chooseBranch(b: String?) { branchFilter = b; search(query) }
     fun search(q: String) {
         query = q
         job?.cancel()
         job = viewModelScope.launch {
             if (q.isNotEmpty()) delay(300)
-            load(silent = q.isNotEmpty()) { call { repo.api.students(q.ifBlank { null }, branchId = branch) }.data ?: emptyList() }
+            load(silent = q.isNotEmpty()) { call { repo.api.students(q.ifBlank { null }, branchId = branchFilter) }.data ?: emptyList() }
         }
     }
 }
@@ -206,7 +206,7 @@ fun StudentsScreen(me: Me, nav: (String) -> Unit, pickMode: Boolean = false, onP
     var q by remember { mutableStateOf(vm.query) }
     var br by remember { mutableStateOf(branchId?.toString()) }
     Column(Modifier.fillMaxSize()) {
-        if (branches.isNotEmpty()) OptionPicker("All branches", listOf<Pair<String?, String>>(null to "All branches", "none" to "Main / no branch") + branches.map { it.id.toString() to it.name }, br, Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 8.dp)) { br = it; vm.setBranch(it) }
+        if (branches.isNotEmpty()) OptionPicker("All branches", listOf<Pair<String?, String>>(null to "All branches", "none" to "Main / no branch") + branches.map { it.id.toString() to it.name }, br, Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 8.dp)) { br = it; vm.chooseBranch(it) }
         Row(Modifier.padding(16.dp, 12.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(q, { q = it; vm.search(it) }, leadingIcon = { Icon(Icons.Outlined.Search, null) }, placeholder = { Text("Name, Student ID or phone") }, singleLine = true, modifier = Modifier.weight(1f))
             if (!pickMode && me.can("students.manage")) { Spacer(Modifier.width(8.dp)); Button(onClick = { nav("addStudent") }) { Icon(Icons.Outlined.PersonAdd, null) } }

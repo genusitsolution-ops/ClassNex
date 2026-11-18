@@ -138,6 +138,27 @@ class AuthViewModel @Inject constructor(
 
     fun dismissAccounts() { _ui.value = _ui.value.copy(accounts = emptyList()) }
 
+    /** Academy registration (same API as the website). With Super Admin approval on, the account waits for approval. */
+    fun register(body: `in`.classnex.app.data.net.RegisterAcademy, onDone: (String) -> Unit) {
+        _ui.value = _ui.value.copy(busy = true, error = null)
+        viewModelScope.launch {
+            try {
+                val r = call { repo.api.registerAcademy(body) }
+                val token = r.data?.token
+                if (token != null) {
+                    repo.session.token = token
+                    restore()
+                } else {
+                    _ui.value = _ui.value.copy(busy = false)
+                }
+                onDone(r.message)
+            } catch (e: Exception) {
+                val err = e as? `in`.classnex.app.data.ApiError
+                _ui.value = _ui.value.copy(busy = false, error = err?.fieldErrors?.values?.firstOrNull() ?: e.message)
+            }
+        }
+    }
+
     fun forgot(identifier: String) {
         viewModelScope.launch {
             _ui.value = _ui.value.copy(info = try { call { repo.api.forgot(ForgotRequest(identifier)) }.message } catch (e: Exception) { e.message })
@@ -207,6 +228,8 @@ fun LoginScreen(vm: AuthViewModel) {
     var pw by remember { mutableStateOf("") }
     var show by remember { mutableStateOf(false) }
     var forgot by remember { mutableStateOf(false) }
+    var register by remember { mutableStateOf(false) }
+    var registered by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(24.dp))
         Image(painterResource(R.drawable.classnex_logo), "ClassNex", Modifier.width(210.dp))
@@ -227,7 +250,38 @@ fun LoginScreen(vm: AuthViewModel) {
             if (ui.busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("Log in", fontSize = 16.sp)
         }
         Spacer(Modifier.height(24.dp))
-        Text("New academy? Register at the ClassNex website to start your free trial.", color = Muted, fontSize = 13.sp, textAlign = TextAlign.Center)
+        TextButton(onClick = { register = true }) { Text("New academy? Register here") }
+        Text("Registrations are approved by the ClassNex team before the free trial starts.", color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center)
+    }
+    if (register) {
+        var name by remember { mutableStateOf("") }
+        var mobile by remember { mutableStateOf("") }
+        var academy by remember { mutableStateOf("") }
+        var city by remember { mutableStateOf("") }
+        var email by remember { mutableStateOf("") }
+        var password by remember { mutableStateOf("") }
+        var terms by remember { mutableStateOf(false) }
+        AlertDialog(onDismissRequest = { register = false }, title = { Text("Register your academy") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedTextField(name, { name = it }, label = { Text("Your name *") }, singleLine = true)
+                    OutlinedTextField(mobile, { mobile = it.filter(Char::isDigit).take(10) }, label = { Text("Mobile (login) *") }, singleLine = true, prefix = { Text("+91 ") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+                    OutlinedTextField(academy, { academy = it }, label = { Text("Academy / class name *") }, singleLine = true)
+                    OutlinedTextField(city, { city = it }, label = { Text("City") }, singleLine = true)
+                    OutlinedTextField(email, { email = it }, label = { Text("Email") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+                    OutlinedTextField(password, { password = it }, label = { Text("Create password *") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), supportingText = { Text("8+ characters with letters and numbers") })
+                    Row(verticalAlignment = Alignment.CenterVertically) { androidx.compose.material3.Checkbox(terms, { terms = it }); Text("I agree to the Terms and Privacy Policy", fontSize = 13.sp) }
+                    ui.error?.let { Text(it, color = Color(0xFFDC2626), fontSize = 13.sp) }
+                }
+            },
+            confirmButton = { Button(enabled = !ui.busy && terms && name.isNotBlank() && mobile.length == 10 && academy.isNotBlank() && password.length >= 8, onClick = {
+                vm.register(`in`.classnex.app.data.net.RegisterAcademy(name.trim(), mobile, academy.trim(), password, city.ifBlank { null }, email.ifBlank { null })) { msg -> register = false; registered = msg }
+            }) { Text("Register") } },
+            dismissButton = { TextButton(onClick = { register = false }) { Text("Cancel") } })
+    }
+    registered?.let { msg ->
+        AlertDialog(onDismissRequest = { registered = null }, title = { Text("Thank you!") }, text = { Text(msg) },
+            confirmButton = { Button(onClick = { registered = null }) { Text("OK") } })
     }
     if (ui.accounts.isNotEmpty()) {
         var sel by remember { mutableStateOf(ui.accounts.first().id) }
