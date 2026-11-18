@@ -180,8 +180,11 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 | owner structure | GET | `/api/v1/academy` | owner, teacher |  |  |
 | owner structure | POST | `/api/v1/academy` | owner | settings.manage |  |
 | owner structure | GET | `/api/v1/branches` | owner, teacher |  |  |
+| owner structure | GET | `/api/v1/branches/summary` | owner | reports.view |  |
+| owner structure | GET | `/api/v1/branches/{id}` | owner |  |  |
 | owner structure | POST | `/api/v1/branches` | owner | structure.manage |  |
 | owner structure | PUT | `/api/v1/branches/{id}` | owner | structure.manage |  |
+| owner structure | POST | `/api/v1/branches/{id}/assign` | owner | structure.manage |  |
 | owner structure | GET | `/api/v1/activities` | owner, teacher |  |  |
 | owner structure | POST | `/api/v1/activities` | owner | structure.manage |  |
 | owner structure | PUT | `/api/v1/activities/{id}` | owner | structure.manage |  |
@@ -202,6 +205,7 @@ Generated from the router (`php cli/api-docs.php`). *Permission* applies to teac
 | owner students | POST | `/api/v1/students` | owner, teacher | students.manage |  |
 | owner students | GET | `/api/v1/students/{id}` | owner, teacher | students.view |  |
 | owner students | POST | `/api/v1/students/{id}` | owner, teacher | students.manage |  |
+| owner students | POST | `/api/v1/students/{id}/branch` | owner | students.manage |  |
 | owner students | POST | `/api/v1/students/{id}/transfer` | owner, teacher | students.manage |  |
 | owner students | POST | `/api/v1/students/{id}/enroll` | owner | students.manage |  |
 | owner students | POST | `/api/v1/students/{id}/invite` | owner, teacher | students.manage |  |

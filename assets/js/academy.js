@@ -13,10 +13,11 @@
   let LK = null;
   async function lookups(force = false) {
     if (LK && !force) return LK;
-    const [a, b] = await Promise.all([get('/activities?status=active'), get('/batches?status=active')]);
-    LK = { activities: a.data, batches: b.data };
+    const [a, b, br] = await Promise.all([get('/activities?status=active'), get('/batches?status=active'), get('/branches?status=active')]);
+    LK = { activities: a.data, batches: b.data, branches: br.data };
     return LK;
   }
+  const branchOpts = () => (LK?.branches || []).map((b) => [b.id, b.name]);
   const actOpts = () => LK.activities.map((a) => [a.id, a.name]);
   const batchOpts = (actId) => LK.batches.filter((b) => !actId || String(b.activity_id) === String(actId)).map((b) => [b.id, `${b.name}${b.start_time ? ' · ' + time(b.start_time) : ''}${actId ? '' : ' (' + b.activity_name + ')'}`]);
   function linkSelects(root, actSel = '[name=activity_id]', batchSel = '[name=batch_id]') {
@@ -51,11 +52,12 @@
         <a class="qa" href="#/reports"><i class="bi bi-bar-chart ic-purple"></i>View Reports</a>
       </div>
       <div class="row g-3 mb-3">
-        ${stat('#/students', 'bi-people', 'ic-blue', d.active_students, 'Active students', `${d.new_admissions} new this month`)}
+        ${stat('#/students', 'bi-people', 'ic-blue', d.active_students, 'Active students', d.student_quota?.limit ? `${d.student_quota.active} of ${d.student_quota.limit} in your package · all branches` : `${d.new_admissions} new this month`)}
         ${stat('#/attendance', 'bi-check2-circle', 'ic-green', `${d.today_attendance.present}<small class="text-muted fs-6"> / ${d.today_attendance.marked}</small>`, 'Present today', d.batches_not_marked ? `<span class="text-danger">${d.batches_not_marked} batch(es) not marked</span>` : `${d.today_attendance.absent} absent`)}
         ${fees ? stat('#/payments', 'bi-wallet2', 'ic-purple', money(d.month_collection_paise), 'Collected this month', `Today ${money(d.today_collection_paise)}`) : stat('#/teachers', 'bi-person-badge', 'ic-purple', d.total_teachers, 'Teachers', `${d.total_batches} batches`)}
         ${fees ? stat('#/fees?status=overdue', 'bi-exclamation-triangle', 'ic-red', money(d.overdue_fees_paise), 'Overdue fees', `${d.overdue_students} student(s) · pending ${money(d.pending_fees_paise)}`) : stat('#/batches', 'bi-collection', 'ic-orange', d.total_batches, 'Active batches', `${d.total_activities} activities`)}
       </div>
+      ${d.branches?.length ? `<div class="card mb-3"><div class="card-header d-flex"><span><i class="bi bi-geo-alt text-primary"></i> Branches this month</span><a class="ms-auto small" href="#/branches">Manage</a></div><div class="card-body p-0">${branchTable(d.branches)}</div></div>` : ''}
       <div class="row g-3">
         ${fees ? `<div class="col-lg-7"><div class="card h-100"><div class="card-header"><i class="bi bi-graph-up text-primary"></i> Fee collection (last 6 months)</div><div class="card-body">${bars(d.collection_trend)}</div></div></div>
         <div class="col-lg-5"><div class="card h-100"><div class="card-header"><i class="bi bi-calendar-event text-warning"></i> Due in the next 7 days</div><div class="card-body py-1">${d.upcoming_dues.length ? d.upcoming_dues.map((u) => `<div class="list-tile"><div class="flex-grow-1"><div class="fw-bold">${esc(u.student_name)}</div><div class="small text-muted">${esc(u.title)} · ${date(u.due_date)}</div></div><div class="money fw-bold">${money(u.balance_paise)}</div><a class="btn btn-sm btn-light" href="#/collect?student=${u.student_id}">Collect</a></div>`).join('') : '<div class="empty py-4"><i class="bi bi-emoji-smile"></i>No dues in the next 7 days</div>'}</div></div></div>
@@ -91,8 +93,9 @@
     await lookups();
     v.innerHTML = head('Students', 'Search by name, Student ID or phone', can('students.manage') ? '<a class="btn btn-primary" href="#/students/new"><i class="bi bi-person-plus"></i> Add Student</a>' : '') + '<div id="sl"></div>';
     listView({
-      el: $('#sl', v), endpoint: '/students', searchPlaceholder: 'Search students…', params: { q: p.q || '', status: 'active', activity_id: p.activity_id || '', batch_id: p.batch_id || '', dues: p.dues || '' },
+      el: $('#sl', v), endpoint: '/students', searchPlaceholder: 'Search students…', params: { q: p.q || '', status: 'active', activity_id: p.activity_id || '', batch_id: p.batch_id || '', dues: p.dues || '', branch_id: p.branch_id || '' },
       filters: [
+        ...(LK.branches.length ? [{ name: 'branch_id', placeholder: 'All branches', options: [...branchOpts(), ['none', 'Main / no branch']] }] : []),
         { name: 'activity_id', placeholder: 'All activities', options: actOpts() },
         { name: 'batch_id', placeholder: 'All batches', options: batchOpts() },
         { name: 'status', all: false, options: [['active', 'Active'], ['inactive', 'Inactive'], ['left', 'Left'], ['all', 'All']] },
@@ -101,7 +104,7 @@
       columns: [
         { label: 'Student', render: (s) => person(s.name, `${esc(s.student_code)}${s.guardian_name ? ' · ' + esc(s.guardian_name) : ''}`, s.photo_url) },
         { label: 'WhatsApp', render: (s) => wa(s.country_code, s.whatsapp) },
-        { label: 'Activity / Batch', render: (s) => `<span class="small">${esc(s.enrolled_in || '–')}</span>` },
+        { label: 'Activity / Batch', render: (s) => `<span class="small">${esc(s.enrolled_in || '–')}</span>${s.branch_name ? `<div class="small text-muted"><i class="bi bi-geo-alt"></i> ${esc(s.branch_name)}</div>` : ''}` },
         ...(can('fees.view') && has('fees') ? [{ label: 'Pending', cls: 'text-end', render: (s) => +s.pending_paise ? `<span class="money fw-bold text-danger">${money(s.pending_paise)}</span>` : '<span class="text-success small">Clear</span>' }] : []),
         { label: '', cls: 'text-end', render: (s) => s.status !== 'active' ? badge(s.status) : (can('fees.collect') && has('fees') && +s.pending_paise ? `<a class="btn btn-sm btn-light" href="#/collect?student=${s.id}">Collect</a>` : '') },
       ],
@@ -130,6 +133,7 @@
           { name: 'whatsapp', label: 'WhatsApp number', type: 'phone', required: true, col: 'col-md-6', help: 'Parent\'s number for students under 18. Used for receipts & reminders.' },
           { name: 'activity_id', label: 'Activity / Class', type: 'select', required: true, options: actOpts(), col: 'col-md-6', value: LK.activities.length === 1 ? LK.activities[0].id : '' },
           { name: 'batch_id', label: 'Batch', type: 'select', options: [], col: 'col-md-6' },
+          ...(LK.branches.length ? [{ name: 'branch_id', label: 'Branch', type: 'select', options: branchOpts(), placeholder: 'Same as batch', col: 'col-md-6', help: 'All branches share one student quota.' }] : []),
           { name: 'is_minor', label: 'Student is under 18', type: 'switch', value: 1, col: 'col-md-6' },
           { name: 'guardian_name', label: 'Parent / Guardian name', required: true, col: 'col-md-6' },
         ])}
@@ -233,7 +237,7 @@
       try { await submit(); }
       catch (er) {
         if (er.code === 'duplicate_student') {
-          if (await confirm(er.message + ' Register anyway?', { ok: 'Yes, register again' })) { try { await submit(true); } catch (e2) { fail(e2); } }
+          if (await confirm(er.message, { title: 'Student already registered', ok: 'Open existing profile' })) go('#/students/' + er.errors.duplicate_id);
         } else { showErrors(f, er.errors); fail(er); }
       } finally { btn.disabled = false; another = false; }
     };
@@ -249,12 +253,12 @@
       <div class="card mb-3"><div class="card-body d-flex flex-wrap gap-3 align-items-center">
         ${s.photo_url ? `<img src="${esc(s.photo_url)}" class="avatar avatar-lg" style="object-fit:cover">` : `<span class="avatar avatar-lg">${esc(s.name[0])}</span>`}
         <div class="flex-grow-1 min-w-0"><h1 class="h4 fw-bold mb-1">${esc(s.name)} ${s.status !== 'active' ? badge(s.status) : ''}</h1>
-          <div class="text-muted small">ID <strong>${esc(s.student_code)}</strong> · ${active.map((e) => esc(e.activity_name + (e.batch_name ? ' – ' + e.batch_name : ''))).join(', ') || 'Not enrolled'} · Joined ${date(s.admission_date)}</div>
+          <div class="text-muted small">ID <strong>${esc(s.student_code)}</strong> · ${active.map((e) => esc(e.activity_name + (e.batch_name ? ' – ' + e.batch_name : ''))).join(', ') || 'Not enrolled'} · Joined ${date(s.admission_date)}${s.branch_name ? ` · <i class="bi bi-geo-alt"></i> ${esc(s.branch_name)} branch` : ''}</div>
           <div class="mt-1">${wa(s.country_code, s.whatsapp)} ${s.guardian_name ? `<span class="text-muted small ms-2">Guardian: ${esc(s.guardian_name)}</span>` : ''}</div></div>
         ${fees ? `<div class="text-end"><div class="small text-muted">Pending</div><div class="fs-4 fw-bold ${s.balance.outstanding_paise ? 'text-danger' : 'text-success'} money">${money(s.balance.outstanding_paise)}</div>${s.balance.advance_paise ? `<div class="small text-success">Advance ${money(s.balance.advance_paise)}</div>` : ''}</div>` : ''}
         <div class="d-flex flex-wrap gap-2 w-100">
           ${has('fees') && can('fees.collect') ? `<a class="btn btn-primary" href="#/collect?student=${s.id}"><i class="bi bi-cash-coin"></i> Collect fee</a>` : ''}
-          ${can('students.manage') ? `<button class="btn btn-light" data-a="edit"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-light" data-a="transfer"><i class="bi bi-arrow-left-right"></i> Change batch</button>` : ''}
+          ${can('students.manage') ? `<button class="btn btn-light" data-a="edit"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-light" data-a="transfer"><i class="bi bi-arrow-left-right"></i> Change batch</button>${LK.branches.length ? '<button class="btn btn-light" data-a="branch"><i class="bi bi-geo-alt"></i> Change branch</button>' : ''}` : ''}
           ${OWNER ? '<button class="btn btn-light" data-a="enroll"><i class="bi bi-plus-square"></i> Add activity</button>' : ''}
           ${has('manual_reminders') && can('notifications.send') ? '<button class="btn btn-light" data-a="msg"><i class="bi bi-chat-dots"></i> Message</button>' : ''}
           ${has('parent_access') && can('students.manage') ? '<button class="btn btn-light" data-a="invite"><i class="bi bi-phone"></i> App invite</button>' : ''}
@@ -363,6 +367,14 @@
         ], submit: async (d) => { const r = await post('/students/' + s.id, d); toast(r.message); C.dispatch(); },
       }),
       transfer: () => formModal({ title: 'Change batch', intro: '<p class="small text-muted">Attendance and fee history stay with the student.</p>', fields: [{ name: 'batch_id', label: 'New batch', type: 'select', required: true, options: batchOpts() }, { name: 'date', label: 'From date', type: 'date', value: C.today() }], submit: async (d) => { const r = await post(`/students/${s.id}/transfer`, d); toast(r.message); C.dispatch(); } }),
+      branch: () => {
+        const bopts = (brId) => LK.batches.filter((b) => String(b.branch_id || '') === String(brId)).map((b) => [b.id, `${b.name} (${b.activity_name})`]);
+        const m = formModal({ title: 'Change branch', intro: '<p class="small text-muted">The same student profile moves to the new branch. Fees, attendance and the Student ID stay; your student count does not change.</p>', values: { branch_id: s.branch_id || '' },
+          fields: [{ name: 'branch_id', label: 'New branch', type: 'select', required: true, options: branchOpts() }, { name: 'batch_id', label: 'New batch at that branch (optional)', type: 'select', options: bopts(s.branch_id || '') }, { name: 'date', label: 'From date', type: 'date', value: C.today() }],
+          submit: async (d) => { const r = await post(`/students/${s.id}/branch`, d); toast(r.message); C.dispatch(); } });
+        const bs = $('[name=branch_id]', m.el), bb = $('[name=batch_id]', m.el);
+        bs.onchange = () => { bb.innerHTML = '<option value="">Keep current batch</option>' + bopts(bs.value).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join(''); };
+      },
       enroll: () => { const m = formModal({ title: 'Enrol in another activity', fields: [{ name: 'activity_id', label: 'Activity', type: 'select', required: true, options: actOpts() }, { name: 'batch_id', label: 'Batch', type: 'select', options: [] }, { name: 'monthly_fee', label: 'Monthly fee (blank = default)', type: 'money' }, { name: 'assign_fees', label: 'Start monthly fee', type: 'switch', value: 1 }], submit: async (d) => { const r = await post(`/students/${s.id}/enroll`, d); toast(r.message); C.dispatch(); } }); linkSelects(m.el); },
       msg: () => messageModal({ target: 'students', student_ids: [s.id] }, s.name),
       invite: async () => { try { const r = await post(`/students/${s.id}/invite`); inviteResult(r.data); } catch (e) { fail(e); } },
@@ -577,10 +589,10 @@
       `<div class="alert alert-light border d-flex align-items-center gap-2" id="tot"></div><div id="fl"></div>`;
     const lv = listView({
       el: $('#fl', v), endpoint: '/invoices', params: { status: p.status || 'open' }, searchPlaceholder: 'Search student or invoice…',
-      filters: [{ name: 'status', all: false, options: [['open', 'All pending'], ['overdue', 'Overdue'], ['paid', 'Paid'], ['cancelled', 'Cancelled'], ['all', 'All invoices']] }, { name: 'batch_id', placeholder: 'All batches', options: batchOpts() }],
+      filters: [{ name: 'status', all: false, options: [['open', 'All pending'], ['overdue', 'Overdue'], ['paid', 'Paid'], ['cancelled', 'Cancelled'], ['all', 'All invoices']] }, ...(LK.branches.length ? [{ name: 'branch_id', placeholder: 'All branches', options: branchOpts() }] : []), { name: 'batch_id', placeholder: 'All batches', options: batchOpts() }],
       columns: [
         { label: 'Student', render: (i) => `<div class="fw-bold">${esc(i.student_name)}</div><div class="small text-muted">${esc(i.student_code)} · ${esc(i.whatsapp)}</div>` },
-        { label: 'Fee', render: (i) => `${esc(i.title)}<div class="small text-muted">${esc(i.invoice_no)}</div>` },
+        { label: 'Fee', render: (i) => `${esc(i.title)}<div class="small text-muted">${esc(i.invoice_no)}${i.branch_name ? ' · ' + esc(i.branch_name) : ''}</div>` },
         { label: 'Due', render: (i) => `${date(i.due_date)}${+i.days_overdue && ['unpaid', 'partial'].includes(i.status) ? `<div class="small text-danger">${i.days_overdue} days overdue</div>` : ''}` },
         { label: 'Balance', cls: 'text-end', render: (i) => `<span class="money fw-bold">${money(i.balance_paise)}</span><div class="small text-muted">of ${money(i.total_paise)}</div>` },
         { label: 'Status', render: (i) => badge(i.status) },
@@ -599,7 +611,7 @@
     v.innerHTML = head('Payment History') + '<div class="alert alert-light border" id="tot"></div><div id="pl"></div>';
     const lv = listView({
       el: $('#pl', v), endpoint: '/payments', params: { from: C.month() + '-01', to: C.today() }, searchPlaceholder: 'Student, receipt no, reference…',
-      filters: [{ name: 'from', type: 'date' }, { name: 'to', type: 'date' }, { name: 'method', placeholder: 'All methods', options: [['cash', 'Cash'], ['upi', 'UPI'], ['bank_transfer', 'Bank'], ['online', 'Online'], ['cheque', 'Cheque'], ['card', 'Card'], ['other', 'Other']] }, { name: 'status', placeholder: 'Any status', options: [['success', 'Successful'], ['reversed', 'Reversed']] }, { name: 'batch_id', placeholder: 'All batches', options: batchOpts() }, { name: 'activity_id', placeholder: 'All activities', options: actOpts() }],
+      filters: [{ name: 'from', type: 'date' }, { name: 'to', type: 'date' }, ...(LK.branches.length ? [{ name: 'branch_id', placeholder: 'All branches', options: branchOpts() }] : []), { name: 'method', placeholder: 'All methods', options: [['cash', 'Cash'], ['upi', 'UPI'], ['bank_transfer', 'Bank'], ['online', 'Online'], ['cheque', 'Cheque'], ['card', 'Card'], ['other', 'Other']] }, { name: 'status', placeholder: 'Any status', options: [['success', 'Successful'], ['reversed', 'Reversed']] }, { name: 'batch_id', placeholder: 'All batches', options: batchOpts() }, { name: 'activity_id', placeholder: 'All activities', options: actOpts() }],
       columns: paymentColumns, empty: 'No payments in this period.', emptyIcon: 'bi-receipt',
       onRow: (x) => paymentDetail(x.id, () => lv.reload()),
       after: (j) => { $('#tot', v).innerHTML = `Net collected: <strong class="money">${money(j.meta.total_paise)}</strong> · ${j.meta.total} payment(s)`; },
@@ -902,10 +914,11 @@
     await lookups();
     const list = (await get('/reports')).data.filter((r) => (!r.financial || can('reports.financial')));
     const key = p.r || list[0]?.key;
-    const filt = { from: p.from || C.month() + '-01', to: p.to || C.today(), batch_id: p.batch_id || '', activity_id: p.activity_id || '', month: p.month || C.month(), status: p.status || '' };
+    const filt = { from: p.from || C.month() + '-01', to: p.to || C.today(), batch_id: p.batch_id || '', activity_id: p.activity_id || '', month: p.month || C.month(), status: p.status || '', branch_id: p.branch_id || '' };
     v.innerHTML = head('Reports') + `<div class="row g-3"><div class="col-lg-3"><div class="list-group">${list.map((r) => `<a class="list-group-item list-group-item-action ${r.key === key ? 'active' : ''}" href="#/reports?r=${r.key}">${esc(r.title)}</a>`).join('')}</div></div>
       <div class="col-lg-9"><form class="filters" id="rf">
         ${key === 'monthly_attendance' ? `<input type="month" class="form-control" name="month" value="${filt.month}">` : `<input type="date" class="form-control" name="from" value="${filt.from}"><input type="date" class="form-control" name="to" value="${filt.to}">`}
+        ${LK.branches.length && key !== 'branch_summary' ? `<select class="form-select" name="branch_id"><option value="">All branches (combined)</option>${branchOpts().map(([i, n]) => `<option value="${i}" ${String(i) === filt.branch_id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>` : ''}
         <select class="form-select" name="activity_id"><option value="">All activities</option>${actOpts().map(([i, n]) => `<option value="${i}" ${String(i) === filt.activity_id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
         <select class="form-select" name="batch_id"><option value="">All batches</option>${batchOpts().map(([i, n]) => `<option value="${i}" ${String(i) === filt.batch_id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
         <button class="btn btn-primary">Show</button>
@@ -922,6 +935,80 @@
         ${table(r.columns.map((c, i) => ({ label: c, render: (row) => esc(row[i] ?? '') })), r.rows, { empty: 'No data for these filters.' })}`;
     } catch (e) { $('#rr', v).innerHTML = `<div class="alert alert-warning">${esc(e.message)}</div>`; }
   }, 'Reports');
+
+
+  // ============================================================== BRANCHES
+  // Unlimited branches under one academy account; all share one subscription and one student quota.
+  function branchTable(rows, onRow) {
+    const pct = (x) => x === null || x === undefined ? '–' : x + '%';
+    return table([
+      { label: 'Branch', render: (b) => `<strong>${esc(b.name)}</strong>${b.status === 'inactive' ? ' ' + badge('inactive') : ''}` },
+      { label: 'Students', cls: 'text-end', render: (b) => b.students },
+      { label: 'Teachers', cls: 'text-end', render: (b) => b.teachers },
+      { label: 'Attendance', cls: 'text-end', render: (b) => pct(b.attendance_pct) },
+      ...(has('fees') && can('fees.view') ? [{ label: 'Collected', cls: 'text-end', render: (b) => `<span class="money">${money(b.collected_paise)}</span>` }, { label: 'Pending', cls: 'text-end', render: (b) => `<span class="money ${+b.pending_paise ? 'text-danger' : ''}">${money(b.pending_paise)}</span>` }] : []),
+    ], rows, { empty: 'No branches yet.', onRow });
+  }
+  route('/branches', async (v) => {
+    if (!OWNER) throw new Error('Only the academy owner manages branches.');
+    const [sum, dash] = await Promise.all([get('/branches/summary'), get('/dashboard')]);
+    const q = dash.data.student_quota || {};
+    v.innerHTML = head('Branches', 'Add as many branches as you need. All branches share one subscription and one student limit.', '<button class="btn btn-primary" id="ab"><i class="bi bi-plus-lg"></i> Add branch</button>') + `
+      <div class="alert alert-light border d-flex flex-wrap gap-3 align-items-center"><i class="bi bi-people fs-4 text-primary"></i>
+        <div><strong>${q.active ?? sum.data.total.students}</strong> active students across all branches${q.limit ? ` · package allows <strong>${q.limit}</strong>` : ' · no student limit'}</div>
+        ${q.limit ? `<div class="progress flex-grow-1" style="height:8px;min-width:120px"><div class="progress-bar ${q.active >= q.limit ? 'bg-danger' : ''}" style="width:${Math.min(100, Math.round((q.active / q.limit) * 100))}%"></div></div><a class="btn btn-sm btn-outline-primary" href="#/subscription">Upgrade Package</a>` : ''}</div>
+      <div class="card mb-3"><div class="card-header">This month · combined academy view</div><div class="card-body p-0" id="bt"></div></div>
+      <div class="small text-muted">Tap a branch to see details, assign a manager, teachers, batches or students.</div>`;
+    const rows = [...sum.data.branches, { ...sum.data.total, name: 'All branches (total)', status: 'active', branch_id: null }];
+    $('#bt', v).innerHTML = branchTable(rows, true);
+    bindRows($('#bt', v), rows, (b) => b.branch_id && go('#/branches/' + b.branch_id));
+    $('#ab', v).onclick = () => branchForm();
+  }, 'Branches');
+
+  async function branchForm(b = {}) {
+    const teachers = (await get('/teachers?status=active&per_page=500')).data;
+    formModal({
+      title: b.id ? 'Edit branch' : 'Add branch', values: b,
+      intro: b.id ? '' : '<p class="small text-muted">Branches are free and unlimited. They do not change your subscription.</p>',
+      fields: [
+        { name: 'name', label: 'Branch name', required: true, placeholder: 'e.g. Vijay Nagar' },
+        { name: 'address', label: 'Address', type: 'textarea', rows: 2 },
+        { name: 'contact_number', label: 'Contact number', col: 'col-6' }, { name: 'email', label: 'Email', type: 'email', col: 'col-6' },
+        { name: 'manager_teacher_id', label: 'Branch manager (teacher)', type: 'select', placeholder: 'None', options: teachers.map((t) => [t.id, t.name]), col: 'col-6' },
+        { name: 'manager_name', label: 'Or manager name', col: 'col-6' },
+        ...(b.id ? [{ name: 'status', label: 'Status', type: 'select', placeholder: false, options: [['active', 'Active'], ['inactive', 'Inactive (history kept)']] }] : []),
+      ],
+      submit: async (d) => { const r = b.id ? await put('/branches/' + b.id, d) : await post('/branches', d); toast(r.message); await lookups(true); C.dispatch(); },
+    });
+  }
+
+  route('/branches/:id', async (v, p) => {
+    const b = (await get('/branches/' + p.id)).data;
+    const f = b.figures;
+    v.innerHTML = head(esc(b.name) + (b.status === 'inactive' ? ' ' + badge('inactive') : ''), esc([b.address, b.contact_number, b.manager_teacher_name || b.manager_name ? 'Manager: ' + (b.manager_teacher_name || b.manager_name) : ''].filter(Boolean).join(' · ')),
+      `<button class="btn btn-light" id="eb"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-light" id="as"><i class="bi bi-person-plus"></i> Assign</button><a class="btn btn-light" href="#/reports?r=students&branch_id=${b.id}"><i class="bi bi-bar-chart"></i> Reports</a>`) + `
+      <div class="row g-3 mb-3">
+        ${[['Active students', f.students], ['Teachers', f.teachers], ['Batches', f.batches], ['Attendance (month)', f.attendance_pct === null ? '–' : f.attendance_pct + '%'], ...(has('fees') && can('fees.view') ? [['Collected (month)', money(f.collected_paise)], ['Pending', money(f.pending_paise)]] : [])].map(([l, x]) => `<div class="col-6 col-md-4 col-xl-2"><div class="stat"><div><div class="lbl">${l}</div><div class="val fs-5">${x}</div></div></div></div>`).join('')}
+      </div>
+      <div class="row g-3"><div class="col-lg-7"><div class="card"><div class="card-header">Batches</div><div class="card-body p-0">${table([{ label: 'Batch', render: (x) => `<strong>${esc(x.name)}</strong><div class="small text-muted">${esc(x.activity_name)}${x.start_time ? ' · ' + time(x.start_time) : ''}</div>` }, { label: 'Teacher', render: (x) => esc(x.teacher_name || '–') }, { label: 'Students', cls: 'text-end', render: (x) => x.students }, { label: 'Attendance', cls: 'text-end', render: (x) => x.attendance_pct === null ? '–' : x.attendance_pct + '%' }], b.batches, { empty: 'No batches at this branch yet.' })}</div></div></div>
+      <div class="col-lg-5"><div class="card"><div class="card-header">Teachers</div><div class="card-body py-1">${b.teachers.length ? b.teachers.map((t) => `<div class="list-tile"><div class="flex-grow-1">${esc(t.name)}</div>${badge(t.status)}</div>`).join('') : '<div class="empty py-4">No teachers assigned.</div>'}</div></div></div></div>
+      <div class="d-flex gap-2 mt-3 flex-wrap"><a class="btn btn-light" href="#/students?branch_id=${b.id}">Students</a>${has('fees') ? `<a class="btn btn-light" href="#/reports?r=fee_collection&branch_id=${b.id}">Fee collection</a><a class="btn btn-light" href="#/reports?r=pending_fees&branch_id=${b.id}">Pending fees</a>` : ''}<a class="btn btn-light" href="#/reports?r=attendance&branch_id=${b.id}">Attendance</a></div>`;
+    $('#eb', v).onclick = () => branchForm(b);
+    $('#as', v).onclick = async () => {
+      const [t, bt, st] = await Promise.all([get('/teachers?status=active&per_page=500'), get('/batches?status=active'), get('/students?status=active&per_page=500')]);
+      const opt = (rows, sel) => rows.filter((x) => String(x.branch_id || '') !== String(b.id)).map((x) => [x.id, sel(x)]);
+      formModal({
+        title: 'Assign to ' + b.name, okText: 'Assign',
+        intro: '<p class="small text-muted">Moves existing records to this branch. Students keep the same profile and ID, so your student count does not change.</p>',
+        fields: [
+          { name: 'teacher_ids', label: 'Teachers', type: 'multicheck', options: opt(t.data, (x) => x.name) },
+          { name: 'batch_ids', label: 'Batches', type: 'multicheck', options: opt(bt.data, (x) => `${x.name} (${x.activity_name})`) },
+          { name: 'student_ids', label: 'Students', type: 'multicheck', options: opt(st.data, (x) => `${x.name} · ${x.student_code}`) },
+        ],
+        submit: async (d) => { const r = await post(`/branches/${b.id}/assign`, d); toast(r.message); await lookups(true); C.dispatch(); },
+      });
+    };
+  }, 'Branch');
 
   // ========================================================== SUBSCRIPTION
   route('/subscription', async (v) => {
@@ -941,7 +1028,7 @@
   // ============================================================== SETTINGS
   route('/settings', async (v, p) => {
     const tab = p.tab || 'profile';
-    const tabs = [['profile', 'Academy profile'], ['notify', 'Notifications & reminders'], ['receipts', 'Receipts & IDs'], ['admission', 'Online admission'], ...(has('online_payments') ? [['payments', 'Online payments']] : []), ['branches', 'Branches'], ['audit', 'Activity log']];
+    const tabs = [['profile', 'Academy profile'], ['notify', 'Notifications & reminders'], ['receipts', 'Receipts & IDs'], ['admission', 'Online admission'], ...(has('online_payments') ? [['payments', 'Online payments']] : []), ['audit', 'Activity log']];
     v.innerHTML = head('Settings') + `<ul class="nav nav-pills mb-3 flex-wrap gap-1">${tabs.map(([k, l]) => `<li><a class="nav-link ${k === tab ? 'active' : ''}" href="#/settings?tab=${k}">${l}</a></li>`).join('')}</ul><div id="st"></div>`;
     const el = $('#st', v);
     const a = (await get('/academy')).data;
@@ -1005,12 +1092,6 @@
         { type: 'html', name: 'w', html: `<div class="small">Webhook URL (Razorpay Dashboard → Webhooks, events <code>payment.captured</code>, <code>order.paid</code>):<pre class="code mt-1">${esc(g.webhook_url)}</pre></div>` },
       ], g)}<button class="btn btn-primary mt-2">Save</button></div></form>`;
       $('#f', el).onsubmit = async (e) => { e.preventDefault(); try { const r = await post('/payment-gateway', readForm(e.target)); toast(r.message); } catch (er) { fail(er); } };
-    } else if (tab === 'branches') {
-      const rows = (await get('/branches')).data;
-      el.innerHTML = `<button class="btn btn-primary mb-2" id="ab"><i class="bi bi-plus-lg"></i> Add branch</button>${has('multi_branch') ? '' : '<span class="small text-muted ms-2">Multiple branches need the Enterprise plan.</span>'}` + table([{ label: 'Branch', render: (b) => `<strong>${esc(b.name)}</strong><div class="small text-muted">${esc(b.address || '')}</div>` }, { label: 'Contact', render: (b) => esc(b.contact_number || '–') }, { label: 'Manager', render: (b) => esc(b.manager_name || '–') }, { label: '', render: (b) => badge(b.status) }], rows, { empty: 'Single location (no branches added).', onRow: (b) => editB(b) });
-      const editB = (b = {}) => formModal({ title: b.id ? 'Edit branch' : 'Add branch', values: b, fields: [{ name: 'name', label: 'Name', required: true }, { name: 'address', label: 'Address', type: 'textarea', rows: 2 }, { name: 'contact_number', label: 'Contact', col: 'col-6' }, { name: 'manager_name', label: 'Manager', col: 'col-6' }, ...(b.id ? [{ name: 'status', label: 'Status', type: 'select', placeholder: false, options: [['active', 'Active'], ['inactive', 'Inactive']] }] : [])], submit: async (d) => { const r = b.id ? await put('/branches/' + b.id, d) : await post('/branches', d); toast(r.message); C.dispatch(); } });
-      bindRows(el, rows, editB);
-      $('#ab', el).onclick = () => editB();
     } else if (tab === 'audit') {
       listView({ el, endpoint: '/audit-logs', search: false, columns: [{ label: 'When', render: (l) => dateTime(l.created_at) }, { label: 'Who', render: (l) => esc(l.user_name || 'System') }, { label: 'Action', render: (l) => `<code>${esc(l.action)}</code>` }, { label: 'Details', render: (l) => `<div class="small text-muted" style="max-width:420px;word-break:break-all">${esc(l.new_values || l.old_values || '')}</div>` }], empty: 'No activity yet.' });
     }

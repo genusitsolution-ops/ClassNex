@@ -22,7 +22,6 @@ final class Feature
         'documents'         => 'Document Management & OCR',
         'online_admission'  => 'Online Admission Form',
         'online_payments'   => 'Online Fee Payments',
-        'multi_branch'      => 'Multiple Branches',
         'api_access'        => 'API Access',
         'priority_support'  => 'Priority Support',
     ];
@@ -51,7 +50,7 @@ final class Feature
         }
         $st = Subscription::state($academyId);
         if (!$st['package_id']) {
-            return self::$cache[$academyId] = ['features' => [], 'limits' => [], 'package' => null];
+            return self::$cache[$academyId] = ['features' => [], 'limits' => [], 'package' => null, 'whatsapp_mode' => 'off'];
         }
         $pkg = DB::one('SELECT * FROM packages WHERE id = ?', [$st['package_id']]);
         $features = DB::col('SELECT feature_key FROM package_features WHERE package_id = ? AND enabled = 1', [$st['package_id']]);
@@ -64,7 +63,11 @@ final class Feature
                 $limits[$k] = $v === null || $v === '' ? null : (int) $v;
             }
         }
-        return self::$cache[$academyId] = ['features' => $features, 'limits' => $limits, 'package' => $pkg['name']];
+        $waMode = $pkg['whatsapp_mode'] ?? 'full';
+        if ($waMode === 'off') {
+            $features = array_values(array_diff($features, ['whatsapp']));
+        }
+        return self::$cache[$academyId] = ['features' => $features, 'limits' => $limits, 'package' => $pkg['name'], 'whatsapp_mode' => $waMode];
     }
 
     public static function has(int $academyId, string $feature): bool
@@ -95,6 +98,29 @@ final class Feature
         if (self::usage($academyId, $limit) + $adding > $max) {
             $label = str_replace('_', ' ', $limit);
             throw new ApiException("Your plan allows up to $max $label. Upgrade your plan to add more.", 402, [], 'limit_reached');
+        }
+    }
+
+    /**
+     * Central student quota (one per academy, shared by every branch).
+     * Counts unique active student profiles across all branches. MUST run inside DB::tx():
+     * the academy row is locked so concurrent registrations cannot exceed the package limit.
+     */
+    public static function assertStudentCapacity(int $academyId, int $adding = 1): void
+    {
+        DB::val('SELECT id FROM academies WHERE id = ? FOR UPDATE', [$academyId]);
+        $max = self::forAcademy($academyId)['limits']['students'] ?? null;
+        if ($max === null) {
+            return;
+        }
+        $active = (int) DB::val("SELECT COUNT(*) FROM students WHERE academy_id = ? AND status = 'active'", [$academyId]);
+        if ($active + $adding > $max) {
+            throw new ApiException(
+                "Your package allows $max students. You have already registered $active active students across all branches. Please upgrade your package to add more students.",
+                402,
+                [],
+                'limit_reached'
+            );
         }
     }
 

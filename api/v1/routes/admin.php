@@ -50,7 +50,9 @@ return static function (Router $r): void {
         return Http::paged("SELECT a.id AS academy_id, a.name AS academy_name, a.code, a.slug, a.city, a.status AS academy_status, a.created_at,
                               u.id AS owner_id, u.name AS owner_name, u.country_code, u.mobile, u.email, u.status AS owner_status, u.last_login_at,
                               s.id AS subscription_id, s.status AS sub_status, s.ends_on, p.name AS package_name, p.id AS package_id,
-                              (SELECT COUNT(*) FROM students st WHERE st.academy_id = a.id AND st.status = 'active') AS students
+                              (SELECT COUNT(*) FROM students st WHERE st.academy_id = a.id AND st.status = 'active') AS students,
+                              (SELECT COUNT(*) FROM academy_branches ab WHERE ab.academy_id = a.id AND ab.status = 'active') AS branches,
+                              p.student_limit
                             FROM academies a LEFT JOIN users u ON u.id = a.owner_user_id
                             LEFT JOIN owner_subscriptions s ON s.academy_id = a.id AND s.is_current = 1 LEFT JOIN packages p ON p.id = s.package_id
                             WHERE $w ORDER BY a.id DESC", $p, "SELECT COUNT(*) FROM academies a LEFT JOIN users u ON u.id = a.owner_user_id LEFT JOIN owner_subscriptions s ON s.academy_id = a.id AND s.is_current = 1 WHERE $w");
@@ -70,6 +72,7 @@ return static function (Router $r): void {
         $a['usage'] = Feature::summary((int) $a['id']);
         $a['history'] = DB::all('SELECT s.*, p.name AS package_name FROM owner_subscriptions s JOIN packages p ON p.id = s.package_id WHERE s.academy_id = ? ORDER BY s.id DESC', [$a['id']]);
         $a['payments'] = DB::all('SELECT sp.*, p.name AS package_name FROM subscription_payments sp JOIN packages p ON p.id = sp.package_id WHERE sp.academy_id = ? ORDER BY sp.id DESC', [$a['id']]);
+        $a['branches'] = BranchService::summary((int) $a['id'], date('Y-m-01'), date('Y-m-d'));
         $a['counts'] = [
             'teachers' => (int) DB::val('SELECT COUNT(*) FROM teachers WHERE academy_id = ?', [$a['id']]),
             'batches' => (int) DB::val('SELECT COUNT(*) FROM batches WHERE academy_id = ?', [$a['id']]),
@@ -128,7 +131,7 @@ return static function (Router $r): void {
     }, $sa);
     $savePackage = static function (Ctx $c, ?int $id) {
         $in = Http::input();
-        $rules = ['name' => 'required|max:100', 'description' => 'max:1000', 'price' => 'required|money', 'billing_cycle' => 'required|in:monthly,quarterly,half_yearly,yearly,lifetime',
+        $rules = ['name' => 'required|max:100', 'description' => 'max:1000', 'price' => 'required|money', 'billing_cycle' => 'required|in:monthly,quarterly,half_yearly,yearly,lifetime,custom', 'billing_days' => 'int', 'whatsapp_mode' => 'in:off,transactional,full',
                   'trial_days' => 'int', 'student_limit' => 'int', 'teacher_limit' => 'int', 'activity_limit' => 'int', 'batch_limit' => 'int', 'branch_limit' => 'int',
                   'storage_limit_mb' => 'int', 'monthly_whatsapp_limit' => 'int', 'is_public' => 'bool', 'is_featured' => 'bool', 'sort_order' => 'int', 'status' => 'in:active,inactive'];
         $d = Validator::make($in, $id ? array_intersect_key($rules, $in) : $rules, ['price' => 'Price'])->validated();
@@ -136,8 +139,10 @@ return static function (Router $r): void {
             $d['price_paise'] = (int) $d['price'];
             unset($d['price']);
         }
+        if (($d['billing_cycle'] ?? null) === 'custom' && (int) ($d['billing_days'] ?? 0) < 1) {
+            throw ApiException::validation(['billing_days' => 'Enter the number of days in the custom billing cycle.']);
+        }
         if (isset($d['name']) && !$id) {
-            $d['slug'] = AcademyService::uniqueSlug($d['name']) . '';
             $d['slug'] = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower($d['name'])), '-') . '-' . substr(bin2hex(random_bytes(2)), 0, 4);
         }
         return DB::tx(static function () use ($c, $id, $d, $in) {
@@ -156,6 +161,13 @@ return static function (Router $r): void {
                     DB::insert('package_features', ['package_id' => $id, 'feature_key' => $f, 'enabled' => 1]);
                 }
                 Audit::log($c, 'admin.package_features', 'packages', $id, null, ['features' => array_values($in['features'])]);
+            }
+            // WhatsApp mode and the WhatsApp feature flag always agree
+            $mode = DB::val('SELECT whatsapp_mode FROM packages WHERE id = ?', [$id]);
+            if ($mode === 'off') {
+                DB::exec("DELETE FROM package_features WHERE package_id = ? AND feature_key = 'whatsapp'", [$id]);
+            } elseif (isset($d['whatsapp_mode'])) {
+                DB::exec("INSERT IGNORE INTO package_features (package_id, feature_key, enabled) VALUES (?, 'whatsapp', 1)", [$id]);
             }
             Subscription::flush();
             return $id;

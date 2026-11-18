@@ -34,7 +34,7 @@ header('X-Robots-Tag: noindex');
 <?php else: ?>
   <div class="d-flex align-items-center gap-3 mb-3">
     <?php if ($d['logo_path']): ?><img src="<?= e($d['logo_path']) ?>" alt="" style="height:56px;width:56px;object-fit:contain"><?php endif; ?>
-    <div><div class="fw-bold fs-5"><?= e($d['academy_name']) ?></div><div class="text-muted small">Payment Receipt</div></div>
+    <div><div class="fw-bold fs-5"><?= e($d['academy_name']) ?></div><div class="text-muted small"><?= $d['branch_name'] ? e($d['branch_name']) . ' branch · ' : '' ?>Payment Receipt</div></div>
   </div>
   <?php if ($d['status'] === 'cancelled'): ?><div class="alert alert-danger py-2">This receipt has been cancelled.</div><?php endif; ?>
   <div class="display-6 fw-bold text-primary mb-1"><?= e(Money::format((int) $d['amount_paise'])) ?></div>

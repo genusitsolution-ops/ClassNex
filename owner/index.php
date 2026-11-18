@@ -13,6 +13,7 @@ render_panel($user, 'owner', 'Dashboard', [
     ['#/payments', 'bi-receipt', 'Payments & Receipts', 'fees'],
     ['#/messages', 'bi-whatsapp', 'Reminders & Messages', 'manual_reminders'],
     ['---', 'Academy'],
+    ['#/branches', 'bi-geo-alt', 'Branches'],
     ['#/activities', 'bi-collection', 'Activities'],
     ['#/batches', 'bi-diagram-3', 'Batches'],
     ['#/timetable', 'bi-clock', 'Timetable'],

@@ -63,7 +63,7 @@ final class Subscription
         if ($endsOn === null && $pkg['billing_cycle'] !== 'lifetime') {
             $endsOn = $status === 'trial'
                 ? date('Y-m-d', strtotime("$startsOn +" . max(1, (int) $pkg['trial_days']) . ' days'))
-                : self::addCycle($startsOn, $pkg['billing_cycle']);
+                : self::addCycle($startsOn, $pkg['billing_cycle'], $pkg['billing_days'] ? (int) $pkg['billing_days'] : null);
         }
         return DB::tx(static function () use ($academyId, $packageId, $status, $startsOn, $endsOn, $pricePaise, $by, $notes, $customLimits, $pkg) {
             DB::exec('UPDATE owner_subscriptions SET is_current = 0 WHERE academy_id = ? AND is_current = 1', [$academyId]);
@@ -86,8 +86,11 @@ final class Subscription
         });
     }
 
-    public static function addCycle(string $from, string $cycle): ?string
+    public static function addCycle(string $from, string $cycle, ?int $customDays = null): ?string
     {
+        if ($cycle === 'custom') {
+            return date('Y-m-d', strtotime("$from +" . max(1, (int) $customDays) . ' days -1 day'));
+        }
         $m = ['monthly' => 1, 'quarterly' => 3, 'half_yearly' => 6, 'yearly' => 12][$cycle] ?? null;
         if ($m === null) {
             return null;
@@ -104,7 +107,7 @@ final class Subscription
         if ($cur && $cur['ends_on'] && $cur['ends_on'] >= $base && (int) $cur['package_id'] === $packageId && $cur['status'] !== 'trial') {
             $base = date('Y-m-d', strtotime($cur['ends_on'] . ' +1 day'));
         }
-        $ends = self::addCycle($base, $pkg['billing_cycle']);
+        $ends = self::addCycle($base, $pkg['billing_cycle'], $pkg['billing_days'] ? (int) $pkg['billing_days'] : null);
         $custom = $cur && $cur['custom_limits'] ? json_decode($cur['custom_limits'], true) : null;
         $start = $cur && (int) $cur['package_id'] === $packageId && $cur['status'] !== 'trial' ? $cur['starts_on'] : date('Y-m-d');
         return self::assign($academyId, $packageId, 'active', $start, $ends, $pricePaise, $by, $note, $custom);

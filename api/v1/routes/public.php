@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 return static function (Router $r): void {
     $r->get('/public/packages', static function () {
-        $rows = DB::all("SELECT id, name, slug, description, price_paise, billing_cycle, trial_days, student_limit, teacher_limit, batch_limit, branch_limit, is_featured
+        $rows = DB::all("SELECT id, name, slug, description, price_paise, billing_cycle, billing_days, trial_days, student_limit, whatsapp_mode, is_featured
                          FROM packages WHERE status = 'active' AND is_public = 1 ORDER BY sort_order, price_paise");
         foreach ($rows as &$p) {
             $p['features'] = DB::col('SELECT feature_key FROM package_features WHERE package_id = ? AND enabled = 1', [$p['id']]);

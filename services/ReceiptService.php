@@ -9,9 +9,9 @@ final class ReceiptService
         $r = DB::one('SELECT r.*, p.method, p.reference, p.paid_on, p.status AS payment_status, p.refunded_paise, p.notes,
                              s.name AS student_name, s.student_code, s.guardian_name, s.country_code, s.whatsapp,
                              a.name AS academy_name, a.logo_path, a.address, a.city, a.state, a.pincode, a.mobile AS academy_mobile, a.email AS academy_email, a.gstin, a.signature_path, a.receipt_footer,
-                             u.name AS collected_by_name
+                             u.name AS collected_by_name, br.name AS branch_name, br.address AS branch_address, br.contact_number AS branch_phone
                       FROM receipts r JOIN payments p ON p.id = r.payment_id JOIN students s ON s.id = r.student_id
-                      JOIN academies a ON a.id = r.academy_id LEFT JOIN users u ON u.id = p.collected_by WHERE r.id = ?', [$receiptId]);
+                      JOIN academies a ON a.id = r.academy_id LEFT JOIN users u ON u.id = p.collected_by LEFT JOIN academy_branches br ON br.id = r.branch_id WHERE r.id = ?', [$receiptId]);
         if (!$r) {
             throw ApiException::notFound('Receipt');
         }
@@ -39,13 +39,19 @@ final class ReceiptService
         }
         $pdf->font(true, 16)->color(20, 30, 70);
         $pdf->text($logoX, $y, $r['academy_name']);
-        $pdf->font(false, 9)->color(90, 90, 90);
-        $addr = trim(implode(', ', array_filter([$r['address'], $r['city'], $r['state'], $r['pincode']])));
         $yy = $y + 22;
+        if ($r['branch_name']) {
+            $pdf->font(true, 10)->color(36, 55, 160);
+            $pdf->text($logoX, $yy, 'Branch: ' . $r['branch_name']);
+            $yy += 14;
+        }
+        $pdf->font(false, 9)->color(90, 90, 90);
+        $addr = $r['branch_address'] ?: trim(implode(', ', array_filter([$r['address'], $r['city'], $r['state'], $r['pincode']])));
         if ($addr) {
             $yy += $pdf->para($logoX, $yy, 300, $addr);
         }
-        $contact = implode('  |  ', array_filter([$r['academy_mobile'] ? 'Ph: ' . $r['academy_mobile'] : null, $r['academy_email'], $r['gstin'] ? 'GSTIN: ' . $r['gstin'] : null]));
+        $phone = $r['branch_phone'] ?: $r['academy_mobile'];
+        $contact = implode('  |  ', array_filter([$phone ? 'Ph: ' . $phone : null, $r['academy_email'], $r['gstin'] ? 'GSTIN: ' . $r['gstin'] : null]));
         if ($contact) {
             $pdf->text($logoX, $yy, $contact);
         }

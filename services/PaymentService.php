@@ -47,13 +47,14 @@ final class PaymentService
                     return ['payment_id' => (int) $g, 'duplicate' => true];
                 }
             }
-            $student = DB::one('SELECT id FROM students WHERE id = ? AND academy_id = ? FOR UPDATE', [$studentId, $academyId]);
+            $student = DB::one('SELECT id, branch_id FROM students WHERE id = ? AND academy_id = ? FOR UPDATE', [$studentId, $academyId]);
             if (!$student) {
                 throw ApiException::notFound('Student');
             }
             $pid = DB::insert('payments', [
                 'academy_id'         => $academyId,
                 'student_id'         => $studentId,
+                'branch_id'          => $student['branch_id'],
                 'amount_paise'       => $amount,
                 'method'             => $method,
                 'reference'          => isset($d['reference']) ? mb_substr((string) $d['reference'], 0, 120) : null,
@@ -117,6 +118,7 @@ final class PaymentService
             'payment_id'          => $paymentId,
             'receipt_no'          => $no,
             'student_id'          => $studentId,
+            'branch_id'           => DB::val('SELECT branch_id FROM payments WHERE id = ?', [$paymentId]),
             'amount_paise'        => $amount,
             'balance_after_paise' => $bal['outstanding_paise'],
             'public_token'        => bin2hex(random_bytes(16)),
@@ -125,8 +127,8 @@ final class PaymentService
 
     public static function get(int $academyId, int $paymentId): array
     {
-        $p = DB::one('SELECT p.*, s.name AS student_name, s.student_code, r.id AS receipt_id, r.receipt_no, r.public_token, r.balance_after_paise, r.status AS receipt_status, u.name AS collected_by_name
-                      FROM payments p JOIN students s ON s.id = p.student_id LEFT JOIN receipts r ON r.payment_id = p.id LEFT JOIN users u ON u.id = p.collected_by
+        $p = DB::one('SELECT p.*, s.name AS student_name, s.student_code, r.id AS receipt_id, r.receipt_no, r.public_token, r.balance_after_paise, r.status AS receipt_status, u.name AS collected_by_name, br.name AS branch_name
+                      FROM payments p JOIN students s ON s.id = p.student_id LEFT JOIN academy_branches br ON br.id = p.branch_id LEFT JOIN receipts r ON r.payment_id = p.id LEFT JOIN users u ON u.id = p.collected_by
                       WHERE p.id = ? AND p.academy_id = ?', [$paymentId, $academyId]);
         if (!$p) {
             throw ApiException::notFound('Payment');

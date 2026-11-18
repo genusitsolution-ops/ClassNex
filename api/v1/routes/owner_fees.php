@@ -140,6 +140,10 @@ return static function (Router $r): void {
             $w .= ' AND (s.name LIKE ? OR s.student_code LIKE ? OR i.invoice_no LIKE ?)';
             array_push($p, "%$q%", "%$q%", "%$q%");
         }
+        if ($br = (int) Http::query('branch_id')) {
+            $w .= ' AND i.branch_id = ?';
+            $p[] = $br;
+        }
         if ($b = (int) Http::query('batch_id')) {
             $w .= " AND i.student_id IN (SELECT student_id FROM student_activity_mapping WHERE batch_id = ? AND status = 'active')";
             $p[] = $b;
@@ -152,7 +156,7 @@ return static function (Router $r): void {
             $w .= ' AND i.due_date <= ?';
             $p[] = $to;
         }
-        $res = Http::paged("SELECT i.*, i.total_paise - i.paid_paise AS balance_paise, s.name AS student_name, s.student_code, s.country_code, s.whatsapp,
+        $res = Http::paged("SELECT i.*, i.total_paise - i.paid_paise AS balance_paise, (SELECT name FROM academy_branches br WHERE br.id = i.branch_id) AS branch_name, s.name AS student_name, s.student_code, s.country_code, s.whatsapp,
                               GREATEST(DATEDIFF(CURDATE(), i.due_date),0) AS days_overdue
                             FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE $w ORDER BY " . ($st === 'all' ? 'i.id DESC' : 'i.due_date, s.name'), $p,
             "SELECT COUNT(*) FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE $w");
@@ -229,7 +233,7 @@ return static function (Router $r): void {
     $r->get('/payments', static function (Ctx $c) {
         $w = 'p.academy_id = ?';
         $prm = [$c->academy()];
-        foreach (['student_id' => 'p.student_id', 'method' => 'p.method', 'status' => 'p.status', 'collected_by' => 'p.collected_by'] as $k => $col) {
+        foreach (['student_id' => 'p.student_id', 'method' => 'p.method', 'status' => 'p.status', 'collected_by' => 'p.collected_by', 'branch_id' => 'p.branch_id'] as $k => $col) {
             if (($v = Http::query($k)) !== null && $v !== '') {
                 $w .= " AND $col = ?";
                 $prm[] = $v;
@@ -256,7 +260,7 @@ return static function (Router $r): void {
             array_push($prm, "%$q%", "%$q%", "%$q%", "%$q%");
         }
         $res = Http::paged("SELECT p.id, p.student_id, p.amount_paise, p.refunded_paise, p.method, p.reference, p.paid_on, p.status, p.created_at, s.name AS student_name, s.student_code,
-                              r.id AS receipt_id, r.receipt_no, r.balance_after_paise, r.public_token, u.name AS collected_by_name,
+                              r.id AS receipt_id, r.receipt_no, r.balance_after_paise, r.public_token, u.name AS collected_by_name, (SELECT name FROM academy_branches br WHERE br.id = p.branch_id) AS branch_name,
                               (SELECT GROUP_CONCAT(DISTINCT i.title SEPARATOR ', ') FROM payment_allocations a JOIN fee_invoices i ON i.id = a.invoice_id WHERE a.payment_id = p.id AND a.reason = 'payment') AS fee_period
                             FROM payments p JOIN students s ON s.id = p.student_id LEFT JOIN receipts r ON r.payment_id = p.id LEFT JOIN users u ON u.id = p.collected_by
                             WHERE $w ORDER BY p.paid_on DESC, p.id DESC", $prm, "SELECT COUNT(*) FROM payments p JOIN students s ON s.id = p.student_id LEFT JOIN receipts r ON r.payment_id = p.id WHERE $w");
@@ -302,6 +306,9 @@ return static function (Router $r): void {
         $aid = $c->academy();
         $m0 = Http::query('from') ?: date('Y-m-01');
         $m1 = Http::query('to') ?: date('Y-m-d');
+        if (Http::query('branch_id')) {
+            return Http::ok(BranchService::figures($aid, (int) Http::query('branch_id'), $m0, $m1));
+        }
         return Http::ok([
             'collected_paise' => (int) DB::val("SELECT COALESCE(SUM(amount_paise - refunded_paise),0) FROM payments WHERE academy_id = ? AND status = 'success' AND paid_on BETWEEN ? AND ?", [$aid, $m0, $m1]),
             'pending_paise'   => (int) DB::val("SELECT COALESCE(SUM(total_paise - paid_paise),0) FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND s.status = 'active'", [$aid]),

@@ -9,6 +9,7 @@ declare(strict_types=1);
 final class ReportService
 {
     public const ACADEMY_REPORTS = [
+        'branch_summary'     => ['Branch-wise & Combined Academy Report', true],
         'students'           => ['Student Report', false],
         'admissions'         => ['Admission Report', false],
         'attendance'         => ['Attendance Report (daily)', false],
@@ -64,8 +65,28 @@ final class ReportService
             }
         };
         $money = static fn($v) => Money::format((int) $v, '₹');
+        $branch = isset($f['branch_id']) && $f['branch_id'] !== '' ? (int) $f['branch_id'] : null;
+        if ($branch && !DB::val('SELECT 1 FROM academy_branches WHERE id = ? AND academy_id = ?', [$branch, $aid])) {
+            throw ApiException::notFound('Branch');
+        }
+        $brFilter = static function (string $col) use (&$w, $branch) {
+            if ($branch) {
+                $w .= " AND $col = " . $branch;
+            }
+        };
+        $brName = static fn(?string $n) => $n ?: 'Main';
+        $title .= $branch ? ' – ' . DB::val('SELECT name FROM academy_branches WHERE id = ?', [$branch]) : '';
 
         switch ($report) {
+            case 'branch_summary':
+                $sum = BranchService::summary($aid, $from, $to);
+                $line = static fn(array $r) => [$r['name'], $r['students'], $r['new_admissions'], $r['teachers'], $r['batches'], $r['attendance_pct'] === null ? '-' : $r['attendance_pct'] . '%', $money($r['collected_paise']), $r['payments'], $money($r['pending_paise']), $money($r['overdue_paise'])];
+                $rows = array_map($line, $sum['branches']);
+                $rows[] = $line($sum['total']);
+                return self::out($title . ' (' . date('d M Y', strtotime($from)) . ' – ' . date('d M Y', strtotime($to)) . ')', ['Branch', 'Active students', 'New admissions', 'Teachers', 'Batches', 'Attendance %', 'Collected', 'Payments', 'Pending', 'Overdue'], $rows, [
+                    'Branches' => $sum['total']['branch_count'], 'Total active students (unique)' => $sum['total']['students'], 'Total collection' => $money($sum['total']['collected_paise']), 'Total pending' => $money($sum['total']['pending_paise']),
+                ]);
+
             case 'students':
             case 'admissions':
                 if ($report === 'admissions') {
@@ -78,18 +99,21 @@ final class ReportService
                 }
                 $batchFilter('m.batch_id');
                 $actFilter('m.activity_id');
-                $rows = DB::all("SELECT s.student_code, s.name, s.guardian_name, CONCAT(s.country_code,' ',s.whatsapp) AS whatsapp, GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ') AS activities,
+                $brFilter('s.branch_id');
+                $rows = DB::all("SELECT s.student_code, s.name, (SELECT name FROM academy_branches br WHERE br.id = s.branch_id) AS branch, s.guardian_name, CONCAT(s.country_code,' ',s.whatsapp) AS whatsapp, GROUP_CONCAT(DISTINCT a.name SEPARATOR ', ') AS activities,
                                  GROUP_CONCAT(DISTINCT b.name SEPARATOR ', ') AS batches, s.admission_date, s.source, s.status
                                  FROM students s LEFT JOIN student_activity_mapping m ON m.student_id = s.id AND m.status = 'active'
                                  LEFT JOIN activities a ON a.id = m.activity_id LEFT JOIN batches b ON b.id = m.batch_id
                                  WHERE s.academy_id = ? $w GROUP BY s.id ORDER BY s.admission_date DESC, s.name", $p);
-                return self::out($title, ['Student ID', 'Name', 'Guardian', 'WhatsApp', 'Activity', 'Batch', 'Admission Date', 'Source', 'Status'], $rows);
+                $rows = array_map(static fn($r) => array_merge($r, ['branch' => $brName($r['branch'])]), $rows);
+                return self::out($title, ['Student ID', 'Name', 'Branch', 'Guardian', 'WhatsApp', 'Activity', 'Batch', 'Admission Date', 'Source', 'Status'], $rows);
 
             case 'attendance':
                 $w .= ' AND se.session_date BETWEEN ? AND ?';
                 array_push($p, $from, $to);
                 $batchFilter('se.batch_id');
                 $stuFilter('at.student_id');
+                $brFilter('b.branch_id');
                 if (!empty($f['status'])) {
                     $w .= ' AND at.status = ?';
                     $p[] = $f['status'];
@@ -107,6 +131,7 @@ final class ReportService
                 $p = [$mf, $mt, $aid];
                 $batchFilter('se.batch_id');
                 $stuFilter('s.id');
+                $brFilter('b.branch_id');
                 $rows = DB::all("SELECT s.student_code, s.name, b.name AS batch,
                                  SUM(at.status='present') AS present, SUM(at.status='absent') AS absent, SUM(at.status='late') AS late, SUM(at.status='leave') AS leave_days,
                                  ROUND(100 * SUM(at.status IN ('present','late')) / NULLIF(SUM(at.status IN ('present','late','absent')),0), 1) AS pct
@@ -120,6 +145,7 @@ final class ReportService
                 $w .= ' AND p.paid_on BETWEEN ? AND ?';
                 array_push($p, $from, $to);
                 $stuFilter('p.student_id');
+                $brFilter('p.branch_id');
                 if (!empty($f['batch_id']) || !empty($f['activity_id'])) {
                     $w .= ' AND p.student_id IN (SELECT student_id FROM student_activity_mapping WHERE academy_id = ?' . (!empty($f['batch_id']) ? ' AND batch_id = ?' : '') . (!empty($f['activity_id']) ? ' AND activity_id = ?' : '') . ')';
                     $p[] = $aid;
@@ -140,18 +166,19 @@ final class ReportService
                     $w .= ' AND p.method = ?';
                     $p[] = $f['method'];
                 }
-                $rows = DB::all("SELECT p.paid_on, r.receipt_no, s.student_code, s.name, p.method, p.reference, p.amount_paise, p.refunded_paise, r.balance_after_paise, u.name AS collected_by, p.status
+                $rows = DB::all("SELECT p.paid_on, r.receipt_no, (SELECT name FROM academy_branches br WHERE br.id = p.branch_id) AS branch, s.student_code, s.name, p.method, p.reference, p.amount_paise, p.refunded_paise, r.balance_after_paise, u.name AS collected_by, p.status
                                  FROM payments p JOIN students s ON s.id = p.student_id LEFT JOIN receipts r ON r.payment_id = p.id LEFT JOIN users u ON u.id = p.collected_by
                                  WHERE p.academy_id = ? $w ORDER BY p.paid_on DESC, p.id DESC", $p);
                 $total = array_sum(array_map(static fn($r) => $r['status'] === 'success' ? (int) $r['amount_paise'] - (int) $r['refunded_paise'] : 0, $rows));
-                $rows = array_map(static fn($r) => array_merge($r, ['method' => ucwords(str_replace('_', ' ', $r['method'])), 'amount_paise' => $money($r['amount_paise']), 'refunded_paise' => $money($r['refunded_paise']), 'balance_after_paise' => $money($r['balance_after_paise']), 'status' => ucfirst($r['status'])]), $rows);
-                return self::out($title, ['Date', 'Receipt No', 'Student ID', 'Student', 'Method', 'Reference', 'Amount', 'Refunded', 'Balance After', 'Collected By', 'Status'], $rows, ['Net collected' => $money($total), 'Payments' => count($rows)]);
+                $rows = array_map(static fn($r) => array_merge($r, ['branch' => $brName($r['branch']), 'method' => ucwords(str_replace('_', ' ', $r['method'])), 'amount_paise' => $money($r['amount_paise']), 'refunded_paise' => $money($r['refunded_paise']), 'balance_after_paise' => $money($r['balance_after_paise']), 'status' => ucfirst($r['status'])]), $rows);
+                return self::out($title, ['Date', 'Receipt No', 'Branch', 'Student ID', 'Student', 'Method', 'Reference', 'Amount', 'Refunded', 'Balance After', 'Collected By', 'Status'], $rows, ['Net collected' => $money($total), 'Payments' => count($rows)]);
 
             case 'pending_fees':
             case 'overdue_fees':
                 if ($report === 'overdue_fees') {
                     $w .= ' AND i.due_date < CURDATE()';
                 }
+                $brFilter('i.branch_id');
                 $stuFilter('i.student_id');
                 if (!empty($f['batch_id']) || !empty($f['activity_id']) || $batchScope !== null) {
                     $sub = 'SELECT student_id FROM student_activity_mapping m WHERE m.academy_id = ?';
@@ -163,13 +190,13 @@ final class ReportService
                     $w .= " AND i.student_id IN ($sub$w2)";
                     array_push($p, ...$p2);
                 }
-                $rows = DB::all("SELECT i.invoice_no, s.student_code, s.name, CONCAT(s.country_code,' ',s.whatsapp) AS whatsapp, i.title, i.due_date,
+                $rows = DB::all("SELECT i.invoice_no, (SELECT name FROM academy_branches br WHERE br.id = i.branch_id) AS branch, s.student_code, s.name, CONCAT(s.country_code,' ',s.whatsapp) AS whatsapp, i.title, i.due_date,
                                  i.total_paise, i.paid_paise, i.total_paise - i.paid_paise AS pending, GREATEST(DATEDIFF(CURDATE(), i.due_date),0) AS days_overdue
                                  FROM fee_invoices i JOIN students s ON s.id = i.student_id
                                  WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND s.status = 'active' $w ORDER BY i.due_date, s.name", $p);
                 $total = array_sum(array_map('intval', array_column($rows, 'pending')));
-                $rows = array_map(static fn($r) => array_merge($r, ['total_paise' => $money($r['total_paise']), 'paid_paise' => $money($r['paid_paise']), 'pending' => $money($r['pending'])]), $rows);
-                return self::out($title, ['Invoice', 'Student ID', 'Student', 'WhatsApp', 'Fee', 'Due Date', 'Total', 'Paid', 'Pending', 'Days Overdue'], $rows, ['Total pending' => $money($total), 'Invoices' => count($rows)]);
+                $rows = array_map(static fn($r) => array_merge($r, ['branch' => $brName($r['branch']), 'total_paise' => $money($r['total_paise']), 'paid_paise' => $money($r['paid_paise']), 'pending' => $money($r['pending'])]), $rows);
+                return self::out($title, ['Invoice', 'Branch', 'Student ID', 'Student', 'WhatsApp', 'Fee', 'Due Date', 'Total', 'Paid', 'Pending', 'Days Overdue'], $rows, ['Total pending' => $money($total), 'Invoices' => count($rows)]);
 
             case 'batch_wise':
             case 'activity_wise':
@@ -183,7 +210,7 @@ final class ReportService
                                  FROM activities a " . ($byBatch ? 'JOIN batches b ON b.activity_id = a.id' : '') . "
                                  LEFT JOIN student_activity_mapping m ON " . ($byBatch ? 'm.batch_id = b.id' : 'm.activity_id = a.id') . "
                                  LEFT JOIN students s ON s.id = m.student_id
-                                 WHERE a.academy_id = ? " . (!empty($f['activity_id']) ? ' AND a.id = ' . (int) $f['activity_id'] : '') . "
+                                 WHERE a.academy_id = ? " . (!empty($f['activity_id']) ? ' AND a.id = ' . (int) $f['activity_id'] : '') . ($branch && $byBatch ? ' AND b.branch_id = ' . $branch : '') . "
                                  GROUP BY a.id" . ($byBatch ? ', b.id' : '') . ' ORDER BY a.name' . ($byBatch ? ', b.name' : ''), [$from, $to, $aid]);
                 $rows = array_map(static fn($r) => array_merge($r, ['collected' => $money($r['collected']), 'pending' => $money($r['pending'])]), $rows);
                 if (!$byBatch) {
@@ -197,7 +224,7 @@ final class ReportService
                                  (SELECT COUNT(*) FROM batches b WHERE b.teacher_id = t.id AND b.status='active') +
                                  (SELECT COUNT(*) FROM teacher_batches tb WHERE tb.teacher_id = t.id) AS batches,
                                  (SELECT COUNT(*) FROM attendance_sessions se WHERE se.marked_by = t.user_id AND se.session_date BETWEEN ? AND ?) AS sessions_marked,
-                                 t.status FROM teachers t WHERE t.academy_id = ? ORDER BY t.name", [$from, $to, $aid]);
+                                 t.status FROM teachers t WHERE t.academy_id = ?" . ($branch ? ' AND t.branch_id = ' . $branch : '') . ' ORDER BY t.name', [$from, $to, $aid]);
                 return self::out($title, ['Teacher', 'Mobile', 'Joined', 'Batches', 'Sessions marked (period)', 'Status'], $rows);
 
             case 'notifications':

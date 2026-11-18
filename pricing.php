@@ -6,12 +6,12 @@ site_header('Pricing', 'Simple monthly plans for academies of every size. Start 
 $pkgs = site_packages();
 $lim = static fn($v) => $v === null ? 'Unlimited' : number_format((int) $v);
 ?>
-<section class="page-hero"><div class="container text-center"><div class="eyebrow">Pricing</div><h1>Plans for every academy</h1><p class="lead text-muted">Start free. Upgrade any time. Your data is never deleted if a plan expires.</p></div></section>
+<section class="page-hero"><div class="container text-center"><div class="eyebrow">Pricing</div><h1>Plans for every academy</h1><p class="lead text-muted">One academy, one subscription. Pay only for active students — add as many branches as you like at no extra cost. Your data is never deleted if a plan expires.</p></div></section>
 <section class="section pt-4"><div class="container">
   <div class="row g-4 justify-content-center mb-5"><?php foreach ($pkgs as $p): ?>
     <div class="col-md-6 col-lg-4"><div class="price-card <?= $p['is_featured'] ? 'featured' : '' ?>"><?php if ($p['is_featured']): ?><span class="tag">Most popular</span><?php endif; ?>
-      <h3 class="h5 fw-bold"><?= e($p['name']) ?></h3><div class="amt"><?= e(Money::format((int) $p['price_paise'], '₹', false)) ?><small class="fs-6 text-muted fw-semibold">/<?= e(str_replace('_', ' ', $p['billing_cycle'])) ?></small></div><p class="text-muted"><?= e($p['description']) ?></p>
-      <ul><li><i class="bi bi-people-fill"></i> <?= $lim($p['student_limit']) ?> students</li><li><i class="bi bi-person-badge"></i> <?= $lim($p['teacher_limit']) ?> teachers</li><li><i class="bi bi-diagram-3"></i> <?= $lim($p['batch_limit']) ?> batches</li><li><i class="bi bi-building"></i> <?= $lim($p['branch_limit']) ?> branch(es)</li></ul>
+      <h3 class="h5 fw-bold"><?= e($p['name']) ?></h3><div class="amt"><?= e(Money::format((int) $p['price_paise'], '₹', false)) ?><small class="fs-6 text-muted fw-semibold">/<?= e($p['billing_cycle'] === 'custom' ? $p['billing_days'] . ' days' : str_replace('_', ' ', $p['billing_cycle'])) ?></small></div><p class="text-muted"><?= e($p['description']) ?></p>
+      <ul><li><i class="bi bi-people-fill"></i> <strong><?= $lim($p['student_limit']) ?> active students</strong> across all branches</li><li><i class="bi bi-building"></i> Unlimited branches</li><li><i class="bi bi-person-badge"></i> <?= $lim($p['teacher_limit']) ?> teachers</li><li><i class="bi bi-whatsapp"></i> WhatsApp: <?= e(['full' => 'receipts, attendance & auto reminders', 'transactional' => 'receipts & attendance', 'off' => 'not included'][$p['whatsapp_mode'] ?? 'full']) ?></li></ul>
       <a href="register.php?plan=<?= (int) $p['id'] ?>" class="btn <?= $p['is_featured'] ? 'btn-primary' : 'btn-outline-primary' ?> mt-auto"><?= $p['trial_days'] ? 'Start ' . (int) $p['trial_days'] . '-day free trial' : 'Get started' ?></a></div></div>
   <?php endforeach; ?></div>
   <div class="table-responsive"><table class="table align-middle bg-white rounded-4 overflow-hidden shadow-sm"><thead class="table-light"><tr><th>Feature</th><?php foreach ($pkgs as $p): ?><th class="text-center"><?= e($p['name']) ?></th><?php endforeach; ?></tr></thead><tbody>

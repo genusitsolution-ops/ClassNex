@@ -51,19 +51,55 @@ return static function (Router $r): void {
     }, $own + ['perm' => 'settings.manage']);
 
     // ----------------------------------------------------------------- branches
-    $r->get('/branches', static fn(Ctx $c) => Http::ok(DB::all('SELECT * FROM academy_branches WHERE academy_id = ? ORDER BY name', [$c->academy()])), $staff);
-    $branchRules = ['name' => 'required|max:120', 'address' => 'max:500', 'contact_number' => 'phone', 'manager_name' => 'max:120', 'status' => 'in:active,inactive'];
-    $r->post('/branches', static function (Ctx $c) use ($branchRules) {
-        if ((int) DB::val('SELECT COUNT(*) FROM academy_branches WHERE academy_id = ?', [$c->academy()]) >= 1) {
-            Feature::assert($c->academy(), 'multi_branch');
+    // Branches are unlimited by default and share the academy's one subscription and student quota.
+    $r->get('/branches', static function (Ctx $c) {
+        $rows = DB::all("SELECT br.*, t.name AS manager_teacher_name,
+                           (SELECT COUNT(*) FROM students s WHERE s.branch_id = br.id AND s.status = 'active') AS students,
+                           (SELECT COUNT(*) FROM teachers x WHERE x.branch_id = br.id AND x.status = 'active') AS teachers,
+                           (SELECT COUNT(*) FROM batches b WHERE b.branch_id = br.id AND b.status = 'active') AS batches
+                         FROM academy_branches br LEFT JOIN teachers t ON t.id = br.manager_teacher_id
+                         WHERE br.academy_id = ?" . (Http::query('status') ? ' AND br.status = ?' : '') . ' ORDER BY br.status, br.name', array_filter([$c->academy(), Http::query('status')]));
+        return Http::ok($rows);
+    }, $staff);
+    $r->get('/branches/summary', static function (Ctx $c) {
+        return Http::ok(BranchService::summary($c->academy(), Http::query('from') ?: date('Y-m-01'), Http::query('to') ?: date('Y-m-d')));
+    }, $own + ['perm' => 'reports.view']);
+    $r->get('/branches/{id}', static function (Ctx $c, array $p) {
+        return Http::ok(BranchService::detail($c->academy(), (int) $p['id'], Http::query('from') ?: date('Y-m-01'), Http::query('to') ?: date('Y-m-d')));
+    }, $own);
+    $branchRules = ['name' => 'required|max:120', 'address' => 'max:500', 'contact_number' => 'phone', 'email' => 'email|max:160', 'manager_name' => 'max:120', 'manager_teacher_id' => 'int', 'status' => 'in:active,inactive'];
+    $saveBranch = static function (Ctx $c, ?int $id) use ($branchRules) {
+        $aid = $c->academy();
+        $in = Http::input();
+        if (!empty($in['manager_teacher_id'])) {
+            $t = Crud::find('teachers', (int) $in['manager_teacher_id'], $aid, 'Teacher');
+            $in['manager_name'] = $in['manager_name'] ?? $t['name'];
         }
-        Feature::assertLimit($c->academy(), 'branches');
-        $id = Crud::save($c, 'academy_branches', null, $branchRules, Http::input(), ['academy_id' => $c->academy()]);
-        return Http::ok(['id' => $id], 'Branch added.');
-    }, $own + ['perm' => 'structure.manage']);
-    $r->put('/branches/{id}', static function (Ctx $c, array $p) use ($branchRules) {
-        Crud::save($c, 'academy_branches', (int) $p['id'], $branchRules, Http::input());
-        return Http::ok(null, 'Branch updated.');
+        if (!$id) {
+            Feature::assertLimit($aid, 'branches'); // only applies if a special enterprise branch restriction was configured
+        }
+        return Crud::save($c, 'academy_branches', $id, $branchRules, $in, $id ? [] : ['academy_id' => $aid]);
+    };
+    $r->post('/branches', static fn(Ctx $c) => Http::ok(['id' => $saveBranch($c, null)], 'Branch added. Branches are unlimited and share your student quota.'), $own + ['perm' => 'structure.manage']);
+    $r->put('/branches/{id}', static fn(Ctx $c, array $p) => Http::ok(['id' => $saveBranch($c, (int) $p['id'])], 'Branch updated.'), $own + ['perm' => 'structure.manage']);
+
+    // bulk-assign existing students / teachers / batches to a branch (same profiles, quota unchanged)
+    $r->post('/branches/{id}/assign', static function (Ctx $c, array $p) {
+        $aid = $c->academy();
+        $br = Crud::find('academy_branches', (int) $p['id'], $aid, 'Branch');
+        $in = Http::input();
+        $n = DB::tx(static function () use ($c, $aid, $br, $in) {
+            $n = 0;
+            foreach (['students' => 'student_ids', 'teachers' => 'teacher_ids', 'batches' => 'batch_ids'] as $table => $key) {
+                $ids = array_values(array_unique(array_map('intval', (array) ($in[$key] ?? []))));
+                if ($ids) {
+                    $n += DB::exec("UPDATE $table SET branch_id = ? WHERE academy_id = ? AND id IN (" . DB::inList($ids) . ')', array_merge([$br['id'], $aid], $ids));
+                    Audit::log($c, 'branch.assign_' . $table, 'academy_branches', $br['id'], null, [$key => $ids]);
+                }
+            }
+            return $n;
+        });
+        return Http::ok(['updated' => $n], "$n record(s) assigned to {$br['name']}.");
     }, $own + ['perm' => 'structure.manage']);
 
     // ---------------------------------------------------------------- activities
@@ -124,6 +160,10 @@ return static function (Router $r): void {
             $w .= ' AND b.activity_id = ?';
             $p[] = $aid;
         }
+        if ($br = (int) Http::query('branch_id')) {
+            $w .= ' AND b.branch_id = ?';
+            $p[] = $br;
+        }
         if ($st = Http::query('status')) {
             $w .= ' AND b.status = ?';
             $p[] = $st;
@@ -133,7 +173,7 @@ return static function (Router $r): void {
             $w .= ' AND b.id IN (' . DB::inList($scope) . ')';
             array_push($p, ...$scope);
         }
-        $rows = DB::all("SELECT b.*, a.name AS activity_name, t.name AS teacher_name,
+        $rows = DB::all("SELECT b.*, a.name AS activity_name, t.name AS teacher_name, (SELECT name FROM academy_branches x WHERE x.id = b.branch_id) AS branch_name,
                            (SELECT COUNT(*) FROM student_activity_mapping m JOIN students s ON s.id = m.student_id WHERE m.batch_id = b.id AND m.status = 'active' AND s.status = 'active') AS student_count,
                            (SELECT GROUP_CONCAT(weekday ORDER BY weekday) FROM batch_schedules bs WHERE bs.batch_id = b.id) AS weekdays,
                            EXISTS(SELECT 1 FROM attendance_sessions se WHERE se.batch_id = b.id AND se.session_date = CURDATE()) AS marked_today
@@ -164,6 +204,11 @@ return static function (Router $r): void {
         }
         if (!empty($d['teacher_id'])) {
             Crud::find('teachers', (int) $d['teacher_id'], $aid, 'Teacher');
+        }
+        if (!empty($d['branch_id'])) {
+            Crud::find('academy_branches', (int) $d['branch_id'], $aid, 'Branch');
+        } elseif (!$id && !array_key_exists('branch_id', $d) && !empty($d['activity_id'])) {
+            $d['branch_id'] = DB::val('SELECT branch_id FROM activities WHERE id = ?', [$d['activity_id']]);
         }
         if (!empty($d['start_date']) && !empty($d['end_date']) && $d['end_date'] < $d['start_date']) {
             throw ApiException::validation(['end_date' => 'End date must be after start date.']);
@@ -255,6 +300,9 @@ return static function (Router $r): void {
             if ((int) DB::val('SELECT COUNT(*) FROM teachers WHERE academy_id = ?', [$aid]) >= 1) {
                 Feature::assert($aid, 'staff_management');
             }
+        }
+        if (!empty($d['branch_id'])) {
+            Crud::find('academy_branches', (int) $d['branch_id'], $aid, 'Branch');
         }
         $photo = Upload::storePhoto('photo', $aid, 'teachers');
         if ($photo) {

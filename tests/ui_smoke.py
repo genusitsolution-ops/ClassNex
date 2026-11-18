@@ -19,7 +19,7 @@ USERS = {
         "#/collect?student=1", "#/fees", "#/payments", "#/messages", "#/message-log", "#/activities", "#/batches", "#/timetable",
         "#/teachers", "#/parents", "#/admissions", "#/fee-plans", "#/announcements", "#/holidays", "#/leaves", "#/reports",
         "#/reports?r=pending_fees", "#/subscription", "#/settings", "#/settings?tab=notify", "#/settings?tab=receipts",
-        "#/settings?tab=admission", "#/settings?tab=payments", "#/settings?tab=branches", "#/settings?tab=audit",
+        "#/settings?tab=admission", "#/settings?tab=payments", "#/branches", "#/branches/1", "#/reports?r=branch_summary", "#/students?branch_id=1", "#/settings?tab=audit",
         "#/support", "#/notifications", "#/profile"]),
     "teacher": ("9123456780", "Teach@123", "teacher", ["#/", "#/attendance", "#/attendance-history", "#/batches", "#/students", "#/timetable", "#/announcements", "#/leaves", "#/support"]),
     "parent": ("9876511111", "Parent@123", "student", ["#/", "#/attendance", "#/fees", "#/timetable", "#/announcements", "#/holidays", "#/notifications", "#/support"]),
@@ -33,7 +33,11 @@ SITE = ["index.php", "features.php", "solutions.php", "pricing.php", "how-it-wor
         "page.php?p=privacy-policy", "login.php", "register.php", "admission.php?a=abc-cricket-academy", "install.php"]
 
 failures = []
-shots = {"owner": ["#/", "#/students/new", "#/attendance/1", "#/collect?student=1", "#/students/1?tab=fees", "#/settings?tab=notify"],
+# one branch for the branch screens (the e2e data set is single-location)
+import subprocess
+subprocess.run(["mysql", "-u" + os.environ.get("CNX_DB_USER", "classnex"), "-p" + os.environ.get("CNX_DB_PASS", "classnex"), os.environ.get("CNX_DB", "classnex_test"), "-e",
+                "INSERT IGNORE INTO academy_branches (id, academy_id, name, address, status) VALUES (1, 1, 'Main Ground', 'MG Road', 'active'); UPDATE batches SET branch_id = 1 WHERE academy_id = 1 AND branch_id IS NULL; UPDATE students SET branch_id = 1 WHERE academy_id = 1 AND branch_id IS NULL;"], check=False)
+shots = {"owner": ["#/", "#/branches", "#/branches/1", "#/students/new", "#/attendance/1", "#/collect?student=1", "#/students/1?tab=fees", "#/settings?tab=notify"],
          "teacher": ["#/"], "parent": ["#/", "#/fees"], "admin": ["#/", "#/integrations", "#/owners/1"]}
 
 with sync_playwright() as p:

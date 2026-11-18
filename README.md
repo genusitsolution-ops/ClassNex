@@ -21,7 +21,8 @@ ClassNex is a multi-tenant SaaS platform for academies, institutes and activity 
 - **Receipts** – numbered PDF receipts, print, WhatsApp share link, email, parent download.
 - **Notification engine** – official WhatsApp Business Cloud API, Firebase push (HTTP v1), SMTP email, optional SMS, in-app inbox. DB-backed queue with locking, retries with backoff, webhook delivery status, STOP opt-out, rate limiting, test mode.
 - **Automatic reminders** – default 7, 3, 1 days before, on the due date, 3 and 7 days after; configurable per academy.
-- **Packages & subscriptions** – fully dynamic plans, feature flags and limits enforced by the backend; trial, renewal, upgrade, grace, read-only expiry (data never deleted), suspension; online renewal through Razorpay.
+- **Unlimited branches, one student-based subscription** – an academy adds as many branches as it needs at no extra cost. Packages are priced on the **total active unique students across all branches** (e.g. Starter ₹100 / 15 students, Growth ₹200 / 100 students). The limit is checked inside a locked transaction, so concurrent registrations at different branches cannot exceed it; branch transfers and duplicates never inflate the count; deactivated students free a slot and keep their history. Branch-wise attendance, fees, receipts and reports, plus a combined academy report.
+- **Packages & subscriptions** – fully dynamic plans (custom billing durations, WhatsApp mode off / transactional / full), feature flags and limits enforced by the backend; trial, renewal, upgrade, grace, read-only expiry (data never deleted), suspension; online renewal through Razorpay.
 - **Security** – tenant isolation on every query, RBAC with per-teacher grants, CSRF, bcrypt/argon passwords, hashed bearer tokens, rate limiting, account lockout, libsodium-encrypted credentials and documents, private file storage, audit logs, backups.
 
 ## Requirements
@@ -60,6 +61,8 @@ Then log in at `/login.php` as Super Admin, review **Packages**, connect **Integ
 # end-to-end API workflows against a disposable database (needs MySQL/MariaDB)
 CNX_DB=classnex_test php -S 127.0.0.1:8081 tests/devserver.php &
 CNX_DB=classnex_test php tests/e2e.php http://127.0.0.1:8081
+# branches + central student quota (14 business scenarios + concurrency)
+CNX_DB=classnex_test php tests/e2e_branches.php http://127.0.0.1:8081
 # UI smoke test (headless Chrome via Playwright) – every screen for every role
 python3 tests/ui_smoke.py http://127.0.0.1:8081 /tmp/shots
 ```

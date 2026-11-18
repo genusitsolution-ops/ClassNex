@@ -44,7 +44,7 @@
         { label: 'Academy', render: (r) => `<div class="fw-bold">${esc(r.academy_name)}</div><div class="small text-muted">${esc(r.code)} ${r.city ? '· ' + esc(r.city) : ''}</div>` },
         { label: 'Owner', render: (r) => `${esc(r.owner_name || '–')}<div class="small text-muted">${esc(r.country_code || '')} ${esc(r.mobile || '')}</div>` },
         { label: 'Plan', render: (r) => `${esc(r.package_name || '–')} ${r.sub_status ? badge(r.sub_status) : ''}<div class="small text-muted">${r.ends_on ? 'till ' + date(r.ends_on) : ''}</div>` },
-        { label: 'Students', render: (r) => r.students }, { label: 'Status', render: (r) => badge(r.academy_status) + ' ' + (r.owner_status !== 'active' ? badge(r.owner_status) : '') },
+        { label: 'Students', render: (r) => `${r.students}${r.student_limit ? ' / ' + r.student_limit : ''}` }, { label: 'Branches', render: (r) => +r.branches || '–' }, { label: 'Status', render: (r) => badge(r.academy_status) + ' ' + (r.owner_status !== 'active' ? badge(r.owner_status) : '') },
       ], onRow: (r) => go('#/owners/' + r.academy_id), empty: 'No academies yet.', emptyIcon: 'bi-building',
     });
     const add = () => formModal({
@@ -55,7 +55,7 @@
         { name: 'email', label: 'Email', type: 'email', col: 'col-md-6' }, { name: 'password', label: 'Password (optional)', type: 'password', col: 'col-md-6' },
         { name: 'academy_name', label: 'Academy name', required: true, col: 'col-md-6' }, { name: 'city', label: 'City', col: 'col-md-6' },
         { name: 'category', label: 'Category', type: 'select', options: ['Cricket', 'Football', 'Yoga', 'Karate / Martial arts', 'Dance', 'Music / Singing', 'Swimming', 'Art', 'Gym / Fitness', 'Coaching / Tuition', 'Languages', 'Other'].map((x) => [x, x]), col: 'col-md-6' },
-        { name: 'package_id', label: 'Package', type: 'select', required: true, options: pk.packages.filter((x) => x.status === 'active').map((x) => [x.id, `${x.name} – ${money(x.price_paise)}/${label(x.billing_cycle)}`]), col: 'col-md-6' },
+        { name: 'package_id', label: 'Package', type: 'select', required: true, options: pk.packages.filter((x) => x.status === 'active').map((x) => [x.id, `${x.name} – ${money(x.price_paise)}/${x.billing_cycle === 'custom' ? x.billing_days + ' days' : label(x.billing_cycle)} · ${x.student_limit ?? '∞'} students`]), col: 'col-md-6' },
         { name: 'subscription_status', label: 'Start as', type: 'select', placeholder: false, options: [['trial', 'Free trial'], ['active', 'Paid / active']], col: 'col-md-6' },
         { name: 'ends_on', label: 'Valid till (blank = by package)', type: 'date', col: 'col-md-6' },
       ],
@@ -75,6 +75,7 @@
           <div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-sm btn-light" id="edit"><i class="bi bi-pencil"></i> Edit</button><button class="btn btn-sm btn-light" id="inv"><i class="bi bi-key"></i> Send login / reset link</button>
           ${a.status === 'active' ? '<button class="btn btn-sm btn-outline-danger" data-st="suspended">Suspend academy</button>' : '<button class="btn btn-sm btn-outline-success" data-st="active">Activate academy</button>'}</div></div></div>
         <div class="card"><div class="card-header">Usage</div><div class="card-body">${Object.entries(a.usage.usage).map(([k, u]) => `<div class="d-flex small mb-1"><span>${label(k)}</span><span class="ms-auto">${u.used} / ${u.limit ?? '∞'}</span></div>`).join('')}<div class="small mt-2">Teachers: ${a.counts.teachers} · Batches: ${a.counts.batches} · Fees collected this month: ${money(a.counts.payments_month_paise)}</div></div></div>
+        ${a.branches.branches.length ? `<div class="card mt-3"><div class="card-header">Branches (${a.branches.total.branch_count}) · this month</div><div class="card-body p-0">${table([{ label: 'Branch', render: (b) => esc(b.name) + (b.status === 'inactive' ? ' ' + badge('inactive') : '') }, { label: 'Students', cls: 'text-end', render: (b) => b.students }, { label: 'Teachers', cls: 'text-end', render: (b) => b.teachers }, { label: 'Collected', cls: 'text-end', render: (b) => money(b.collected_paise) }, { label: 'Pending', cls: 'text-end', render: (b) => money(b.pending_paise) }], [...a.branches.branches, { ...a.branches.total, name: 'Total (unique students)' }])}</div></div>` : ''}
       </div><div class="col-lg-7">
         <div class="card mb-3"><div class="card-header">Subscription ${badge(s.status)}</div><div class="card-body">
           <div class="fs-4 fw-bold">${esc(s.package_name || 'No package')}</div><div class="text-muted">${s.ends_on ? `${date(s.starts_on)} → ${date(s.ends_on)} (${s.days_left} days)` : 'Lifetime'}</div>
@@ -83,16 +84,16 @@
         <h6 class="fw-bold">History</h6>${table([{ label: 'Package', render: (h) => esc(h.package_name) }, { label: 'Status', render: (h) => badge(h.status) + (+h.is_current ? ' <span class="badge b-info">current</span>' : '') }, { label: 'Period', render: (h) => `${date(h.starts_on)} → ${h.ends_on ? date(h.ends_on) : '∞'}` }, { label: 'Price', render: (h) => money(h.price_paise) }, { label: 'Note', render: (h) => `<span class="small">${esc(h.notes || '')}</span>` }], a.history)}
         <h6 class="fw-bold mt-3">Payments</h6>${table([{ label: 'Date', render: (x) => dateTime(x.paid_at || x.created_at) }, { label: 'Package', render: (x) => esc(x.package_name) }, { label: 'Amount', render: (x) => money(x.amount_paise) }, { label: 'Method', render: (x) => esc(x.method) + (x.reference ? ' · ' + esc(x.reference) : '') }, { label: 'Status', render: (x) => badge(x.status) }], a.payments, { empty: 'No payments recorded.' })}
       </div></div>`;
-    const pkOpts = pk.packages.map((x) => [x.id, `${x.name} – ${money(x.price_paise)}/${label(x.billing_cycle)}`]);
+    const pkOpts = pk.packages.map((x) => [x.id, `${x.name} – ${money(x.price_paise)}/${x.billing_cycle === 'custom' ? x.billing_days + ' days' : label(x.billing_cycle)} · ${x.student_limit ?? '∞'} students`]);
     const sub = async (d, msg) => { const r = await post(`/admin/academies/${a.id}/subscription`, d); toast(r.message || msg); C.dispatch(); };
     $$('[data-sa]', v).forEach((b) => b.onclick = async () => {
       const act = b.dataset.sa;
       try {
         if (act === 'assign' || act === 'trial') return formModal({ title: act === 'trial' ? 'Start trial' : 'Assign package', fields: [
           { name: 'package_id', label: 'Package', type: 'select', required: true, options: pkOpts, value: s.package_id }, { name: 'starts_on', label: 'Starts', type: 'date', value: C.today(), col: 'col-6' }, { name: 'ends_on', label: 'Ends (blank = by package)', type: 'date', col: 'col-6' },
-          ...(act === 'assign' ? [{ name: 'price', label: 'Price (blank = package price)', type: 'money', col: 'col-6' }, { type: 'html', name: 'cl', html: '<div class="small fw-bold mt-2">Custom limits for this owner (optional)</div>' }, ...['students', 'teachers', 'batches', 'branches'].map((k) => ({ name: 'lim_' + k, label: label(k), type: 'number', col: 'col-3' }))] : []),
+          ...(act === 'assign' ? [{ name: 'price', label: 'Price (blank = package price)', type: 'money', col: 'col-6' }, { type: 'html', name: 'cl', html: '<div class="small fw-bold mt-2">Custom limits for this owner (optional)</div>' }, ...['students', 'teachers', 'batches'].map((k) => ({ name: 'lim_' + k, label: label(k), type: 'number', col: 'col-4' }))] : []),
           { name: 'notes', label: 'Note' },
-        ], submit: async (d) => { const custom = {}; ['students', 'teachers', 'batches', 'branches'].forEach((k) => { if (d['lim_' + k]) custom[k] = +d['lim_' + k]; delete d['lim_' + k]; }); await sub({ ...d, action: act, custom_limits: Object.keys(custom).length ? custom : undefined }); } });
+        ], submit: async (d) => { const custom = {}; ['students', 'teachers', 'batches'].forEach((k) => { if (d['lim_' + k]) custom[k] = +d['lim_' + k]; delete d['lim_' + k]; }); await sub({ ...d, action: act, custom_limits: Object.keys(custom).length ? custom : undefined }); } });
         if (act === 'renew') return formModal({ title: 'Renew subscription', fields: [{ name: 'package_id', label: 'Package', type: 'select', options: pkOpts, value: s.package_id }, { name: 'price', label: 'Amount (blank = package price)', type: 'money' }, { name: 'record_payment', label: 'Record a payment for this renewal', type: 'switch', value: 1 }, { name: 'method', label: 'Payment method', type: 'select', placeholder: false, options: [['bank_transfer', 'Bank transfer'], ['upi', 'UPI'], ['cash', 'Cash'], ['cheque', 'Cheque'], ['manual', 'Other']], col: 'col-6' }, { name: 'reference', label: 'Reference', col: 'col-6' }], submit: async (d) => sub({ ...d, action: 'renew' }) });
         if (act === 'extend') return formModal({ title: 'Extend validity', fields: [{ name: 'days', label: 'Days to add', type: 'number', required: true, value: 30 }], submit: async (d) => sub({ ...d, action: 'extend' }) });
         if (act === 'pay') return formModal({ title: 'Record subscription payment', fields: [{ name: 'package_id', label: 'Package', type: 'select', required: true, options: pkOpts, value: s.package_id }, { name: 'amount', label: 'Amount', type: 'money', required: true, col: 'col-6' }, { name: 'paid_on', label: 'Paid on', type: 'date', value: C.today(), col: 'col-6' }, { name: 'method', label: 'Method', col: 'col-6' }, { name: 'reference', label: 'Reference', col: 'col-6' }, { name: 'period_from', label: 'Period from', type: 'date', col: 'col-6' }, { name: 'period_to', label: 'Period to', type: 'date', col: 'col-6' }], submit: async (d) => { const r = await post('/admin/subscription-payments', { ...d, academy_id: a.id }); toast(r.message); C.dispatch(); } });
@@ -106,25 +107,28 @@
   }, 'Academy');
 
   // ============================================================= PACKAGES
+  const cycle = (p) => p.billing_cycle === 'custom' ? `${p.billing_days} days` : label(p.billing_cycle);
   route('/packages', async (v) => {
     const pk = await packages(true);
     v.innerHTML = head('Packages', 'Limits and features are enforced by the backend for web and Android.', '<button class="btn btn-primary" id="add"><i class="bi bi-plus-lg"></i> New package</button>') + `<div class="row g-3">${pk.packages.map((p) => `<div class="col-md-6 col-xl-4"><div class="card h-100 ${+p.is_featured ? 'border-primary' : ''}" role="button" data-id="${p.id}"><div class="card-body"><div class="d-flex"><div class="fw-bold fs-5">${esc(p.name)}</div><div class="ms-auto">${badge(p.status)} ${+p.is_public ? '' : '<span class="badge b-muted">Hidden</span>'}</div></div>
-      <div class="fs-3 fw-bold">${money(p.price_paise)}<span class="fs-6 text-muted fw-normal">/${label(p.billing_cycle)}</span></div><div class="small text-muted mb-2">${p.trial_days} days trial · ${p.academies} academies</div>
-      <div class="small mb-2">Students ${p.student_limit ?? '∞'} · Teachers ${p.teacher_limit ?? '∞'} · Batches ${p.batch_limit ?? '∞'} · Branches ${p.branch_limit ?? '∞'} · WhatsApp/mo ${p.monthly_whatsapp_limit ?? '∞'}</div>
+      <div class="fs-3 fw-bold">${money(p.price_paise)}<span class="fs-6 text-muted fw-normal">/${cycle(p)}</span></div><div class="small text-muted mb-2">${p.trial_days} days trial · ${p.academies} academies</div>
+      <div class="small mb-2"><strong>${p.student_limit ?? 'Unlimited'} active students</strong> (all branches) · Unlimited branches · Teachers ${p.teacher_limit ?? '∞'} · Batches ${p.batch_limit ?? '∞'} · WhatsApp: ${label(p.whatsapp_mode || 'full')}${p.monthly_whatsapp_limit ? ' (' + p.monthly_whatsapp_limit + '/mo)' : ''}</div>
       <div class="d-flex flex-wrap gap-1">${p.features.map((f) => `<span class="badge b-success">${esc(pk.feature_labels[f] || f)}</span>`).join('')}</div></div></div></div>`).join('')}</div>`;
     const edit = (p = {}) => formModal({
       title: p.id ? 'Edit ' + p.name : 'New package', size: 'lg', values: { ...p, price: p.id ? rupees(p.price_paise) : '', features: p.features || ['attendance', 'fees', 'inapp', 'push', 'manual_reminders', 'parent_access'], is_public: p.id ? p.is_public : 1 },
       fields: [
         { name: 'name', label: 'Package name', required: true, col: 'col-md-6' }, { name: 'price', label: 'Price', type: 'money', required: true, col: 'col-md-3' },
-        { name: 'billing_cycle', label: 'Billing', type: 'select', required: true, placeholder: false, options: [['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['half_yearly', 'Half-yearly'], ['yearly', 'Yearly'], ['lifetime', 'Lifetime']], col: 'col-md-3' },
+        { name: 'billing_cycle', label: 'Billing', type: 'select', required: true, placeholder: false, options: [['monthly', 'Monthly'], ['quarterly', 'Quarterly'], ['half_yearly', 'Half-yearly'], ['yearly', 'Yearly'], ['lifetime', 'Lifetime'], ['custom', 'Custom (days)']], col: 'col-md-3' },
+        { name: 'billing_days', label: 'Custom cycle length (days)', type: 'number', col: 'col-md-4', help: 'Only for “Custom” billing.' },
+        { name: 'whatsapp_mode', label: 'WhatsApp mode', type: 'select', placeholder: false, options: [['full', 'Full (incl. automatic fee reminders)'], ['transactional', 'Transactional (receipts, attendance, manual)'], ['off', 'Off']], col: 'col-md-8' },
         { name: 'description', label: 'Description', type: 'textarea', rows: 2 },
-        { type: 'html', name: 'h1', html: '<div class="fw-bold small mt-2">Limits (blank = unlimited)</div>' },
-        ...[['student_limit', 'Students'], ['teacher_limit', 'Teachers'], ['activity_limit', 'Activities'], ['batch_limit', 'Batches'], ['branch_limit', 'Branches'], ['storage_limit_mb', 'Storage MB'], ['monthly_whatsapp_limit', 'WhatsApp / month'], ['trial_days', 'Trial days']].map(([k, l]) => ({ name: k, label: l, type: 'number', col: 'col-6 col-md-3' })),
+        { type: 'html', name: 'h1', html: '<div class="fw-bold small mt-2">Limits (blank = unlimited). The student limit counts unique active students across ALL branches. Branches are always unlimited.</div>' },
+        ...[['student_limit', 'Students'], ['teacher_limit', 'Teachers'], ['activity_limit', 'Activities'], ['batch_limit', 'Batches'], ['storage_limit_mb', 'Storage MB'], ['monthly_whatsapp_limit', 'WhatsApp / month'], ['trial_days', 'Trial days']].map(([k, l]) => ({ name: k, label: l, type: 'number', col: 'col-6 col-md-3' })),
         { name: 'features', label: 'Features', type: 'multicheck', options: Object.entries(pk.feature_labels) },
         { name: 'is_public', label: 'Show on website pricing', type: 'switch', col: 'col-md-4' }, { name: 'is_featured', label: 'Highlight as popular', type: 'switch', col: 'col-md-4' }, { name: 'sort_order', label: 'Order', type: 'number', col: 'col-md-4' },
         ...(p.id ? [{ name: 'status', label: 'Status', type: 'select', placeholder: false, options: [['active', 'Active'], ['inactive', 'Inactive']], col: 'col-md-4' }] : []),
       ],
-      submit: async (d) => { ['student_limit', 'teacher_limit', 'activity_limit', 'batch_limit', 'branch_limit', 'storage_limit_mb', 'monthly_whatsapp_limit'].forEach((k) => { if (d[k] === '') d[k] = null; }); const r = p.id ? await put('/admin/packages/' + p.id, d) : await post('/admin/packages', d); toast(r.message); C.dispatch(); },
+      submit: async (d) => { ['student_limit', 'teacher_limit', 'activity_limit', 'batch_limit', 'storage_limit_mb', 'monthly_whatsapp_limit', 'billing_days'].forEach((k) => { if (d[k] === '') d[k] = null; }); const r = p.id ? await put('/admin/packages/' + p.id, d) : await post('/admin/packages', d); toast(r.message); C.dispatch(); },
     });
     $$('[data-id]', v).forEach((c) => c.onclick = () => edit(pk.packages.find((x) => String(x.id) === c.dataset.id)));
     $('#add', v).onclick = () => edit();

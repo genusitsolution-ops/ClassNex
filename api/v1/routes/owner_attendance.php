@@ -31,6 +31,9 @@ return static function (Router $r): void {
         $wd = (int) date('N', strtotime($date));
         $w = 'b.academy_id = ? AND b.status = \'active\'';
         $p = [$date, $wd, $c->academy()];
+        if ($br = (int) Http::query('branch_id')) {
+            $w .= ' AND b.branch_id = ' . $br;
+        }
         if ($scope !== null) {
             $w .= ' AND b.id IN (' . DB::inList($scope) . ')';
             array_push($p, ...$scope);

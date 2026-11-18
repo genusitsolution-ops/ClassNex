@@ -56,7 +56,8 @@ final class StudentService
         }
         $batch = null;
         if ($activity) {
-            $hasBatches = (int) DB::val("SELECT COUNT(*) FROM batches WHERE activity_id = ? AND status = 'active'", [$activity['id']]);
+            // a batch is required only when this activity runs batches at the chosen branch (or anywhere, if no branch was chosen)
+            $hasBatches = (int) DB::val("SELECT COUNT(*) FROM batches WHERE activity_id = ? AND status = 'active'" . (!empty($d['branch_id']) ? ' AND (branch_id = ' . (int) $d['branch_id'] . ' OR branch_id IS NULL)' : ''), [$activity['id']]);
             if (!empty($d['batch_id'])) {
                 $batch = DB::one("SELECT * FROM batches WHERE id = ? AND activity_id = ? AND academy_id = ? AND status = 'active'", [$d['batch_id'], $activity['id'], $aid]);
                 if (!$batch) {
@@ -78,13 +79,25 @@ final class StudentService
         if ($errors) {
             throw ApiException::validation($errors);
         }
-        if (empty($in['confirm_duplicate'])) {
-            $dup = DB::one("SELECT id, student_code, name FROM students WHERE academy_id = ? AND whatsapp = ? AND LOWER(name) = LOWER(?) AND status = 'active'", [$aid, $wa, trim($d['name'])]);
-            if ($dup) {
-                throw new ApiException("{$dup['name']} ({$dup['student_code']}) is already registered with this WhatsApp number.", 409, ['duplicate_id' => $dup['id']], 'duplicate_student');
-            }
+        // a student is ONE profile per academy, whichever branch they attend
+        $findDuplicate = static function () use ($aid, $wa, $d): ?array {
+            return DB::one("SELECT id, student_code, name, status FROM students WHERE academy_id = ? AND whatsapp = ? AND LOWER(name) = LOWER(?) ORDER BY status = 'active' DESC LIMIT 1", [$aid, $wa, trim($d['name'])]);
+        };
+        $duplicateError = static function (array $dup): ApiException {
+            $msg = $dup['status'] === 'active'
+                ? "{$dup['name']} ({$dup['student_code']}) is already registered with this WhatsApp number. To add another branch or activity, open the student and use Change batch / Add activity."
+                : "{$dup['name']} ({$dup['student_code']}) already exists as an {$dup['status']} student. Re-activate that profile instead of creating a new one.";
+            return new ApiException($msg, 409, ['duplicate_id' => $dup['id'], 'duplicate_status' => $dup['status']], 'duplicate_student');
+        };
+        if ($dup = $findDuplicate()) { // always blocked: a second profile of the same person would double-count the quota
+            throw $duplicateError($dup);
         }
-        Feature::assertLimit($aid, 'students');
+        // branch: chosen branch, else the batch's / activity's branch (must belong to this academy)
+        $branchId = !empty($d['branch_id']) ? (int) $d['branch_id'] : (int) ($batch['branch_id'] ?? $activity['branch_id'] ?? 0);
+        if ($branchId && !DB::val("SELECT 1 FROM academy_branches WHERE id = ? AND academy_id = ? AND status = 'active'", [$branchId, $aid])) {
+            throw ApiException::validation(['branch_id' => 'Select a valid branch.']);
+        }
+        $d['branch_id'] = $branchId ?: null;
         if (!empty($in['consent_given']) === false && $isMinor && !empty($in['require_consent'])) {
             throw ApiException::validation(['consent_given' => 'Parent / guardian consent is required.']);
         }
@@ -93,13 +106,18 @@ final class StudentService
         $academy = DB::one('SELECT code, name FROM academies WHERE id = ?', [$aid]);
         $settings = Settings::academy($aid);
         try {
-        $studentId = DB::tx(static function () use ($ctx, $aid, $d, $in, $cc, $wa, $isMinor, $activity, $batch, $photo, $academy, $settings, $parentWa) {
+        $studentId = DB::tx(static function () use ($ctx, $aid, $d, $in, $cc, $wa, $isMinor, $activity, $batch, $photo, $academy, $settings, $parentWa, $findDuplicate, $duplicateError) {
+            // academy-wide quota, checked under a row lock so parallel registrations cannot exceed it
+            Feature::assertStudentCapacity($aid);
+            if ($dup = $findDuplicate()) { // always blocked: a second profile of the same person would double-count the quota
+                throw $duplicateError($dup);
+            }
             $prefix = $settings['student_id_prefix'] ?: $academy['code'];
             $code = $prefix . str_pad((string) Sequence::next($aid, 'student'), 4, '0', STR_PAD_LEFT);
             $admission = $d['admission_date'] ?? date('Y-m-d');
             $sid = DB::insert('students', [
                 'academy_id'        => $aid,
-                'branch_id'         => $d['branch_id'] ?? $activity['branch_id'],
+                'branch_id'         => $d['branch_id'],
                 'student_code'      => $code,
                 'name'              => trim($d['name']),
                 'photo_path'        => $photo,
@@ -213,8 +231,9 @@ final class StudentService
     {
         $s = $ctx->assertStudent($id);
         $s['photo_url'] = $s['photo_path'] ? cnx_url('api/v1/files/student-photo/' . $s['id']) : null;
-        $s['enrollments'] = DB::all('SELECT m.*, a.name AS activity_name, b.name AS batch_name, b.start_time, b.end_time FROM student_activity_mapping m
-                                     JOIN activities a ON a.id = m.activity_id LEFT JOIN batches b ON b.id = m.batch_id WHERE m.student_id = ? ORDER BY m.status = \'active\' DESC, m.id DESC', [$id]);
+        $s['branch_name'] = $s['branch_id'] ? DB::val('SELECT name FROM academy_branches WHERE id = ?', [$s['branch_id']]) : null;
+        $s['enrollments'] = DB::all('SELECT m.*, a.name AS activity_name, b.name AS batch_name, b.start_time, b.end_time, br.name AS branch_name FROM student_activity_mapping m
+                                     JOIN activities a ON a.id = m.activity_id LEFT JOIN batches b ON b.id = m.batch_id LEFT JOIN academy_branches br ON br.id = b.branch_id WHERE m.student_id = ? ORDER BY m.status = \'active\' DESC, m.id DESC', [$id]);
         $s['parents'] = DB::all('SELECT p.id, p.name, p.country_code, p.whatsapp, p.email, p.user_id, m.relation, u.status AS login_status
                                  FROM parents p JOIN parent_student_mapping m ON m.parent_id = p.id LEFT JOIN users u ON u.id = p.user_id WHERE m.student_id = ?', [$id]);
         if (!$ctx->can('fees.view')) {
@@ -251,6 +270,28 @@ final class StudentService
         return $out;
     }
 
+    /** Moves a student (the same profile) to another branch, optionally into one of its batches. */
+    public static function changeBranch(Ctx $ctx, int $studentId, int $branchId, ?int $batchId = null, ?string $date = null): array
+    {
+        $aid = $ctx->academy();
+        $s = $ctx->assertStudent($studentId);
+        if (!DB::val("SELECT 1 FROM academy_branches WHERE id = ? AND academy_id = ? AND status = 'active'", [$branchId, $aid])) {
+            throw ApiException::notFound('Branch');
+        }
+        if ($batchId) {
+            $bb = DB::val('SELECT branch_id FROM batches WHERE id = ? AND academy_id = ?', [$batchId, $aid]);
+            if ($bb !== null && (int) $bb !== $branchId) {
+                throw ApiException::validation(['batch_id' => 'This batch belongs to a different branch.']);
+            }
+            self::transfer($ctx, $studentId, $batchId, $date);
+        }
+        if ((int) $s['branch_id'] !== $branchId) {
+            DB::update('students', ['branch_id' => $branchId], 'id = ?', [$studentId]);
+            Audit::log($ctx, 'student.branch_change', 'students', $studentId, ['branch_id' => $s['branch_id']], ['branch_id' => $branchId]);
+        }
+        return self::get($ctx, $studentId);
+    }
+
     /** Moves a student to another batch; history (attendance + fees) stays attached to the student. */
     public static function transfer(Ctx $ctx, int $studentId, int $newBatchId, ?string $date = null): array
     {
@@ -271,7 +312,12 @@ final class StudentService
                 DB::update('student_activity_mapping', ['status' => 'transferred', 'end_date' => date('Y-m-d', strtotime("$date -1 day"))], 'id = ?', [$cur['id']]);
             }
             DB::insert('student_activity_mapping', ['academy_id' => $aid, 'student_id' => $studentId, 'activity_id' => $batch['activity_id'], 'batch_id' => $batch['id'], 'start_date' => $date, 'transferred_from_id' => $cur['id'] ?? null]);
-            Audit::log($ctx, 'student.transfer', 'students', $studentId, ['batch_id' => $cur['batch_id'] ?? null], ['batch_id' => $batch['id']]);
+            // moving to a batch of another branch moves the same student profile (quota unchanged)
+            $oldBranch = DB::val('SELECT branch_id FROM students WHERE id = ?', [$studentId]);
+            if ($batch['branch_id'] && (int) $batch['branch_id'] !== (int) $oldBranch) {
+                DB::update('students', ['branch_id' => $batch['branch_id']], 'id = ?', [$studentId]);
+            }
+            Audit::log($ctx, 'student.transfer', 'students', $studentId, ['batch_id' => $cur['batch_id'] ?? null, 'branch_id' => $oldBranch], ['batch_id' => $batch['id'], 'branch_id' => $batch['branch_id'] ?: $oldBranch]);
         });
         NotificationService::toStudents($aid, 'batch_change', [$studentId], ['batch_name' => $batch['name'], 'activity_name' => $batch['activity_name']], ['dedupe' => "bt$studentId-{$batch['id']}-$date"]);
         return self::get($ctx, $studentId);

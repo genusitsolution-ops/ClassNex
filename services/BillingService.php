@@ -192,6 +192,7 @@ final class BillingService
             $id = DB::insert('fee_invoices', [
                 'academy_id'     => $academyId,
                 'student_id'     => $studentId,
+                'branch_id'      => DB::val('SELECT branch_id FROM students WHERE id = ?', [$studentId]),
                 'assignment_id'  => $d['assignment_id'] ?? null,
                 'invoice_no'     => $no,
                 'title'          => mb_substr($d['title'], 0, 160),

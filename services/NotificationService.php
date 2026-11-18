@@ -190,6 +190,10 @@ final class NotificationService
                     }
                     break;
                 case 'whatsapp':
+                    // "transactional" WhatsApp mode: receipts, attendance, admissions and manual messages only
+                    if (!$platform && $academyId && !empty($opts['auto']) && (Feature::forAcademy($academyId)['whatsapp_mode'] ?? 'full') !== 'full') {
+                        break;
+                    }
                     foreach ($r['phones'] as $phone => $name) {
                         if (DB::val("SELECT 1 FROM notification_opt_outs WHERE phone = ? AND channel = 'whatsapp'", [$phone])) {
                             continue;
@@ -276,6 +280,6 @@ final class NotificationService
             'fee_title' => $inv['title'],
             'amount'    => Money::format((int) $inv['total_paise'] - (int) $inv['paid_paise']),
             'due_date'  => date('j M Y', strtotime($inv['due_date'])),
-        ], ['dedupe' => "r$reminderId", 'priority' => 6, 'data' => ['type' => 'invoice', 'invoice_id' => (string) $inv['id']]]);
+        ], ['dedupe' => "r$reminderId", 'priority' => 6, 'auto' => true, 'data' => ['type' => 'invoice', 'invoice_id' => (string) $inv['id']]]);
     }
 }

@@ -45,6 +45,8 @@ return static function (Router $r): void {
             'batches_not_marked' => (int) DB::val("SELECT COUNT(*) FROM batches b WHERE b.academy_id = ? AND b.status = 'active' AND NOT EXISTS (SELECT 1 FROM attendance_sessions se WHERE se.batch_id = b.id AND se.session_date = CURDATE())
                                                    AND (EXISTS (SELECT 1 FROM batch_schedules bs WHERE bs.batch_id = b.id AND bs.weekday = ?) OR NOT EXISTS (SELECT 1 FROM batch_schedules x WHERE x.batch_id = b.id))", [$aid, (int) date('N')]),
             'recent_notifications' => DB::all('SELECT event_key, channel, recipient_name, status, created_at FROM notification_queue WHERE academy_id = ? ORDER BY id DESC LIMIT 6', [$aid]),
+            'student_quota' => ['active' => (int) DB::val("SELECT COUNT(*) FROM students WHERE academy_id = ? AND status = 'active'", [$aid]), 'limit' => Feature::forAcademy($aid)['limits']['students'] ?? null],
+            'branches' => ((int) DB::val('SELECT COUNT(*) FROM academy_branches WHERE academy_id = ?', [$aid])) ? BranchService::summary($aid, $m0, $today)['branches'] : [],
             'setup' => [
                 'activities' => (int) DB::val('SELECT COUNT(*) FROM activities WHERE academy_id = ?', [$aid]) > 0,
                 'batches'    => (int) DB::val('SELECT COUNT(*) FROM batches WHERE academy_id = ?', [$aid]) > 0,
@@ -273,14 +275,14 @@ return static function (Router $r): void {
     $r->get('/reports', static fn(Ctx $c) => Http::ok(array_map(static fn($v, $k) => ['key' => $k, 'title' => $v[0], 'financial' => $v[1]], ReportService::ACADEMY_REPORTS, array_keys(ReportService::ACADEMY_REPORTS))), $staff);
     $r->get('/reports/{name}', static function (Ctx $c, array $p) {
         if ($c->role !== 'super_admin') {
-            if (!in_array($p['name'], ['students', 'attendance', 'monthly_attendance'], true)) {
+            if (!in_array($p['name'], ['students', 'attendance', 'monthly_attendance', 'branch_summary'], true)) {
                 Feature::assert($c->academy(), 'reports');
             }
             if (!$c->can('reports.view')) {
                 throw ApiException::forbidden();
             }
         }
-        $f = array_intersect_key($_GET, array_flip(['from', 'to', 'batch_id', 'activity_id', 'student_id', 'status', 'month', 'method']));
+        $f = array_intersect_key($_GET, array_flip(['from', 'to', 'batch_id', 'activity_id', 'student_id', 'status', 'month', 'method', 'branch_id']));
         $res = ReportService::run($c, $p['name'], $f);
         $fmt = Http::query('format');
         if (in_array($fmt, ['csv', 'xlsx', 'pdf'], true)) {
@@ -295,7 +297,7 @@ return static function (Router $r): void {
         return Http::ok([
             'current'  => Subscription::state($aid),
             'usage'    => Feature::summary($aid),
-            'packages' => DB::all("SELECT id, name, description, price_paise, billing_cycle, student_limit, teacher_limit, branch_limit FROM packages WHERE status = 'active' AND is_public = 1 ORDER BY sort_order"),
+            'packages' => DB::all("SELECT id, name, description, price_paise, billing_cycle, billing_days, student_limit, whatsapp_mode FROM packages WHERE status = 'active' AND is_public = 1 ORDER BY sort_order"),
             'payments' => DB::all('SELECT sp.*, p.name AS package_name FROM subscription_payments sp JOIN packages p ON p.id = sp.package_id WHERE sp.academy_id = ? ORDER BY sp.id DESC LIMIT 50', [$aid]),
             'history'  => DB::all('SELECT s.*, p.name AS package_name FROM owner_subscriptions s JOIN packages p ON p.id = s.package_id WHERE s.academy_id = ? ORDER BY s.id DESC LIMIT 50', [$aid]),
             'online_payment' => (bool) RazorpayService::config(null),

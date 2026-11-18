@@ -19,6 +19,14 @@ return static function (Router $r): void {
             $w .= ' AND s.status = ?';
             $p[] = $status;
         }
+        if ($br = Http::query('branch_id')) {
+            if ($br === 'none') {
+                $w .= ' AND s.branch_id IS NULL';
+            } else {
+                $w .= ' AND s.branch_id = ?';
+                $p[] = (int) $br;
+            }
+        }
         foreach (['batch_id' => 'm.batch_id', 'activity_id' => 'm.activity_id'] as $k => $col) {
             if ($v = (int) Http::query($k)) {
                 $w .= " AND EXISTS (SELECT 1 FROM student_activity_mapping m WHERE m.student_id = s.id AND m.status = 'active' AND $col = ?)";
@@ -34,7 +42,7 @@ return static function (Router $r): void {
         if ($fees && Http::query('dues') === '1') {
             $w .= " AND EXISTS (SELECT 1 FROM fee_invoices i WHERE i.student_id = s.id AND i.status IN ('unpaid','partial'))";
         }
-        $sql = "SELECT s.id, s.student_code, s.name, s.guardian_name, s.country_code, s.whatsapp, s.status, s.admission_date, s.photo_path IS NOT NULL AS has_photo, s.is_minor,
+        $sql = "SELECT s.id, s.student_code, s.name, s.guardian_name, s.branch_id, (SELECT name FROM academy_branches br WHERE br.id = s.branch_id) AS branch_name, s.country_code, s.whatsapp, s.status, s.admission_date, s.photo_path IS NOT NULL AS has_photo, s.is_minor,
                   (SELECT GROUP_CONCAT(CONCAT(a.name, IF(b.name IS NULL,'',CONCAT(' · ', b.name))) SEPARATOR ', ') FROM student_activity_mapping m JOIN activities a ON a.id = m.activity_id LEFT JOIN batches b ON b.id = m.batch_id WHERE m.student_id = s.id AND m.status = 'active') AS enrolled_in"
             . ($fees ? ", (SELECT COALESCE(SUM(i.total_paise - i.paid_paise),0) FROM fee_invoices i WHERE i.student_id = s.id AND i.status IN ('unpaid','partial')) AS pending_paise" : '')
             . " FROM students s WHERE $w ORDER BY " . (Http::query('sort') === 'recent' ? 's.id DESC' : 's.name');
@@ -69,14 +77,18 @@ return static function (Router $r): void {
             $d['consent_at'] = date('Y-m-d H:i:s');
             $d['consent_by'] = $d['guardian_name'] ?? $s['guardian_name'] ?? $s['name'];
         }
-        if (($d['status'] ?? 'active') === 'active' && $s['status'] !== 'active') {
-            Feature::assertLimit($c->academy(), 'students');
+        if (!empty($d['branch_id']) && !DB::val("SELECT 1 FROM academy_branches WHERE id = ? AND academy_id = ?", [$d['branch_id'], $c->academy()])) {
+            throw ApiException::validation(['branch_id' => 'Select a valid branch.']);
         }
+        $reactivating = ($d['status'] ?? null) === 'active' && $s['status'] !== 'active';
         if ($photo = Upload::storePhoto('photo', $c->academy())) {
             $d['photo_path'] = $photo;
             Upload::delete($s['photo_path']);
         }
-        DB::tx(static function () use ($c, $id, $d, $s) {
+        DB::tx(static function () use ($c, $id, $d, $s, $reactivating) {
+            if ($reactivating) {
+                Feature::assertStudentCapacity($c->academy()); // re-activation uses a seat of the shared quota
+            }
             DB::update('students', $d, 'id = ?', [$id]);
             if (isset($d['status']) && $d['status'] !== 'active' && $s['status'] === 'active') {
                 // leaving: close enrolments and stop future billing — history stays
@@ -88,6 +100,11 @@ return static function (Router $r): void {
         });
         return Http::ok(StudentService::get($c, $id), 'Student updated.');
     }, $staff + ['perm' => 'students.manage']);
+
+    $r->post('/students/{id}/branch', static function (Ctx $c, array $p) {
+        $in = Http::input();
+        return Http::ok(StudentService::changeBranch($c, (int) $p['id'], (int) ($in['branch_id'] ?? 0), !empty($in['batch_id']) ? (int) $in['batch_id'] : null, $in['date'] ?? null), 'Student moved to the new branch. The student count is unchanged.');
+    }, ['roles' => ['owner'], 'perm' => 'students.manage']);
 
     $r->post('/students/{id}/transfer', static function (Ctx $c, array $p) {
         $in = Http::input();

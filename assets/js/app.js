@@ -77,6 +77,11 @@
   }
   function fail(e) {
     console.error(e);
+    if (e?.code === 'limit_reached' && BOOT.me?.role === 'owner') {
+      const m = modal({ title: 'Package limit reached', body: `<div class="d-flex gap-3"><i class="bi bi-people-fill fs-1 text-warning"></i><p class="mb-0">${esc(e.message)}</p></div>`, footer: '<button class="btn btn-light" data-bs-dismiss="modal">Not now</button><a class="btn btn-primary" href="#/subscription" id="upg"><i class="bi bi-arrow-up-circle"></i> Upgrade Package</a>' });
+      $('#upg', m.el).onclick = () => { document.querySelectorAll('.modal.show').forEach((x) => bootstrap.Modal.getInstance(x)?.hide()); };
+      return;
+    }
     if (e?.code === 'feature_locked' || e?.code === 'limit_reached' || e?.code === 'subscription_expired') {
       toast(e.message, 'warning');
       return;
