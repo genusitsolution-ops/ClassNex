@@ -69,6 +69,18 @@ jobs:
           CLASSNEX_KEY_PASSWORD: ${{ secrets.CLASSNEX_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease bundleRelease -PclassnexApiUrl="$API_URL"
 
+      - name: Build unsigned release APK + AAB (verifies R8 / release config)
+        if: steps.keystore.outputs.path == ''
+        run: ./gradlew --no-daemon assembleRelease bundleRelease -PclassnexApiUrl="$API_URL"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.keystore.outputs.path == ''
+        with:
+          name: classnex-release-unsigned
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+
       - uses: actions/upload-artifact@v4
         if: steps.keystore.outputs.path != ''
         with:

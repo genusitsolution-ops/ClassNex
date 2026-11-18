@@ -1,6 +1,6 @@
 # ClassNex E2E Test Run
 
-Date: 2026-11-17 21:53 IST  
+Date: 2026-11-18 06:42 IST  
 Database: MariaDB/MySQL `10.11.14-MariaDB-0ubuntu0.24.04.1`  
 PHP: 8.3.6
 
@@ -71,9 +71,9 @@ PHP: 8.3.6
 | 61 | PASS | Fee reminder queued for WhatsApp |
 | 62 | PASS | Running the reminder cron again does not duplicate |
 | 63 | PASS | 22. WhatsApp message processed (TEST mode: simulated, logged) |
-| 64 | PASS | Reminder text is personalised: Dear Parent, the Cricket Monthly Fee – Nov 2026 of ₹1,000.00 for Rahul Sharma was due on 17 Nov 2026 and is still pending. Please pay at the earliest. – ABC Cricket Academy |
+| 64 | PASS | Reminder text is personalised: Dear Parent, the Cricket Monthly Fee – Nov 2026 of ₹1,000.00 for Rahul Sharma was due on 18 Nov 2026 and is still pending. Please pay at the earliest. – ABC Cricket Academy |
 | 65 | PASS | Manual reminder sent to a selected student |
-| 66 | PASS | 23. Failed send is retried later with backoff (attempt 1 failed: CONNECT tunnel failed, response 403) |
+| 66 | PASS | 23. Failed send is retried later with backoff (attempt 1 failed: Failed to connect to 127.0.0.1 port 9 after 0 ms: Couldn't c) |
 | 67 | PASS | Failed message can be retried manually and then succeeds |
 | 68 | PASS | Delivery status is updated from the WhatsApp webhook |
 | 69 | PASS | Opt-out (STOP) is respected |
@@ -112,6 +112,6 @@ PHP: 8.3.6
 | 102 | PASS | Expired session token is rejected |
 | 103 | PASS | Invoice cron is idempotent (repeated runs create no duplicates) |
 | 104 | PASS | All cron tasks completed without errors |
-| 105 | PASS | Database backup created: classnex-20261117-215319.sql.gz |
+| 105 | PASS | Database backup created: classnex-20261118-064251.sql.gz |
 | 106 | PASS | Backup restores into a new database (4 payments match) |
 | 107 | PASS | Account locks for 15 minutes after repeated wrong passwords |

@@ -425,6 +425,7 @@ for ($i = 0; $i < 5; $i++) {
 }
 ok(api('POST', '/auth/login', ['identifier' => '9876543210', 'password' => 'Owner@123'])['status'] === 429, 'Account locks for 15 minutes after repeated wrong passwords');
 DB::exec('UPDATE users SET failed_logins = 0, locked_until = NULL');
+DB::exec('DELETE FROM rate_limits');
 
 // ------------------------------------------------------------- summary
 echo "\n\033[1mResult: $pass passed, $fail failed\033[0m\n";
