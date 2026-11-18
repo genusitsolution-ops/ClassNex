@@ -39,7 +39,7 @@ site_header('', '', 'index.php');
 
 <section class="section">
   <div class="container">
-    <div class="text-center mb-5"><div class="eyebrow">Everything in one place</div><h2>Powerful inside. Simple outside.</h2><p class="text-muted mx-auto" style="max-width:640px">Built for busy academy owners — not accountants or IT experts. The most-used actions are always one tap away.</p></div>
+    <div class="text-center mb-5"><div class="eyebrow">Everything in one place</div><h2>Powerful inside. Simple outside.</h2><p class="text-muted mx-auto" style="max-width:640px">Built for busy Class Admins — not accountants or IT experts. The most-used actions are always one tap away.</p></div>
     <div class="row g-4"><?php foreach ($features as $i => $f): ?>
       <div class="col-md-6 col-lg-3"><div class="feature"><div class="ic g<?= $i % 8 + 1 ?>"><i class="bi <?= e($f['icon'] ?? 'bi-star') ?>"></i></div><h3><?= e($f['title'] ?? '') ?></h3><p><?= e($f['text'] ?? '') ?></p></div></div>
     <?php endforeach; ?></div>
@@ -54,7 +54,7 @@ site_header('', '', 'index.php');
       <?php foreach ($steps as $i => $s): ?><div class="step"><div class="n"><?= $i + 1 ?></div><h4><?= e($s['title'] ?? '') ?></h4><p><?= e($s['text'] ?? '') ?></p></div><?php endforeach; ?>
       <a href="register.php" class="btn btn-primary btn-lg">Create your academy</a></div>
     <div class="col-lg-7"><div class="row g-3">
-      <div class="col-sm-6"><div class="feature"><h3><i class="bi bi-phone text-primary"></i> For owners</h3><p>Dashboard with today's attendance, collections and overdue fees. Add students in 30 seconds with camera &amp; document scan.</p></div></div>
+      <div class="col-sm-6"><div class="feature"><h3><i class="bi bi-phone text-primary"></i> For Class Admins</h3><p>Dashboard with today's attendance, collections and overdue fees. Add students in 30 seconds with camera &amp; document scan.</p></div></div>
       <div class="col-sm-6"><div class="feature"><h3><i class="bi bi-person-video3 text-success"></i> For teachers</h3><p>See only their batches, mark attendance in one tap, apply for leave. No fee access unless you allow it.</p></div></div>
       <div class="col-sm-6"><div class="feature"><h3><i class="bi bi-people text-warning"></i> For parents</h3><p>Attendance calendar, pending fees, receipts and announcements — for every child, from one login.</p></div></div>
       <div class="col-sm-6"><div class="feature"><h3><i class="bi bi-shield-lock text-danger"></i> Safe &amp; private</h3><p>Each academy's data is fully isolated. Documents are encrypted. Aadhaar is never required.</p></div></div>
@@ -74,7 +74,7 @@ site_header('', '', 'index.php');
   </div>
 </section>
 
-<?php if ($testis): ?><section class="section section-alt"><div class="container"><div class="text-center mb-5"><div class="eyebrow">Loved by academies</div><h2>What owners say</h2></div><div class="row g-4"><?php foreach ($testis as $t): ?>
+<?php if ($testis): ?><section class="section section-alt"><div class="container"><div class="text-center mb-5"><div class="eyebrow">Loved by academies</div><h2>What academies say</h2></div><div class="row g-4"><?php foreach ($testis as $t): ?>
   <div class="col-md-4"><div class="testi"><div class="stars mb-2"><?= str_repeat('<i class="bi bi-star-fill"></i>', (int) $t['rating']) ?></div><p>“<?= e($t['message']) ?>”</p><div class="fw-bold"><?= e($t['name']) ?></div><div class="small text-muted"><?= e($t['designation']) ?></div></div></div>
 <?php endforeach; ?></div></div></section><?php endif; ?>
 

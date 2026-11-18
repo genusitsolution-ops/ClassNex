@@ -14,15 +14,15 @@ os.makedirs(OUT, exist_ok=True)
 CHROME = "/usr/bin/google-chrome" if os.path.exists("/usr/bin/google-chrome") else None
 
 USERS = {
-    "owner": ("9876543210", "Owner@123", "owner", [
+    "owner": ("9876543210", "Owner@123", "class-admin", [
         "#/", "#/students", "#/students/new", "#/students/1", "#/students/1?tab=fees", "#/attendance", "#/attendance/1", "#/attendance-history",
         "#/collect?student=1", "#/fees", "#/payments", "#/messages", "#/message-log", "#/activities", "#/batches", "#/timetable",
         "#/teachers", "#/parents", "#/admissions", "#/fee-plans", "#/announcements", "#/holidays", "#/leaves", "#/reports",
         "#/reports?r=pending_fees", "#/subscription", "#/settings", "#/settings?tab=notify", "#/settings?tab=receipts",
-        "#/settings?tab=admission", "#/settings?tab=payments", "#/branches", "#/branches/1", "#/reports?r=branch_summary", "#/students?branch_id=1", "#/settings?tab=audit",
+        "#/settings?tab=admission", "#/settings?tab=payments", "#/branches", "#/branches/1", "#/reports?r=branch_summary", "#/students?branch_id=1", "#/attendance-history?view=students", "#/attendance-history?view=branches", "#/whatsapp-log", "#/settings?tab=audit",
         "#/support", "#/notifications", "#/profile"]),
     "teacher": ("9123456780", "Teach@123", "teacher", ["#/", "#/attendance", "#/attendance-history", "#/batches", "#/students", "#/timetable", "#/announcements", "#/leaves", "#/support"]),
-    "parent": ("9876511111", "Parent@123", "student", ["#/", "#/attendance", "#/fees", "#/timetable", "#/announcements", "#/holidays", "#/notifications", "#/support"]),
+    "parent": ("9876511111", "Parent@123", "parent", ["#/", "#/attendance", "#/fees", "#/timetable", "#/announcements", "#/holidays", "#/notifications", "#/support"]),
     "admin": ("qa-admin@classnex.test", "Admin@12345", "admin", [
         "#/", "#/owners", "#/owners/1", "#/packages", "#/sub-payments", "#/integrations", "#/integrations?tab=firebase", "#/integrations?tab=email",
         "#/integrations?tab=sms", "#/integrations?tab=razorpay", "#/integrations?tab=ocr", "#/templates", "#/reminders", "#/queue", "#/cms",

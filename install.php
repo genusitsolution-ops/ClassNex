@@ -4,13 +4,23 @@ declare(strict_types=1);
 /**
  * One-time web installer (for cPanel users without SSH).
  * Writes config/config.php, creates all tables and the Super Admin account.
- * It refuses to run once config/config.php exists.
+ * Protection: it refuses to run once config/config.php or storage/installed.lock exists, the form carries a
+ * one-time CSRF token, and failed attempts are throttled. Delete install.php after installing.
  */
 define('CNX_INSTALLER', true);
 require __DIR__ . '/includes/bootstrap.php';
 
 $configFile = CNX_ROOT . '/config/config.php';
-$installed = is_file($configFile);
+$lockFile = CNX_ROOT . '/storage/installed.lock';
+$installed = is_file($configFile) || is_file($lockFile);
+if ($installed && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    http_response_code(403);
+    exit('ClassNex is already installed.');
+}
+session_name('CNXINSTALL');
+session_start(['cookie_httponly' => true, 'cookie_samesite' => 'Strict']);
+$_SESSION['install_csrf'] ??= bin2hex(random_bytes(16));
+$_SESSION['install_tries'] ??= 0;
 $errors = [];
 $done = false;
 
@@ -31,6 +41,10 @@ $checks = [
 $allOk = !in_array(false, $checks, true);
 
 if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $allOk) {
+    if (!hash_equals($_SESSION['install_csrf'], (string) ($_POST['csrf'] ?? '')) || $_SESSION['install_tries']++ > 10) {
+        http_response_code(403);
+        exit('Installer session expired. Reload the page and try again.');
+    }
     $in = array_map(static fn($v) => is_string($v) ? trim($v) : $v, $_POST);
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $appUrl = rtrim($in['app_url'] ?: $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/'), '/');
@@ -62,7 +76,9 @@ if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $allOk) {
                 throw new RuntimeException('Could not write config/config.php');
             }
             @chmod($configFile, 0640);
+            file_put_contents($lockFile, 'Installed ' . date('c') . "\n");
             $done = true;
+            unset($_SESSION['install_csrf']);
         } catch (Throwable $e) {
             $errors[] = 'Installation failed: ' . $e->getMessage();
         }
@@ -78,7 +94,8 @@ if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $allOk) {
   <div class="alert alert-success"><strong>ClassNex is installed.</strong> Configuration saved to <code>config/config.php</code>.</div>
   <ol>
     <li>Log in as Super Admin: <a href="login.php">login.php</a></li>
-    <li>Set up the cron job (cPanel → Cron Jobs, every minute):<pre class="bg-light p-2 rounded small">* * * * * <?= e(PHP_BINARY ?: '/usr/local/bin/php') ?> <?= e(CNX_ROOT) ?>/cron/run.php all &gt;/dev/null 2&gt;&amp;1</pre></li>
+    <li>Set up the cron job (cPanel → Cron Jobs, every minute):<pre class="bg-light p-2 rounded small">* * * * * /usr/local/bin/php <?= e(CNX_ROOT) ?>/cron/run.php all &gt;/dev/null 2&gt;&amp;1</pre>
+      <span class="small text-muted">/usr/local/bin/php is the usual cPanel PHP CLI. If your host uses a different PHP version path (e.g. /opt/cpanel/ea-php82/root/usr/bin/php), use that — see docs/CRON.md.</span></li>
     <li>Configure WhatsApp, Firebase, SMTP and Razorpay in <em>Super Admin → Integrations</em>.</li>
     <li>Back up <code>config/config.php</code> (it contains the encryption key).</li>
     <li>For extra safety, delete <code>install.php</code> from the server.</li>
@@ -90,7 +107,7 @@ if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $allOk) {
   <ul class="list-unstyled small mb-4"><?php foreach ($checks as $k => $ok): ?><li><?= $ok ? '✅' : '❌' ?> <?= e($k) ?></li><?php endforeach; ?></ul>
   <?php foreach ($errors as $er): ?><div class="alert alert-danger"><?= e($er) ?></div><?php endforeach; ?>
   <?php if (!$allOk): ?><div class="alert alert-warning">Please fix the items marked ❌ (cPanel → Select PHP Version → Extensions; folder permissions 755) and reload.</div><?php else: ?>
-  <form method="post" autocomplete="off">
+  <form method="post" autocomplete="off"><input type="hidden" name="csrf" value="<?= e($_SESSION['install_csrf']) ?>">
     <h2 class="h6">2. Database (create it in cPanel → MySQL Databases)</h2>
     <div class="row g-2 mb-4">
       <div class="col-md-8"><label class="form-label small">Host</label><input class="form-control" name="db_host" value="<?= e($_POST['db_host'] ?? 'localhost') ?>"></div>
@@ -100,7 +117,8 @@ if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $allOk) {
       <div class="col-md-4"><label class="form-label small">Password</label><input class="form-control" type="password" name="db_pass"></div>
     </div>
     <h2 class="h6">3. Website address</h2>
-    <input class="form-control mb-4" name="app_url" placeholder="https://www.yourdomain.com" value="<?= e($_POST['app_url'] ?? '') ?>">
+    <input class="form-control mb-1" name="app_url" placeholder="https://genusitsolution.com/ClassNex" value="<?= e($_POST['app_url'] ?? '') ?>">
+    <div class="small text-muted mb-4">Full address of this folder, without a trailing slash. Leave empty to use the current address.</div>
     <h2 class="h6">4. Super Admin account</h2>
     <div class="row g-2 mb-4">
       <div class="col-md-6"><label class="form-label small">Name</label><input class="form-control" name="admin_name" required value="<?= e($_POST['admin_name'] ?? '') ?>"></div>

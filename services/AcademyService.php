@@ -52,7 +52,7 @@ final class AcademyService
             throw ApiException::validation(['mobile' => 'Enter a valid mobile number.']);
         }
         if (DB::val("SELECT 1 FROM users WHERE role = 'owner' AND country_code = ? AND mobile = ?", [$cc, $mobile])) {
-            throw ApiException::validation(['mobile' => 'An academy owner account already exists with this mobile number. Please log in.']);
+            throw ApiException::validation(['mobile' => 'A Class Admin account already exists with this mobile number. Please log in.']);
         }
         $packageId = (int) ($d['package_id'] ?? 0) ?: Settings::int('default_trial_package_id', 2);
         $pkg = DB::one("SELECT * FROM packages WHERE id = ? AND status = 'active'", [$packageId]);

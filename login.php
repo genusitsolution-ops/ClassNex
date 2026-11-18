@@ -15,7 +15,7 @@ auth_page_start('Login');
 ?>
 <div class="form-card auth-card">
   <h1 class="h4 fw-bold text-center mb-1">Welcome back</h1>
-  <p class="text-center text-muted mb-4">Owners, teachers, parents and students — one login.</p>
+  <p class="text-center text-muted mb-4">Class Admins, teachers, parents and students — one login.</p>
   <form id="lf" data-api="/auth/login" data-on-success="accounts" data-next="<?= e((string) ($_GET['next'] ?? '')) ?>" novalidate>
     <input type="hidden" name="client" value="web">
     <div class="mb-3"><label class="form-label">Mobile number or email</label><input class="form-control form-control-lg" name="identifier" autocomplete="username" required autofocus inputmode="email"><div class="invalid-feedback"></div></div>

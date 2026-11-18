@@ -67,7 +67,7 @@ function site_footer(): void
       <div class="col-6 col-lg-2"><h6>Legal</h6><a href="page.php?p=privacy-policy">Privacy Policy</a><a href="page.php?p=terms">Terms &amp; Conditions</a><a href="page.php?p=refund-policy">Refund Policy</a></div>
       <div class="col-6 col-lg-2"><h6>Contact</h6><?php if (!empty($c['email'])): ?><a href="mailto:<?= e($c['email']) ?>"><?= e($c['email']) ?></a><?php endif; ?><?php if (!empty($c['phone'])): ?><a href="tel:<?= e($c['phone']) ?>"><?= e($c['phone']) ?></a><?php endif; ?><?php if (!empty($c['whatsapp'])): ?><a href="https://wa.me/<?= e(preg_replace('/\D/', '', $c['whatsapp'])) ?>" target="_blank"><i class="bi bi-whatsapp"></i> WhatsApp</a><?php endif; ?><span class="text-white-50 small"><?= e($c['address'] ?? '') ?></span></div>
     </div>
-    <hr class="border-secondary my-4"><div class="d-flex flex-wrap justify-content-between small text-white-50"><span>© <?= date('Y') ?> <?= e($f['copyright'] ?? 'ClassNex') ?></span><span>All-in-One Class Management · Web + Android</span></div>
+    <hr class="border-secondary my-4"><div class="d-flex flex-wrap justify-content-between small text-white-50"><span>© <?= date('Y') ?> <?= e($f['copyright'] ?? 'ClassNex') ?></span><span>All-in-One Class Management · Web + Android<?= !empty($f['operated_by']) ? ' · Operated by ' . e($f['operated_by']) : '' ?></span></div>
   </div>
 </footer>
 <?php if (!empty($c['whatsapp'])): ?><a class="wa-float" href="https://wa.me/<?= e(preg_replace('/\D/', '', $c['whatsapp'])) ?>" target="_blank" aria-label="WhatsApp"><i class="bi bi-whatsapp"></i></a><?php endif; ?>

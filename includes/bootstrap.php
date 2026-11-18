@@ -20,7 +20,9 @@ spl_autoload_register(static function (string $class): void {
 $configFile = getenv('CNX_CONFIG') ?: CNX_ROOT . '/config/config.php';
 if (!is_file($configFile)) {
     if (PHP_SAPI !== 'cli' && !defined('CNX_INSTALLER')) {
-        header('Location: ' . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/') . '/install.php');
+        // not installed yet: go to install.php in the installation root (works from sub-folders like /ClassNex/admin/)
+        $depth = substr_count(trim(str_replace('\\', '/', substr((string) realpath(dirname($_SERVER['SCRIPT_FILENAME'] ?? '')), strlen(CNX_ROOT))), '/'), '/') + (realpath(dirname($_SERVER['SCRIPT_FILENAME'] ?? '')) === CNX_ROOT ? 0 : 1);
+        header('Location: ' . str_repeat('../', $depth) . 'install.php');
         exit;
     }
     Config::load([]);
@@ -44,12 +46,4 @@ set_error_handler(static function (int $no, string $str, string $file, int $line
     throw new ErrorException($str, 0, $no, $file, $line);
 });
 
-function e(?string $v): string
-{
-    return htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
-
-function cnx_url(string $path = ''): string
-{
-    return rtrim((string) Config::get('app_url', ''), '/') . '/' . ltrim($path, '/');
-}
+require __DIR__ . '/functions.php';

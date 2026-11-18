@@ -59,7 +59,7 @@ function render_panel(array $user, string $panel, string $title, array $menu, ar
         <div class="dropdown">
           <button class="btn btn-user dropdown-toggle" data-bs-toggle="dropdown"><span class="avatar"><?= e(mb_strtoupper(mb_substr($user['name'], 0, 1))) ?></span><span class="d-none d-sm-inline"><?= e($user['name']) ?></span></button>
           <ul class="dropdown-menu dropdown-menu-end shadow">
-            <li><h6 class="dropdown-header"><?= e(ucwords(str_replace('_', ' ', $user['role']))) ?></h6></li>
+            <li><h6 class="dropdown-header"><?= e(cnx_role_name($user['role'])) ?></h6></li>
             <li><a class="dropdown-item" href="#/profile"><i class="bi bi-person me-2"></i>My profile</a></li>
             <li><a class="dropdown-item" href="#/support"><i class="bi bi-life-preserver me-2"></i>Help &amp; support</a></li>
             <li><hr class="dropdown-divider"></li>

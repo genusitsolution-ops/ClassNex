@@ -4,6 +4,7 @@ require __DIR__ . '/../includes/bootstrap.php';
 require CNX_ROOT . '/includes/panel.php';
 
 $user = Auth::webUser(['owner']);
+// Class Admin (Academy Admin) panel. The role is stored as 'owner' in the database and API.
 render_panel($user, 'owner', 'Dashboard', [
     ['#/', 'bi-speedometer2', 'Dashboard'],
     ['#/students', 'bi-people', 'Students'],
@@ -27,6 +28,7 @@ render_panel($user, 'owner', 'Dashboard', [
     ['---', 'Insights'],
     ['#/reports', 'bi-bar-chart', 'Reports'],
     ['#/message-log', 'bi-list-check', 'Message Log'],
+    ['#/whatsapp-log', 'bi-whatsapp', 'WhatsApp History', 'whatsapp_manual'],
     ['---', 'Account'],
     ['#/subscription', 'bi-gem', 'Subscription'],
     ['#/settings', 'bi-gear', 'Settings'],

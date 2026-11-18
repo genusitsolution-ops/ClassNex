@@ -18,9 +18,11 @@ final class Auth
         }
         $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
         session_name((string) Config::get('session_name', 'CNXSESS'));
+        // cookie limited to the installation folder (e.g. /ClassNex/) so other sites on the same domain never see it
+        $path = rtrim((string) (parse_url((string) Config::get('app_url', ''), PHP_URL_PATH) ?: ''), '/') . '/';
         session_set_cookie_params([
             'lifetime' => 0,
-            'path'     => '/',
+            'path'     => $path,
             'secure'   => $secure,
             'httponly' => true,
             'samesite' => 'Lax',
@@ -169,7 +171,8 @@ final class Auth
                 if (!in_array(Http::method(), ['GET', 'HEAD', 'OPTIONS'], true)) {
                     $sent = Http::header('X-CSRF-Token') ?? (string) (Http::input()['_csrf'] ?? '');
                     if (!hash_equals((string) ($_SESSION['csrf'] ?? ''), $sent)) {
-                        throw new ApiException('Your session has expired. Please refresh the page.', 419, [], 'csrf');
+                        // 403, not 419: Apache turns non-standard status codes into 500
+                        throw new ApiException('Your session has expired. Please refresh the page.', 403, [], 'csrf');
                     }
                 }
                 return self::$ctx = new Ctx($u, 'session');
@@ -206,8 +209,9 @@ final class Auth
     {
         return match ($role) {
             'super_admin' => 'admin/',
-            'owner'       => 'owner/',
+            'owner'       => 'class-admin/',
             'teacher'     => 'teacher/',
+            'parent'      => 'parent/',
             default       => 'student/',
         };
     }

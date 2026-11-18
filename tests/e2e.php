@@ -351,7 +351,7 @@ $r = api('POST', '/auth/login', ['identifier' => '9876543210', 'password' => 'Ow
 $csrf = $r['json']['data']['csrf'] ?? '';
 ok($r['status'] === 200 && $csrf, 'Owner logs into the web panel (session cookie)');
 $r = api('POST', '/students', ['name' => 'Web Student', 'whatsapp' => '9000011111', 'activity_id' => $act, 'batch_id' => $batch2, 'guardian_name' => 'Web Parent'], null, [], [], $jar);
-ok($r['status'] === 419, 'Web write without CSRF token is rejected');
+ok($r['status'] === 403 && ($r['json']['code'] ?? '') === 'csrf', 'Web write without CSRF token is rejected');
 DB::exec("UPDATE students SET status = 'inactive' WHERE name IN ('Student Three','Student Four')");
 $r = api('POST', '/students', ['name' => 'Web Student', 'whatsapp' => '9000011111', 'activity_id' => $act, 'batch_id' => $batch2, 'guardian_name' => 'Web Parent'], null, [], ['X-CSRF-Token: ' . $csrf], $jar);
 $webStu = $r['json']['data']['student']['id'] ?? 0;

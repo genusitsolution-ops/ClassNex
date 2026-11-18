@@ -1,6 +1,6 @@
 # ClassNex E2E Test Run
 
-Date: 2026-11-18 09:01 IST  
+Date: 2026-11-18 15:36 IST  
 Database: MariaDB/MySQL `10.11.14-MariaDB-0ubuntu0.24.04.1`  
 PHP: 8.3.6
 
@@ -112,6 +112,6 @@ PHP: 8.3.6
 | 102 | PASS | Expired session token is rejected |
 | 103 | PASS | Invoice cron is idempotent (repeated runs create no duplicates) |
 | 104 | PASS | All cron tasks completed without errors |
-| 105 | PASS | Database backup created: classnex-20261118-090122.sql.gz |
+| 105 | PASS | Database backup created: classnex-20261118-153656.sql.gz |
 | 106 | PASS | Backup restores into a new database (4 payments match) |
 | 107 | PASS | Account locks for 15 minutes after repeated wrong passwords |

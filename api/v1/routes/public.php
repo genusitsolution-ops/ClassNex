@@ -41,7 +41,7 @@ return static function (Router $r): void {
         $user = DB::one('SELECT * FROM users WHERE id = ?', [$res['user_id']]);
         if (($in['client'] ?? 'web') === 'web') {
             Auth::loginSession($user);
-            return Http::ok(['redirect' => cnx_url('owner/#/setup')], 'Your academy is ready! Your free trial has started.');
+            return Http::ok(['redirect' => cnx_url('class-admin/#/setup')], 'Your academy is ready! Your free trial has started.');
         }
         return Http::ok(['token' => Auth::issueToken($user, 'android')], 'Your academy is ready! Your free trial has started.');
     }, ['auth' => false]);
