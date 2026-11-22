@@ -1,8 +1,8 @@
 # Final integration test run
 
-Run: 2026-11-18 16:39:50 · Database: classnex_test · PHP 8.3.6 · Server: http://127.0.0.1:8081
+Run: 2026-11-22 19:23:27 · Database: classnex_test · PHP 8.3.6 · Server: http://127.0.0.1:8081
 
-**97 / 97 passed**
+**104 / 104 passed**
 
 | # | Check | Result |
 |---|---|---|
@@ -58,14 +58,14 @@ Run: 2026-11-18 16:39:50 · Database: classnex_test · PHP 8.3.6 · Server: http
 | 46 | Live duplicate check while typing | PASS |
 | | **Large academy: server-side search, paging and bulk branch moves** | |
 | 47 | 3,000 extra students loaded (0.1s) | PASS |
-| 48 | Page 40 of the student list (50 per page, 13 ms) | PASS |
+| 48 | Page 40 of the student list (50 per page, 9 ms) | PASS |
 | 49 | Page size is capped by the server (never loads everyone) | PASS |
-| 50 | Search by Student ID (15 ms) | PASS |
+| 50 | Search by Student ID (9 ms) | PASS |
 | 51 | Search by WhatsApp number | PASS |
 | 52 | Search by name | PASS |
 | 53 | Filter: students not yet in a branch | PASS |
 | 54 | Preview shows how many students will move (nothing changed yet) | PASS |
-| 55 | “All matching” bulk move of 3,000 students (87 ms) | PASS |
+| 55 | “All matching” bulk move of 3,000 students (95 ms) | PASS |
 | 56 | Bulk move keeps the same profiles: active count unchanged | PASS |
 | 57 | Bulk transfer of selected students into a batch at the new branch | PASS |
 | 58 | Bulk transfer rejects a batch from another branch | PASS |
@@ -105,11 +105,19 @@ Run: 2026-11-18 16:39:50 · Database: classnex_test · PHP 8.3.6 · Server: http
 | 89 | Another academy cannot prepare WhatsApp for a foreign student | PASS |
 | 90 | Marking another academy's message has no effect | PASS |
 | 91 | Web write without CSRF token is refused (403) | PASS |
+| | **Android app redesign: dashboard branch filter, registration status, teacher batches** | |
+| 92 | Dashboard gives total branches, late / leave counts and scheduled reminders | PASS |
+| 93 | Dashboard can be filtered to one branch (figures match the branch) | PASS |
+| 94 | Branch filter keeps the one academy-wide student quota | PASS |
+| 95 | Dashboard rejects a branch of another academy | PASS |
+| 96 | Track Registration Status shows approved / rejected with the reason | PASS |
+| 97 | Registration status needs the correct password (no information leak) | PASS |
+| 98 | Teacher list includes assigned batch ids so the app can edit them safely | PASS |
 | | **Subscription expiry** | |
-| 92 | Expired: changes blocked, history still readable | PASS |
-| 93 | Expired: attendance cannot be marked until renewal | PASS |
+| 99 | Expired: changes blocked, history still readable | PASS |
+| 100 | Expired: attendance cannot be marked until renewal | PASS |
 | | **Role names and installation paths** | |
-| 94 | Super Admin goes to /admin/ | PASS |
-| 95 | Class Admin goes to /class-admin/ | PASS |
-| 96 | Old /owner/ address redirects to /class-admin/ | PASS |
-| 97 | Class Admin panel shows “Class Admin”, not “Owner” | PASS |
+| 101 | Super Admin goes to /admin/ | PASS |
+| 102 | Class Admin goes to /class-admin/ | PASS |
+| 103 | Old /owner/ address redirects to /class-admin/ | PASS |
+| 104 | Class Admin panel shows “Class Admin”, not “Owner” | PASS |

@@ -1,6 +1,6 @@
 # Branch & student-quota test run
 
-Run: 2026-11-18 16:39:51 · Database: classnex_test · PHP 8.3.6
+Run: 2026-11-22 19:23:00 · Database: classnex_test · PHP 8.3.6
 
 **80 / 80 passed**
 
@@ -49,7 +49,7 @@ Run: 2026-11-18 16:39:51 · Database: classnex_test · PHP 8.3.6
 | 41 | Inactive duplicate is found (can be linked / re-activated instead) | PASS |
 | 42 | No duplicate profiles were created | PASS |
 | 43 | 10. Super Admin upgrades the academy to the 100-student package | PASS |
-| 44 | Custom 45-day billing cycle applied (2026-11-18 → 2027-01-01) | PASS |
+| 44 | Custom 45-day billing cycle applied (2026-11-22 → 2027-01-05) | PASS |
 | 45 | Re-activation now allowed | PASS |
 | 46 | 11. Every branch (incl. new empty ones) can use the new quota | PASS |
 | 47 | Combined active count now 22 of 100 (16 + 6 new) | PASS |

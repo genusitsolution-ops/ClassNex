@@ -273,6 +273,8 @@ return static function (Router $r): void {
         foreach ($rows as &$t) {
             $t['photo_url'] = $t['photo_path'] ? cnx_url('api/v1/files/teacher-photo/' . $t['id']) : null;
             $t['permissions'] = $t['user_id'] ? DB::col('SELECT perm_key FROM user_permissions WHERE user_id = ? AND granted = 1', [$t['user_id']]) : [];
+            // extra batches this teacher can take (teacher_batches) – lets the app edit assignments safely
+            $t['batch_ids'] = array_map('intval', DB::col('SELECT batch_id FROM teacher_batches WHERE teacher_id = ?', [$t['id']]));
             if (!$c->can('teachers.manage')) {
                 unset($t['salary_paise'], $t['salary_type']);
             }

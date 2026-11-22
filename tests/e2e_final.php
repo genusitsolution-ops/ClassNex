@@ -339,6 +339,21 @@ ok(api('POST', '/whatsapp/manual/prepare', ['purpose' => 'admission', 'student_i
 ok(api('POST', "/whatsapp/manual/$first/opened", [], $own)['status'] === 200 && q('SELECT status FROM manual_messages WHERE id = ?', [$first]) === 'opened' && (int) q("SELECT COUNT(*) FROM manual_messages WHERE academy_id = ? AND status = 'opened'", [$rid]) === 0, 'Marking another academy\'s message has no effect');
 ok(api('POST', '/students', ['name' => 'X'], null, $jar)['status'] === 403, 'Web write without CSRF token is refused (403)');
 
+// ------------------------------------------------------------------ 7b. Android redesign API additions
+section('Android app redesign: dashboard branch filter, registration status, teacher batches');
+$dAll = api('GET', '/dashboard', null, $own)['json']['data'];
+$dN = api('GET', "/dashboard?branch_id=$brA", null, $own)['json']['data'];
+ok(isset($dAll['total_branches'], $dAll['today_attendance']['late'], $dAll['today_attendance']['leave'], $dAll['scheduled_messages']) && $dAll['total_branches'] >= 2, 'Dashboard gives total branches, late / leave counts and scheduled reminders');
+ok((int) $dN['branch_id'] === $brA && $dN['active_students'] < $dAll['active_students'] && $dN['active_students'] === (int) q("SELECT COUNT(*) FROM students WHERE branch_id = ? AND status = 'active'", [$brA]), 'Dashboard can be filtered to one branch (figures match the branch)');
+ok(($dN['student_quota']['limit'] ?? null) === ($dAll['student_quota']['limit'] ?? null), 'Branch filter keeps the one academy-wide student quota');
+ok(api('GET', '/dashboard?branch_id=999999', null, $own)['status'] === 404, 'Dashboard rejects a branch of another academy');
+$st = api('POST', '/public/registration-status', ['identifier' => '9845000001', 'password' => 'Asha@1234'])['json'];
+$st2 = api('POST', '/public/registration-status', ['identifier' => '9845000002', 'password' => 'Spam@1234'])['json'];
+ok(($st['data']['status'] ?? '') === 'approved' && ($st2['data']['status'] ?? '') === 'rejected' && ($st2['data']['reason'] ?? '') === 'Duplicate request', 'Track Registration Status shows approved / rejected with the reason');
+ok(api('POST', '/public/registration-status', ['identifier' => '9845000001', 'password' => 'wrong'])['status'] === 404, 'Registration status needs the correct password (no information leak)');
+$tl = api('GET', '/teachers', null, $own)['json']['data'][0] ?? [];
+ok(($tl['batch_ids'] ?? null) === [$bA], 'Teacher list includes assigned batch ids so the app can edit them safely');
+
 // ------------------------------------------------------------------ 8. subscription expiry
 section('Subscription expiry');
 api('POST', "/admin/academies/$mid/subscription", ['action' => 'assign', 'package_id' => $pManual, 'starts_on' => d(60), 'ends_on' => d(30)], $sa);

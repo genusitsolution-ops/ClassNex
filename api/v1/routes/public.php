@@ -25,6 +25,28 @@ return static function (Router $r): void {
         return Http::ok(null, 'Thank you! Our team will contact you shortly.');
     }, ['auth' => false]);
 
+    // "Track registration status" (website + app): mobile/email + password of the registration.
+    // Only reveals the status to someone who knows the password; rate limited.
+    $r->post('/public/registration-status', static function () {
+        RateLimiter::hit('regstatus:' . Http::ip(), 10, 900);
+        $in = Http::input();
+        $id = trim((string) ($in['identifier'] ?? ''));
+        $pw = (string) ($in['password'] ?? '');
+        $digits = preg_replace('/\D/', '', $id);
+        $u = DB::one("SELECT u.* FROM users u WHERE u.role = 'owner' AND (u.email = ? OR u.mobile = ?) ORDER BY u.id DESC LIMIT 1", [$id, strlen($digits) >= 10 ? substr($digits, -10) : $digits]);
+        if (!$u || !$u['password_hash'] || !password_verify($pw, $u['password_hash'])) {
+            throw new ApiException('No registration found for this mobile number / email and password.', 404, [], 'not_found');
+        }
+        $a = DB::one('SELECT name, status, rejection_reason, created_at, approved_at FROM academies WHERE id = ?', [$u['academy_id']]);
+        $status = match ($a['status'] ?? '') { 'pending' => 'pending', 'rejected' => 'rejected', default => 'approved' };
+        $msg = match ($status) {
+            'pending' => 'Your registration is waiting for approval by the ClassNex team.',
+            'rejected' => 'Your registration was not approved.' . ($a['rejection_reason'] ? ' Reason: ' . $a['rejection_reason'] : ''),
+            default => 'Your academy is approved. You can log in now.',
+        };
+        return Http::ok(['status' => $status, 'academy_name' => $a['name'] ?? '', 'registered_on' => substr((string) ($a['created_at'] ?? ''), 0, 10), 'approved_on' => $a['approved_at'] ? substr($a['approved_at'], 0, 10) : null, 'reason' => $status === 'rejected' ? $a['rejection_reason'] : null], $msg);
+    }, ['auth' => false]);
+
     $r->post('/public/register-owner', static function () {
         RateLimiter::hit('register:' . Http::ip(), 5, 3600);
         if (Settings::get('self_registration_enabled', '1') !== '1') {

@@ -29,20 +29,31 @@ return static function (Router $r): void {
             ]);
         }
         $fees = Feature::has($aid, 'fees');
-        $att = DB::one("SELECT SUM(a.status IN ('present','late')) AS present, SUM(a.status = 'absent') AS absent, COUNT(*) AS marked
-                        FROM attendance a JOIN attendance_sessions s ON s.id = a.session_id WHERE s.academy_id = ? AND s.session_date = ?", [$aid, $today]);
+        // optional ?branch_id= : the same dashboard for one branch (the student quota stays academy-wide)
+        $branch = (int) Http::query('branch_id');
+        if ($branch && !DB::val('SELECT 1 FROM academy_branches WHERE id = ? AND academy_id = ?', [$branch, $aid])) {
+            throw ApiException::notFound('Branch');
+        }
+        $bf = static fn(string $col): string => $branch ? " AND $col = $branch" : '';
+        $att = DB::one("SELECT SUM(a.status IN ('present','late')) AS present, SUM(a.status = 'absent') AS absent, SUM(a.status = 'late') AS late, SUM(a.status = 'leave') AS on_leave, COUNT(*) AS marked
+                        FROM attendance a JOIN attendance_sessions s ON s.id = a.session_id WHERE s.academy_id = ? AND s.session_date = ?" . $bf('s.branch_id'), [$aid, $today]);
         $data = [
             'role'             => 'owner',
             'subscription'     => Subscription::state($aid),
-            'total_students'   => (int) DB::val('SELECT COUNT(*) FROM students WHERE academy_id = ?', [$aid]),
-            'active_students'  => (int) DB::val("SELECT COUNT(*) FROM students WHERE academy_id = ? AND status = 'active'", [$aid]),
-            'new_admissions'   => (int) DB::val('SELECT COUNT(*) FROM students WHERE academy_id = ? AND admission_date >= ?', [$aid, $m0]),
+            'branch_id'        => $branch ?: null,
+            'total_branches'   => (int) DB::val("SELECT COUNT(*) FROM academy_branches WHERE academy_id = ? AND status = 'active'", [$aid]),
+            'total_students'   => (int) DB::val('SELECT COUNT(*) FROM students WHERE academy_id = ?' . $bf('branch_id'), [$aid]),
+            'active_students'  => (int) DB::val("SELECT COUNT(*) FROM students WHERE academy_id = ? AND status = 'active'" . $bf('branch_id'), [$aid]),
+            'new_admissions'   => (int) DB::val('SELECT COUNT(*) FROM students WHERE academy_id = ? AND admission_date >= ?' . $bf('branch_id'), [$aid, $m0]),
             'pending_online_admissions' => (int) DB::val("SELECT COUNT(*) FROM admissions WHERE academy_id = ? AND status = 'pending'", [$aid]),
-            'total_teachers'   => (int) DB::val("SELECT COUNT(*) FROM teachers WHERE academy_id = ? AND status = 'active'", [$aid]),
-            'total_batches'    => (int) DB::val("SELECT COUNT(*) FROM batches WHERE academy_id = ? AND status = 'active'", [$aid]),
-            'total_activities' => (int) DB::val("SELECT COUNT(*) FROM activities WHERE academy_id = ? AND status = 'active'", [$aid]),
-            'today_attendance' => ['present' => (int) ($att['present'] ?? 0), 'absent' => (int) ($att['absent'] ?? 0), 'marked' => (int) ($att['marked'] ?? 0)],
-            'batches_not_marked' => (int) DB::val("SELECT COUNT(*) FROM batches b WHERE b.academy_id = ? AND b.status = 'active' AND NOT EXISTS (SELECT 1 FROM attendance_sessions se WHERE se.batch_id = b.id AND se.session_date = CURDATE())
+            'total_teachers'   => (int) DB::val("SELECT COUNT(*) FROM teachers WHERE academy_id = ? AND status = 'active'" . $bf('branch_id'), [$aid]),
+            'total_batches'    => (int) DB::val("SELECT COUNT(*) FROM batches WHERE academy_id = ? AND status = 'active'" . $bf('branch_id'), [$aid]),
+            'total_activities' => (int) DB::val("SELECT COUNT(*) FROM activities WHERE academy_id = ? AND status = 'active'" . ($branch ? " AND (branch_id = $branch OR branch_id IS NULL)" : ''), [$aid]),
+            // present includes late (as before); late and leave are also given separately
+            'today_attendance' => ['present' => (int) ($att['present'] ?? 0), 'absent' => (int) ($att['absent'] ?? 0), 'late' => (int) ($att['late'] ?? 0), 'leave' => (int) ($att['on_leave'] ?? 0), 'marked' => (int) ($att['marked'] ?? 0)],
+            'scheduled_messages' => DB::all("SELECT event_key, channel, recipient_name, subject, LEFT(body, 140) AS body, next_attempt_at FROM notification_queue
+                                             WHERE academy_id = ? AND status = 'pending' AND next_attempt_at > NOW() ORDER BY next_attempt_at LIMIT 5", [$aid]),
+            'batches_not_marked' => (int) DB::val("SELECT COUNT(*) FROM batches b WHERE b.academy_id = ? AND b.status = 'active'" . $bf('b.branch_id') . " AND NOT EXISTS (SELECT 1 FROM attendance_sessions se WHERE se.batch_id = b.id AND se.session_date = CURDATE())
                                                    AND (EXISTS (SELECT 1 FROM batch_schedules bs WHERE bs.batch_id = b.id AND bs.weekday = ?) OR NOT EXISTS (SELECT 1 FROM batch_schedules x WHERE x.batch_id = b.id))", [$aid, (int) date('N')]),
             'recent_notifications' => DB::all('SELECT event_key, channel, recipient_name, status, created_at FROM notification_queue WHERE academy_id = ? ORDER BY id DESC LIMIT 6', [$aid]),
             'student_quota' => ['active' => (int) DB::val("SELECT COUNT(*) FROM students WHERE academy_id = ? AND status = 'active'", [$aid]), 'limit' => Feature::forAcademy($aid)['limits']['students'] ?? null],
@@ -56,15 +67,16 @@ return static function (Router $r): void {
         ];
         if ($fees) {
             $data += [
-                'month_collection_paise' => (int) DB::val("SELECT COALESCE(SUM(amount_paise - refunded_paise),0) FROM payments WHERE academy_id = ? AND status = 'success' AND paid_on >= ?", [$aid, $m0]),
-                'today_collection_paise' => (int) DB::val("SELECT COALESCE(SUM(amount_paise - refunded_paise),0) FROM payments WHERE academy_id = ? AND status = 'success' AND paid_on = ?", [$aid, $today]),
-                'pending_fees_paise'     => (int) DB::val("SELECT COALESCE(SUM(i.total_paise - i.paid_paise),0) FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND s.status = 'active'", [$aid]),
-                'overdue_fees_paise'     => (int) DB::val("SELECT COALESCE(SUM(i.total_paise - i.paid_paise),0) FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND i.due_date < CURDATE() AND s.status = 'active'", [$aid]),
-                'overdue_students'       => (int) DB::val("SELECT COUNT(DISTINCT i.student_id) FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND i.due_date < CURDATE() AND s.status = 'active'", [$aid]),
+                'month_collection_paise' => (int) DB::val("SELECT COALESCE(SUM(amount_paise - refunded_paise),0) FROM payments WHERE academy_id = ? AND status = 'success' AND paid_on >= ?" . $bf('branch_id'), [$aid, $m0]),
+                'last_month_collection_paise' => (int) DB::val("SELECT COALESCE(SUM(amount_paise - refunded_paise),0) FROM payments WHERE academy_id = ? AND status = 'success' AND paid_on >= DATE_SUB(?, INTERVAL 1 MONTH) AND paid_on < ?" . $bf('branch_id'), [$aid, $m0, $m0]),
+                'today_collection_paise' => (int) DB::val("SELECT COALESCE(SUM(amount_paise - refunded_paise),0) FROM payments WHERE academy_id = ? AND status = 'success' AND paid_on = ?" . $bf('branch_id'), [$aid, $today]),
+                'pending_fees_paise'     => (int) DB::val("SELECT COALESCE(SUM(i.total_paise - i.paid_paise),0) FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND s.status = 'active'" . $bf('i.branch_id'), [$aid]),
+                'overdue_fees_paise'     => (int) DB::val("SELECT COALESCE(SUM(i.total_paise - i.paid_paise),0) FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND i.due_date < CURDATE() AND s.status = 'active'" . $bf('i.branch_id'), [$aid]),
+                'overdue_students'       => (int) DB::val("SELECT COUNT(DISTINCT i.student_id) FROM fee_invoices i JOIN students s ON s.id = i.student_id WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND i.due_date < CURDATE() AND s.status = 'active'" . $bf('i.branch_id'), [$aid]),
                 'upcoming_dues'          => DB::all("SELECT i.id, i.student_id, s.name AS student_name, i.title, i.due_date, i.total_paise - i.paid_paise AS balance_paise FROM fee_invoices i JOIN students s ON s.id = i.student_id
-                                                     WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND i.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND s.status = 'active' ORDER BY i.due_date LIMIT 8", [$aid]),
-                'recent_payments'        => DB::all('SELECT p.id, s.name AS student_name, p.amount_paise, p.method, p.paid_on, p.status, r.receipt_no FROM payments p JOIN students s ON s.id = p.student_id LEFT JOIN receipts r ON r.payment_id = p.id WHERE p.academy_id = ? ORDER BY p.id DESC LIMIT 6', [$aid]),
-                'collection_trend'       => DB::all("SELECT DATE_FORMAT(paid_on, '%Y-%m') AS month, SUM(amount_paise - refunded_paise) AS total FROM payments WHERE academy_id = ? AND status = 'success' AND paid_on >= DATE_SUB(?, INTERVAL 5 MONTH) GROUP BY month ORDER BY month", [$aid, $m0]),
+                                                     WHERE i.academy_id = ? AND i.status IN ('unpaid','partial') AND i.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND s.status = 'active'" . $bf('i.branch_id') . ' ORDER BY i.due_date LIMIT 8', [$aid]),
+                'recent_payments'        => DB::all('SELECT p.id, s.name AS student_name, p.amount_paise, p.method, p.paid_on, p.status, r.receipt_no FROM payments p JOIN students s ON s.id = p.student_id LEFT JOIN receipts r ON r.payment_id = p.id WHERE p.academy_id = ?' . $bf('p.branch_id') . ' ORDER BY p.id DESC LIMIT 6', [$aid]),
+                'collection_trend'       => DB::all("SELECT DATE_FORMAT(paid_on, '%Y-%m') AS month, SUM(amount_paise - refunded_paise) AS total FROM payments WHERE academy_id = ? AND status = 'success' AND paid_on >= DATE_SUB(?, INTERVAL 5 MONTH)" . $bf('branch_id') . ' GROUP BY month ORDER BY month', [$aid, $m0]),
             ];
         }
         return Http::ok($data);
