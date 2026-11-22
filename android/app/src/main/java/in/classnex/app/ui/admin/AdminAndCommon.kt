@@ -1,72 +1,37 @@
 package `in`.classnex.app.ui.admin
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Business
-import androidx.compose.material.icons.outlined.CurrencyRupee
-import androidx.compose.material.icons.outlined.Group
-import androidx.compose.material.icons.outlined.Verified
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.classnex.app.BuildConfig
 import `in`.classnex.app.data.Repository
 import `in`.classnex.app.data.call
-import `in`.classnex.app.data.net.AdminDashboard
-import `in`.classnex.app.data.net.AppNotification
-import `in`.classnex.app.data.net.ChangePassword
-import `in`.classnex.app.data.net.Me
-import `in`.classnex.app.data.net.OwnerRow
-import `in`.classnex.app.data.net.ReadRequest
-import `in`.classnex.app.ui.common.AppCard
-import `in`.classnex.app.ui.common.EmptyView
-import `in`.classnex.app.ui.common.KeyValue
-import `in`.classnex.app.ui.common.LoadContent
-import `in`.classnex.app.ui.common.LoadVm
-import `in`.classnex.app.ui.common.StatCard
-import `in`.classnex.app.ui.common.StatusChip
-import `in`.classnex.app.ui.common.label
-import `in`.classnex.app.ui.common.roleName
-import `in`.classnex.app.ui.common.money
-import `in`.classnex.app.ui.common.openUrl
-import `in`.classnex.app.ui.common.prettyDate
-import `in`.classnex.app.ui.theme.Blue
-import `in`.classnex.app.ui.theme.Green
-import `in`.classnex.app.ui.theme.Muted
-import `in`.classnex.app.ui.theme.Orange
-import `in`.classnex.app.ui.theme.Purple
-import dagger.hilt.android.lifecycle.HiltViewModel
+import `in`.classnex.app.data.net.*
+import `in`.classnex.app.ui.common.*
+import `in`.classnex.app.ui.theme.*
 import kotlinx.coroutines.launch
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 data class AdminHome(val d: AdminDashboard, val owners: List<OwnerRow>)
@@ -74,39 +39,77 @@ data class AdminHome(val d: AdminDashboard, val owners: List<OwnerRow>)
 @HiltViewModel
 class AdminVm @Inject constructor(private val repo: Repository) : LoadVm<AdminHome>() {
     init { refresh() }
-    fun refresh() = load { AdminHome(call { repo.api.adminDashboard() }.data!!, call { repo.api.owners() }.data ?: emptyList()) }
+    fun refresh() = load { AdminHome(call { repo.api.adminDashboard() }.data!!, call { repo.api.owners(perPage = 6) }.data ?: emptyList()) }
 }
 
-/** Super Admin on mobile: key numbers and academies. Full management stays on the web panel. */
+/** Super Admin on mobile: platform figures, registration approvals and academies. Full configuration stays on the web panel. */
 @Composable
-fun AdminDashboardScreen(vm: AdminVm = hiltViewModel()) {
+fun AdminDashboardScreen(me: Me? = null, nav: (String) -> Unit = {}, vm: AdminVm = hiltViewModel()) {
     val st by vm.state.collectAsState()
     val ctx = LocalContext.current
     LoadContent(st, vm::refresh) { (d, owners) ->
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Academies", d.total_academies.toString(), Icons.Outlined.Business, Blue, Modifier.weight(1f))
-                    StatCard("Students", d.total_students.toString(), Icons.Outlined.Group, Purple, Modifier.weight(1f))
+                Column(Modifier.fillMaxWidth().clip(Radius.card).background(Brand.drawer).padding(18.dp)) {
+                    Text("Hello, ${me?.name?.substringBefore(' ') ?: "Admin"} 👋", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                    Text("ClassNex platform overview", color = Color.White.copy(alpha = .8f))
                 }
             }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Active plans", d.active_subscriptions.toString(), Icons.Outlined.Verified, Green, Modifier.weight(1f), "${d.expired_subscriptions} expired")
-                    StatCard("Revenue (month)", money(d.monthly_revenue_paise), Icons.Outlined.CurrencyRupee, Orange, Modifier.weight(1f))
-                }
-            }
-            item { OutlinedButton(onClick = { openUrl(ctx, BuildConfig.API_BASE_URL.removeSuffix("api/v1/") + "admin/") }, modifier = Modifier.fillMaxWidth()) { Text("Open full admin panel") } }
-            item { Text("Academies", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp) }
-            items(owners) { o ->
-                AppCard {
+            if (d.pending_registrations > 0) item {
+                CnxCard(onClick = { nav("module/registrations") }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(o.academy_name, fontWeight = FontWeight.Bold)
-                            Text("Class Admin: ${o.owner_name ?: "–"} · ${o.mobile ?: ""}", color = Muted, fontSize = 12.sp)
-                            Text("${o.package_name ?: "No plan"}${o.ends_on?.let { " · till ${prettyDate(it)}" } ?: ""} · ${o.students}${o.student_limit?.let { "/$it" } ?: ""} students · ${o.branches} branch(es)", color = Muted, fontSize = 12.sp)
+                        IconCircle(Icons.Outlined.PendingActions, Amber)
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text("${d.pending_registrations} registration(s) waiting", fontWeight = FontWeight.Bold, color = Ink)
+                            Text("Review and approve new academies", color = Muted, fontSize = 12.sp)
                         }
-                        o.sub_status?.let { StatusChip(it) }
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatTile("Academies", "${d.total_academies}", Icons.Outlined.Business, Violet, Modifier.weight(1f)) { nav("module/academies") }
+                    StatTile("Students", "${d.total_students}", Icons.Outlined.Group, Blue, Modifier.weight(1f))
+                    StatTile("Open tickets", "${d.open_tickets}", Icons.Outlined.SupportAgent, Pink, Modifier.weight(1f))
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatTile("Active plans", "${d.active_subscriptions}", Icons.Outlined.Verified, Green, Modifier.weight(1f), "${d.trial_subscriptions} on trial")
+                    StatTile("Expired", "${d.expired_subscriptions}", Icons.Outlined.EventBusy, Red, Modifier.weight(1f))
+                    StatTile("WhatsApp", "${d.whatsapp_month}", Icons.Outlined.Forum, Teal, Modifier.weight(1f), "this month")
+                }
+            }
+            item {
+                CnxCard {
+                    SectionHeader("Revenue this month")
+                    Text(money(d.monthly_revenue_paise), fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, color = Ink)
+                    if (d.pending_subscription_payments > 0) Text("${d.pending_subscription_payments} payment(s) awaiting confirmation", color = Amber, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    if (d.revenue_trend.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        BarChart(d.revenue_trend.map { it.total }, d.revenue_trend.map { runCatching { YearMonth.parse(it.month).format(DateTimeFormatter.ofPattern("MMM")) }.getOrDefault(it.month) })
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SoftButton("Registrations", { nav("module/registrations") }, Modifier.weight(1f), Icons.Outlined.HowToReg)
+                    SoftButton("Web admin panel", { openUrl(ctx, BuildConfig.API_BASE_URL.removeSuffix("api/v1/") + "admin/") }, Modifier.weight(1f), Icons.AutoMirrored.Outlined.OpenInNew)
+                }
+            }
+            item { SectionHeader("Latest academies", action = "All") { nav("module/academies") } }
+            itemsIndexed(owners) { i, o ->
+                Entrance(i) {
+                    CnxCard(padding = 12.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconCircle(Icons.Outlined.Apartment, Violet, 40.dp, 19.dp)
+                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                Text(o.academy_name, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${o.owner_name ?: "–"} · ${o.package_name ?: "No plan"} · ${o.students}${o.student_limit?.let { "/$it" } ?: ""} students", color = Muted, fontSize = 12.sp, maxLines = 2)
+                            }
+                            o.sub_status?.let { Pill(label(it), statusColor(it)) }
+                        }
                     }
                 }
             }
@@ -125,62 +128,89 @@ class NotificationsVm @Inject constructor(private val repo: Repository) : LoadVm
 fun NotificationsScreen(vm: NotificationsVm = hiltViewModel()) {
     val st by vm.state.collectAsState()
     LoadContent(st, vm::refresh) { list ->
-        if (list.isEmpty()) EmptyView("No notifications yet")
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(list) { n -> AppCard { Column { Text(n.title, fontWeight = if (n.read_at == null) FontWeight.ExtraBold else FontWeight.SemiBold); Text(n.body, color = Muted, fontSize = 13.sp); Text(prettyDate(n.created_at), color = Muted, fontSize = 11.sp) } } }
+        if (list.isEmpty()) EmptyState("You're all caught up", "Notifications about attendance, fees and announcements appear here.", Icons.Outlined.NotificationsNone)
+        else LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            itemsIndexed(list, key = { _, n -> n.id }) { i, n ->
+                Entrance(i) {
+                    CnxCard(padding = 14.dp) {
+                        Row {
+                            IconCircle(Icons.Outlined.Notifications, if (n.read_at == null) Violet else Muted, 38.dp, 18.dp)
+                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(n.title, fontWeight = if (n.read_at == null) FontWeight.ExtraBold else FontWeight.SemiBold, color = Ink)
+                                Text(n.body, color = Muted, fontSize = 13.sp)
+                                Text(prettyDate(n.created_at) + " " + prettyTime(n.created_at.drop(11)), color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                            }
+                            if (n.read_at == null) Box(Modifier.size(9.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Orange))
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
-// ---------------------------------------------------------------- profile
+// ---------------------------------------------------------------- profile / settings
 @HiltViewModel
 class ProfileVm @Inject constructor(private val repo: Repository) : LoadVm<Unit>() {
-    init { _state.value = `in`.classnex.app.ui.common.Load.Ready(Unit) }
-    fun change(cur: String, new: String) = viewModelScope.launch {
-        say(try { call { repo.api.changePassword(ChangePassword(cur, new)) }.message } catch (e: Exception) { errorText(e) })
+    init { _state.value = Load.Ready(Unit) }
+    val busy = kotlinx.coroutines.flow.MutableStateFlow(false)
+    fun change(cur: String, new: String, done: () -> Unit) = viewModelScope.launch {
+        busy.value = true
+        try { say(call { repo.api.changePassword(ChangePassword(cur, new)) }.message); done() } catch (e: Exception) { say(errorText(e)) } finally { busy.value = false }
     }
 }
 
 @Composable
 fun ProfileScreen(me: Me, snack: SnackbarHostState, onLogout: () -> Unit, nav: (String) -> Unit = {}, vm: ProfileVm = hiltViewModel()) {
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
+    val busy by vm.busy.collectAsState()
     var cur by remember { mutableStateOf("") }
     var new by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AppCard {
-            Column {
-                Text(me.name, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                Text(roleName(me.role), color = Muted)
-                Spacer(Modifier.height(8.dp))
-                KeyValue("Mobile", "${me.country_code ?: ""} ${me.mobile ?: "–"}")
-                KeyValue("Email", me.email ?: "–")
-                me.academy?.let { KeyValue("Academy", it.name) }
-                me.subscription?.let { KeyValue("Plan", "${it.package_name ?: "–"} (${label(it.status)})") }
-                KeyValue("App version", BuildConfig.VERSION_NAME)
-            }
-        }
-        if (me.isStaff) AppCard {
-            // "More" menu for Class Admins and teachers – the same modules as the web panel
-            Column {
-                val links = buildList {
-                    if (me.isClassAdmin) add("Branches" to "branches")
-                    if (me.has("attendance")) add("Attendance history" to "history")
-                    if (me.has("fees") && me.can("fees.view")) add("Payments & receipts" to "payments")
-                    if (me.isClassAdmin && me.can("reports.view")) add("Combined branch report" to "report/branch_summary")
-                    if (me.has("manual_reminders") && me.can("notifications.send")) add("Send message / reminder" to "message")
-                    if (me.has("whatsapp_manual") && me.can("notifications.send")) add("WhatsApp history" to "waLog")
+    var logout by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        CnxCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(null, me.name, 60)
+                Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                    Text(me.name, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                    Pill(roleName(me.role), Violet)
                 }
-                links.forEach { (t, r) -> androidx.compose.material3.TextButton(onClick = { nav(r) }, modifier = Modifier.fillMaxWidth()) { Text(t, modifier = Modifier.fillMaxWidth()) } }
             }
+            Spacer(Modifier.height(10.dp))
+            KeyRow("Mobile", "${me.country_code ?: ""} ${me.mobile ?: "–"}")
+            KeyRow("Email", me.email)
+            me.academy?.let { KeyRow("Academy", it.name) }
+            me.subscription?.let { KeyRow("Plan", "${it.package_name ?: "–"} (${label(it.status)})") }
+            KeyRow("WhatsApp mode", when (me.whatsapp_mode) { "api" -> "Automatic (official API)"; "manual" -> "Click-to-send"; else -> "Off" }.takeIf { me.isStaff })
         }
-        AppCard {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Change password", fontWeight = FontWeight.Bold)
-                OutlinedTextField(cur, { cur = it }, label = { Text("Current password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(new, { new = it }, label = { Text("New password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), supportingText = { Text("8+ characters with letters and numbers") })
-                Button(onClick = { vm.change(cur, new); cur = ""; new = "" }, enabled = cur.isNotBlank() && new.length >= 8) { Text("Update password") }
-            }
+        if (me.isClassAdmin) CnxCard {
+            SectionHeader("Academy settings")
+            SettingLink("Academy profile & receipts", Icons.Outlined.Storefront) { nav("academyProfile") }
+            if (me.can("settings.manage")) SettingLink("Notification settings", Icons.Outlined.NotificationsActive) { nav("notificationSettings") }
+            SettingLink("Subscription", Icons.Outlined.WorkspacePremium) { nav("subscription") }
         }
-        OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("Log out") }
+        CnxCard {
+            SectionHeader("Change password")
+            CnxField(cur, { cur = it }, "Current password", password = true, icon = Icons.Outlined.Lock)
+            Spacer(Modifier.height(8.dp))
+            CnxField(new, { new = it }, "New password", password = true, icon = Icons.Outlined.Key, supporting = "8+ characters with letters and numbers")
+            Spacer(Modifier.height(10.dp))
+            GradientButton("Update password", { vm.change(cur, new) { cur = ""; new = "" } }, Modifier.fillMaxWidth(), enabled = cur.isNotBlank() && new.length >= 8, loading = busy)
+        }
+        CnxCard {
+            SettingLink("Help & Support", Icons.Outlined.SupportAgent) { nav("module/support") }
+            SettingLink("Log out", Icons.AutoMirrored.Outlined.Logout, Red) { logout = true }
+        }
+        Text("ClassNex ${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+    }
+    if (logout) ConfirmDialog("Log out?", "You will need your password to log in again.", "Log out", true, { logout = false }) { logout = false; onLogout() }
+}
+
+@Composable
+fun SettingLink(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color = Violet, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(Radius.small).pressable(onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconCircle(icon, tint, 38.dp, 18.dp)
+        Text(text, color = if (tint == Red) Red else Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
     }
 }

@@ -2,6 +2,7 @@
     <style name="Theme.ClassNex" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@color/navy</item>
         <item name="android:windowBackground">@color/white</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
     <style name="Theme.ClassNex.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/white</item>

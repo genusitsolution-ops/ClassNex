@@ -1,5 +1,8 @@
 package `in`.classnex.app.ui.academy
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import android.content.Context
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -299,11 +302,11 @@ fun WhatsAppSendDialog(vm: WhatsAppVm, title: String = "WhatsApp") {
     val ctx = LocalContext.current
     val sent = remember(items) { mutableStateListOf<Long>() }
     AlertDialog(
-        onDismissRequest = { vm.clear() },
+        onDismissRequest = { vm.clear() }, containerColor = Color.White, shape = RoundedCornerShape(24.dp),
         title = { Text("$title – ${items.size} message(s)") },
         text = {
             LazyColumn(Modifier.heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { Text("Tap Send to open WhatsApp with the message ready, then press send in WhatsApp. ${sent.size} of ${items.size} opened.", color = Muted, fontSize = 12.sp) }
+                item { Text("Tap Open WhatsApp: the message is ready there – press send in WhatsApp yourself. ClassNex cannot confirm delivery in this mode. ${sent.size} of ${items.size} opened.", color = Muted, fontSize = 12.sp) }
                 items(items) { m ->
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -311,7 +314,8 @@ fun WhatsAppSendDialog(vm: WhatsAppVm, title: String = "WhatsApp") {
                                 Text(m.student_name, fontWeight = FontWeight.Bold)
                                 Text("${m.name ?: ""} ${m.phone}", color = Muted, fontSize = 12.sp)
                             }
-                            Button(onClick = { vm.opened(ctx, m); if (m.id !in sent) sent.add(m.id) }) { Text(if (m.id in sent) "Sent ✓" else "Send") }
+                            // manual mode: we only know WhatsApp was opened – never show it as sent or delivered
+                            Button(onClick = { vm.opened(ctx, m); if (m.id !in sent) sent.add(m.id) }, colors = ButtonDefaults.buttonColors(containerColor = if (m.id in sent) Muted else Green)) { Text(if (m.id in sent) "Opened ✓" else "Open WhatsApp") }
                         }
                         Text(m.text, fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
                     }

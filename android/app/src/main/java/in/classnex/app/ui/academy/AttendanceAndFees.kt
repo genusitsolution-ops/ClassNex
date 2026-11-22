@@ -1,57 +1,22 @@
 package `in`.classnex.app.ui.academy
 
-import android.content.Context
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.outlined.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -62,167 +27,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import `in`.classnex.app.data.Repository
 import `in`.classnex.app.data.call
-import `in`.classnex.app.data.net.AttEntry
-import `in`.classnex.app.data.net.AttSave
-import `in`.classnex.app.data.net.AttSheet
-import `in`.classnex.app.data.net.Batch
-import `in`.classnex.app.data.net.Dues
-import `in`.classnex.app.data.net.Invoice
-import `in`.classnex.app.data.net.Me
-import `in`.classnex.app.data.net.MessageRequest
-import `in`.classnex.app.data.net.PaymentRequest
-import `in`.classnex.app.data.net.PaymentResult
-import `in`.classnex.app.data.net.PaymentRow
-import `in`.classnex.app.data.net.TodayAtt
-import `in`.classnex.app.ui.common.AppCard
-import `in`.classnex.app.ui.common.Avatar
-import `in`.classnex.app.ui.common.EmptyView
-import `in`.classnex.app.ui.common.LoadContent
-import `in`.classnex.app.ui.common.LoadVm
-import `in`.classnex.app.ui.common.StatusChip
-import `in`.classnex.app.ui.common.label
-import `in`.classnex.app.ui.common.money
-import `in`.classnex.app.ui.common.openFile
-import `in`.classnex.app.ui.common.openUrl
-import `in`.classnex.app.ui.common.prettyDate
-import `in`.classnex.app.ui.common.prettyTime
-import `in`.classnex.app.ui.common.rupeesInput
-import `in`.classnex.app.ui.common.shareFile
-import `in`.classnex.app.ui.common.today
-import `in`.classnex.app.ui.theme.Amber
-import `in`.classnex.app.ui.theme.Green
-import `in`.classnex.app.ui.theme.Muted
-import `in`.classnex.app.ui.theme.Purple
-import `in`.classnex.app.ui.theme.Red
-import dagger.hilt.android.lifecycle.HiltViewModel
+import `in`.classnex.app.data.net.*
+import `in`.classnex.app.ui.common.*
+import `in`.classnex.app.ui.theme.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.util.UUID
 import javax.inject.Inject
-
-// ============================================================== attendance
-@HiltViewModel
-class AttendanceListVm @Inject constructor(private val repo: Repository) : LoadVm<TodayAtt>() {
-    init { refresh() }
-    fun refresh() = load { call { repo.api.attendanceToday(today()) }.data!! }
-}
-
-@Composable
-fun AttendanceListScreen(nav: (String) -> Unit, vm: AttendanceListVm = hiltViewModel()) {
-    val st by vm.state.collectAsState()
-    LoadContent(st, vm::refresh) { d ->
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Text("Today · ${prettyDate(d.date)}", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp) }
-            if (d.batches.isEmpty()) item { EmptyView("No batches yet") }
-            items(d.batches) { b ->
-                AppCard(onClick = { nav("attendance/${b.id}") }) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(b.name, fontWeight = FontWeight.Bold)
-                            Text("${b.activity_name}${b.start_time?.let { " · " + prettyTime(it) } ?: ""} · ${b.enrolled} students", color = Muted, fontSize = 13.sp)
-                            if (b.session_id != null) Text("${b.present} present · ${b.absent} absent", color = Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            else if (b.scheduled) Text("Not marked yet", color = Amber, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        if (b.session_id != null) Icon(Icons.Outlined.CheckCircle, null, tint = Green)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@HiltViewModel
-class AttendanceSheetVm @Inject constructor(private val repo: Repository) : LoadVm<AttSheet>() {
-    val marks = mutableStateMapOf<Long, String>()
-    /** Manual WhatsApp mode: after saving, offer click-to-send messages for absent / late students. */
-    var manualWhatsApp = false
-    val absentToNotify = MutableStateFlow(0)
-    val saving = MutableStateFlow(false)
-    var batchId = 0L
-    fun open(id: Long) {
-        batchId = id
-        load {
-            val s = call { repo.api.attendanceSheet(id, today()) }.data!!
-            marks.clear()
-            s.students.forEach { st -> st.status?.let { marks[st.id] = it } }
-            // present by default: a new register starts with everyone present; only exceptions are tapped
-            if (!s.already_marked && s.holiday == null) s.students.forEach { st -> if (st.id !in marks) marks[st.id] = "present" }
-            s
-        }
-    }
-    fun all(status: String) { (state.value as? `in`.classnex.app.ui.common.Load.Ready)?.data?.students?.forEach { marks[it.id] = status } }
-    fun save(done: () -> Unit) {
-        if (marks.isEmpty()) { say("Mark at least one student."); return }
-        saving.value = true
-        viewModelScope.launch {
-            try {
-                val r = call { repo.api.saveAttendance(AttSave(batchId, today(), marks.map { AttEntry(it.key, it.value) })) }
-                say(r.message + if ((r.data?.notifications ?: 0) > 0) " Parents notified: ${r.data?.notifications}." else "")
-                absentToNotify.value = marks.values.count { it == "absent" || it == "late" }
-                if (absentToNotify.value == 0 || !manualWhatsApp) done()
-            } catch (e: Exception) { say(errorText(e)) } finally { saving.value = false }
-        }
-    }
-}
-
-@Composable
-fun AttendanceSheetScreen(batchId: Long, snack: SnackbarHostState, back: () -> Unit, me: Me? = null, vm: AttendanceSheetVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
-    vm.manualWhatsApp = me?.whatsappManualOnly == true && me.can("notifications.send")
-    LaunchedEffect(batchId) { vm.open(batchId) }
-    val absentN by vm.absentToNotify.collectAsState()
-    val waItems by wa.items.collectAsState()
-    var asked by remember { mutableStateOf(false) }
-    WhatsAppSendDialog(wa, "Attendance alerts")
-    LaunchedEffect(waItems, asked) { if (asked && waItems.isEmpty()) back() }
-    if (vm.manualWhatsApp && absentN > 0 && !asked) AlertDialog(
-        onDismissRequest = { back() },
-        title = { Text("Message parents on WhatsApp?") },
-        text = { Text("$absentN student(s) absent or late. Prepare WhatsApp messages for their parents?") },
-        confirmButton = { Button(onClick = { asked = true; wa.prepare(`in`.classnex.app.data.net.ManualPrepare(purpose = "attendance", batch_id = batchId, date = today())) }) { Text("Prepare") } },
-        dismissButton = { TextButton(onClick = { back() }) { Text("Skip") } },
-    )
-    LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
-    val st by vm.state.collectAsState()
-    val saving by vm.saving.collectAsState()
-    LoadContent(st, { vm.open(batchId) }) { sheet ->
-        Column(Modifier.fillMaxSize()) {
-            if (sheet.already_marked) Text("Already marked today – changes are saved as corrections.", color = Green, modifier = Modifier.padding(16.dp, 8.dp), fontSize = 13.sp)
-            else if (sheet.holiday == null) Text("Everyone is marked present. Tap only the absent, late or on-leave students, then Save.", color = Green, modifier = Modifier.padding(16.dp, 8.dp), fontSize = 13.sp)
-            sheet.holiday?.let { Text("Holiday: $it", color = Purple, modifier = Modifier.padding(horizontal = 16.dp)) }
-            Row(Modifier.padding(16.dp, 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { vm.all("present") }, colors = ButtonDefaults.buttonColors(containerColor = Green)) { Text("All present") }
-                OutlinedButton(onClick = { vm.all("absent") }) { Text("All absent", color = Red) }
-            }
-            if (sheet.students.isEmpty()) EmptyView("No students in this batch")
-            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(sheet.students, key = { it.id }) { s ->
-                    AppCard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Avatar(s.photo_url, s.name, 38)
-                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) { Text(s.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(s.student_code, color = Muted, fontSize = 12.sp) }
-                            listOf("present" to "P", "absent" to "A", "late" to "L", "leave" to "Lv").forEach { (k, l) ->
-                                val on = vm.marks[s.id] == k
-                                val c = when (k) { "present" -> Green; "absent" -> Red; "late" -> Amber; else -> Purple }
-                                Surface(onClick = { vm.marks[s.id] = k }, shape = RoundedCornerShape(10.dp), color = if (on) c else Color.White, border = BorderStroke(1.5.dp, if (on) c else Color(0xFFD9DEEA)), modifier = Modifier.padding(start = 4.dp).size(42.dp, 40.dp)) {
-                                    Box(contentAlignment = Alignment.Center) { Text(l, fontWeight = FontWeight.ExtraBold, color = if (on) Color.White else Muted) }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Surface(shadowElevation = 8.dp) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    val c = vm.marks.values.groupingBy { it }.eachCount()
-                    Text("${c["present"] ?: 0} P · ${c["absent"] ?: 0} A · ${sheet.students.size - vm.marks.size} left", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                    Button(onClick = { vm.save(back) }, enabled = !saving, modifier = Modifier.height(50.dp)) { if (saving) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White) else Text("Save", fontSize = 16.sp) }
-                }
-            }
-        }
-    }
-}
 
 // ================================================================ collect
 @HiltViewModel
@@ -238,11 +56,12 @@ class CollectVm @Inject constructor(private val repo: Repository) : LoadVm<Dues>
         load { call { repo.api.dues(id) }.data!!.also { d -> selected.clear(); d.invoices.forEach { selected[it.id] = true } } }
     }
     fun selectedTotal(d: Dues) = d.invoices.filter { selected[it.id] == true }.sumOf { it.balance_paise }
-    fun pay(amount: String, method: String, reference: String, d: Dues) {
+    /** The server allocates the amount to the chosen invoices (oldest first) – no calculation happens here. */
+    fun pay(amount: String, method: String, reference: String, paidOn: String, notes: String, d: Dues) {
         busy.value = true
         viewModelScope.launch {
             try {
-                val r = call { repo.api.pay(idem, PaymentRequest(studentId, amount, method, reference.ifBlank { null }, today(), d.invoices.filter { selected[it.id] == true }.map { it.id })) }
+                val r = call { repo.api.pay(idem, PaymentRequest(studentId, amount, method, reference.ifBlank { null }, paidOn, d.invoices.filter { selected[it.id] == true }.map { it.id }, notes.ifBlank { null })) }
                 result.value = r.data
                 idem = UUID.randomUUID().toString()
             } catch (e: Exception) { say(errorText(e)) } finally { busy.value = false }
@@ -252,14 +71,20 @@ class CollectVm @Inject constructor(private val repo: Repository) : LoadVm<Dues>
     suspend fun whatsappLink(paymentId: Long) = call { repo.api.shareReceipt(paymentId, mapOf("channel" to "link")) }.data
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+val payMethods = listOf("cash" to "Cash", "upi" to "UPI", "bank_transfer" to "Bank Transfer", "card" to "Card", "online" to "Online", "cheque" to "Cheque", "other" to "Other")
+
 @Composable
-fun CollectFeeScreen(initialStudent: Long, me: Me, snack: SnackbarHostState, nav: (String) -> Unit, vm: CollectVm = hiltViewModel()) {
-    var studentId by remember { mutableStateOf(initialStudent) }
+fun CollectFeeScreen(initialStudent: Long, me: Me, snack: SnackbarHostState, nav: (String) -> Unit, vm: CollectVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
+    var studentId by rememberSaveable { mutableLongStateOf(initialStudent) }
     LaunchedEffect(studentId) { if (studentId > 0) vm.open(studentId) }
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
+    LaunchedEffect(Unit) { wa.messages.collect { snack.showSnackbar(it) } }
+    WhatsAppSendDialog(wa, "Receipt")
     if (studentId == 0L) {
-        Column { Text("Choose a student", Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp), fontWeight = FontWeight.Bold); StudentsScreen(me, nav, pickMode = true, onPick = { studentId = it.id }) }
+        Column {
+            InfoBanner("Choose the student who is paying.", Violet, Icons.Outlined.PersonSearch, Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp))
+            StudentsScreen(me, nav, pickMode = true, onPick = { studentId = it.id })
+        }
         return
     }
     val st by vm.state.collectAsState()
@@ -267,66 +92,88 @@ fun CollectFeeScreen(initialStudent: Long, me: Me, snack: SnackbarHostState, nav
     val result by vm.result.collectAsState()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    var showDone by remember { mutableStateOf(false) }
+    LaunchedEffect(result) { if (result != null) showDone = true }
     LoadContent(st, { vm.open(studentId) }) { d ->
         var amount by remember(d) { mutableStateOf(rupeesInput(vm.selectedTotal(d)).takeIf { it != "0" } ?: "") }
         var method by remember { mutableStateOf("cash") }
         var ref by remember { mutableStateOf("") }
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            AppCard {
-                Column {
+        var notes by remember { mutableStateOf("") }
+        var paidOn by remember { mutableStateOf(today()) }
+        Column(Modifier.fillMaxSize().imePadding()) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                CnxCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { Text(d.student.name, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp); Text("${d.student.student_code} · ${d.student.whatsapp}", color = Muted, fontSize = 13.sp) }
-                        TextButton(onClick = { studentId = 0 }) { Text("Change") }
-                    }
-                    Row(Modifier.padding(top = 8.dp)) {
-                        Column(Modifier.weight(1f)) { Text("Pending", color = Muted, fontSize = 12.sp); Text(money(d.balance.outstanding_paise), color = Red, fontWeight = FontWeight.ExtraBold) }
-                        Column(Modifier.weight(1f)) { Text("Overdue", color = Muted, fontSize = 12.sp); Text(money(d.balance.overdue_paise), fontWeight = FontWeight.Bold) }
-                        Column(Modifier.weight(1f)) { Text("Advance", color = Muted, fontSize = 12.sp); Text(money(d.balance.advance_paise), color = Green, fontWeight = FontWeight.Bold) }
+                        Avatar(null, d.student.name, 46)
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(d.student.name, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Ink)
+                            Text("${d.student.student_code} · ${d.student.whatsapp}", color = Muted, fontSize = 12.sp)
+                        }
+                        if (initialStudent == 0L) TextButton(onClick = { studentId = 0 }) { Text("Change") }
                     }
                 }
-            }
-            if (d.invoices.isEmpty()) AppCard { Text("No pending dues. Any amount collected is kept as advance.", color = Green) }
-            d.invoices.forEach { i ->
-                AppCard(onClick = { vm.selected[i.id] = !(vm.selected[i.id] ?: false); amount = rupeesInput(vm.selectedTotal(d)) }) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(vm.selected[i.id] == true, { vm.selected[i.id] = it; amount = rupeesInput(vm.selectedTotal(d)) })
-                        Column(Modifier.weight(1f)) { Text(i.title, fontWeight = FontWeight.Bold); Text("Due ${prettyDate(i.due_date)}${if (i.status == "partial") " · partly paid" else ""}", color = Muted, fontSize = 12.sp) }
-                        Text(money(i.balance_paise), fontWeight = FontWeight.ExtraBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("Pending", money(d.balance.outstanding_paise), Icons.Outlined.HourglassBottom, Amber, Modifier.weight(1f))
+                    StatTile("Overdue", money(d.balance.overdue_paise), Icons.Outlined.ErrorOutline, Red, Modifier.weight(1f))
+                    StatTile("Advance", money(d.balance.advance_paise), Icons.Outlined.Savings, Green, Modifier.weight(1f))
+                }
+                SectionHeader("Select fees to collect")
+                if (d.invoices.isEmpty()) InfoBanner("No pending dues. Any amount collected is kept as advance.", Green)
+                d.invoices.forEach { i ->
+                    val on = vm.selected[i.id] == true
+                    CnxCard(onClick = { vm.selected[i.id] = !on; amount = rupeesInput(vm.selectedTotal(d)) }, padding = 12.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(on, { vm.selected[i.id] = it; amount = rupeesInput(vm.selectedTotal(d)) }, colors = CheckboxDefaults.colors(checkedColor = Violet))
+                            Column(Modifier.weight(1f)) {
+                                Text(i.title, fontWeight = FontWeight.Bold, color = Ink)
+                                Text("Due ${prettyDate(i.due_date)}" + (if (i.status == "partial") " · partly paid" else "") + (if (i.days_overdue > 0) " · ${i.days_overdue} days overdue" else ""), color = if (i.days_overdue > 0) Red else Muted, fontSize = 12.sp)
+                            }
+                            Text(money(i.balance_paise), fontWeight = FontWeight.ExtraBold, color = Ink)
+                        }
                     }
                 }
-            }
-            OutlinedTextField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' } }, label = { Text("Amount received *") }, prefix = { Text("₹ ") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth(),
-                supportingText = {
+                CnxCard {
                     val a = ((amount.toDoubleOrNull() ?: 0.0) * 100).toLong()
                     val sel = vm.selectedTotal(d)
-                    Text(when { a == 0L -> ""; a < sel -> "Partial payment · ${money(sel - a)} stays pending"; a > d.balance.outstanding_paise -> "${money(a - d.balance.outstanding_paise)} kept as advance"; else -> "Full payment" })
-                })
-            Text("Payment method", fontWeight = FontWeight.Bold)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("cash" to "Cash", "upi" to "UPI", "bank_transfer" to "Bank", "cheque" to "Cheque", "card" to "Card", "other" to "Other").forEach { (k, l) ->
-                    FilterChip(selected = method == k, onClick = { method = k }, label = { Text(l) })
+                    CnxField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' } }, "Amount received *", keyboard = KeyboardType.Decimal, prefix = "₹ ",
+                        supporting = when { a == 0L -> null; a < sel -> "Partial payment · ${money(sel - a)} stays pending"; a > d.balance.outstanding_paise -> "${money(a - d.balance.outstanding_paise)} kept as advance"; else -> "Full payment" })
+                    Spacer(Modifier.height(10.dp))
+                    Text("Payment method", fontWeight = FontWeight.Bold, color = Ink)
+                    Spacer(Modifier.height(6.dp))
+                    ChoiceChips(payMethods, method) { method = it }
+                    if (method != "cash") { Spacer(Modifier.height(10.dp)); CnxField(ref, { ref = it }, if (method == "cheque") "Cheque number" else "Transaction / UTR number") }
+                    Spacer(Modifier.height(10.dp))
+                    DateField("Paid on", paidOn) { it?.let { v -> if (v <= today()) paidOn = v } }
+                    Spacer(Modifier.height(10.dp))
+                    CnxField(notes, { notes = it }, "Note (optional)", singleLine = false, minLines = 2)
                 }
             }
-            if (method != "cash") OutlinedTextField(ref, { ref = it }, label = { Text("Transaction / cheque no.") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Button(onClick = { vm.pay(amount, method, ref, d) }, enabled = !busy && (amount.toDoubleOrNull() ?: 0.0) > 0, modifier = Modifier.fillMaxWidth().height(54.dp)) {
-                if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White) else Text("Save & generate receipt", fontSize = 16.sp)
+            Surface(color = Color.White, shadowElevation = 12.dp) {
+                GradientButton("Collect & Generate Receipt", { vm.pay(amount, method, ref, paidOn, notes, d) }, Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
+                    enabled = (amount.toDoubleOrNull() ?: 0.0) > 0 && me.can("fees.collect"), loading = busy, icon = Icons.Outlined.ReceiptLong)
             }
         }
     }
-    result?.let { r ->
-        AlertDialog(onDismissRequest = { vm.result.value = null; vm.open(studentId) }, title = { Text("Payment saved ✅") },
+    val r = result
+    if (r != null && showDone) {
+        SuccessOverlay(true, "Payment saved", "${money(r.amount_paise)} · ${label(r.method)}") { showDone = false }
+    }
+    if (r != null && !showDone) {
+        AlertDialog(onDismissRequest = { vm.result.value = null; vm.open(studentId) }, containerColor = Color.White, shape = RoundedCornerShape(24.dp),
+            icon = { IconCircle(Icons.Outlined.CheckCircle, Green) },
+            title = { Text("Receipt ${r.receipt_no ?: ""}") },
             text = {
-                Column {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(money(r.amount_paise), fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Green)
-                    Text("${r.student_name} · ${label(r.method)}")
-                    Text("Receipt ${r.receipt_no}", fontWeight = FontWeight.Bold)
-                    Text("Balance: ${money(r.balance_after_paise)}", color = Muted)
-                    if (r.duplicate) Text("This payment was already saved — no duplicate created.", color = Amber)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = { scope.launch { runCatching { openFile(ctx, vm.receipt(r)) }.onFailure { snack.showSnackbar(it.message ?: "Download failed") } } }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Download, null); Text(" View / print PDF") }
-                    OutlinedButton(onClick = { scope.launch { runCatching { shareFile(ctx, vm.receipt(r), "Receipt ${r.receipt_no} – ${money(r.amount_paise)}") } } }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.Share, null); Text(" Share PDF") }
-                    Button(onClick = { scope.launch { runCatching { vm.whatsappLink(r.id)?.whatsapp_link?.let { openUrl(ctx, it) } } } }, colors = ButtonDefaults.buttonColors(containerColor = Green), modifier = Modifier.fillMaxWidth()) { Text("Send on WhatsApp") }
+                    Text("${r.student_name} · ${label(r.method)}", color = Ink)
+                    Text("Balance after payment: ${money(r.balance_after_paise)}", color = Muted)
+                    if (r.duplicate) InfoBanner("This payment was already saved – no duplicate was created.", Amber)
+                    SoftButton("View / print PDF", { scope.launch { runCatching { openFile(ctx, vm.receipt(r)) }.onFailure { snack.showSnackbar(it.message ?: "Download failed") } } }, Modifier.fillMaxWidth(), Icons.Outlined.PictureAsPdf)
+                    SoftButton("Share PDF", { scope.launch { runCatching { shareFile(ctx, vm.receipt(r), "Receipt ${r.receipt_no} – ${money(r.amount_paise)}") }.onFailure { snack.showSnackbar(it.message ?: "Download failed") } } }, Modifier.fillMaxWidth(), Icons.Outlined.Share)
+                    if (me.whatsapp_mode != "off") SoftButton("Send on WhatsApp", {
+                        if (me.whatsappManualOnly) wa.prepare(ManualPrepare(purpose = "receipt", payment_id = r.id, student_id = vm.studentId))
+                        else scope.launch { runCatching { vm.whatsappLink(r.id)?.whatsapp_link?.let { openUrl(ctx, it) } } }
+                    }, Modifier.fillMaxWidth(), Icons.Outlined.Chat, Green)
                 }
             },
             confirmButton = { TextButton(onClick = { vm.result.value = null; vm.open(studentId) }) { Text("Done") } })
@@ -337,84 +184,162 @@ fun CollectFeeScreen(initialStudent: Long, me: Me, snack: SnackbarHostState, nav
 @HiltViewModel
 class FeesVm @Inject constructor(private val repo: Repository) : LoadVm<List<Invoice>>() {
     var tab = "open"
-    init { refresh() }
-    fun refresh() = load { call { repo.api.invoices(tab) }.data ?: emptyList() }
+    var q = ""
+    private var job: Job? = null
+    val summary = MutableStateFlow<JsonObject?>(null)
+    fun start(t: Int) {
+        tab = if (t == 1) "overdue" else "open"
+        refresh()
+        viewModelScope.launch { summary.value = runCatching { call { repo.api.getJson("fees/summary") }.data as? JsonObject }.getOrNull() }
+    }
+    fun refresh() = load { call { repo.api.invoices(tab, perPage = 100, q = q.ifBlank { null }) }.data ?: emptyList() }
+    fun search(v: String) { q = v; job?.cancel(); job = viewModelScope.launch { delay(300); load(silent = true) { call { repo.api.invoices(tab, perPage = 100, q = q.ifBlank { null }) }.data ?: emptyList() } } }
     fun remindAll(onDone: (String) -> Unit) = viewModelScope.launch {
         onDone(try { call { repo.api.sendMessage(MessageRequest(target = "dues", overdue_only = 1, type = "fee_reminder", channels = listOf("whatsapp", "inapp", "push", "sms"), client_ref = UUID.randomUUID().toString())) }.message } catch (e: Exception) { errorText(e) })
     }
 }
 
 @Composable
-fun PendingFeesScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit, vm: FeesVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
+fun PendingFeesScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit, initialTab: Int = 0, vm: FeesVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
+    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
+    LaunchedEffect(Unit) { vm.start(tab) }
     val st by vm.state.collectAsState()
+    val sum by vm.summary.collectAsState()
     LaunchedEffect(Unit) { wa.messages.collect { snack.showSnackbar(it) } }
     WhatsAppSendDialog(wa, "Overdue fee reminders")
-    var tab by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     var confirm by remember { mutableStateOf(false) }
-    Column {
-        TabRow(tab) { listOf("Pending" to "open", "Overdue" to "overdue").forEachIndexed { i, (l, k) -> Tab(tab == i, { tab = i; vm.tab = k; vm.refresh() }, text = { Text(l) }) } }
-        if (me.has("manual_reminders") && me.can("notifications.send")) TextButton(onClick = { confirm = true }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Send reminder to all overdue") }
+    var q by remember { mutableStateOf("") }
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.padding(16.dp, 12.dp, 16.dp, 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            sum?.let { s ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("Pending", money(s.long("pending_paise")), Icons.Outlined.HourglassBottom, Amber, Modifier.weight(1f))
+                    StatTile("Overdue", money(s.long("overdue_paise")), Icons.Outlined.ErrorOutline, Red, Modifier.weight(1f))
+                    StatTile("Collected", money(s.long("collected_paise")), Icons.Outlined.Savings, Green, Modifier.weight(1f), "this month")
+                }
+            }
+            SegmentedTabs(listOf("Pending", "Overdue"), tab) { tab = it; vm.tab = if (it == 1) "overdue" else "open"; vm.refresh() }
+            SearchBox(q, { q = it; vm.search(it) }, "Search student")
+            if (me.has("manual_reminders") && me.can("notifications.send")) SoftButton("Send reminder to all overdue", { confirm = true }, Modifier.fillMaxWidth(), Icons.Outlined.NotificationsActive)
+        }
         LoadContent(st, vm::refresh) { list ->
-            if (list.isEmpty()) EmptyView("No pending fees 🎉")
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item { Text("Total: ${money(list.sumOf { it.balance_paise })} · ${list.size} invoice(s)", fontWeight = FontWeight.Bold) }
-                items(list) { i ->
-                    AppCard(onClick = { if (me.can("fees.collect")) nav("collect/${i.student_id}") }) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(i.student_name ?: "", fontWeight = FontWeight.Bold)
-                                Text(i.title, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("Due ${prettyDate(i.due_date)}" + if (i.days_overdue > 0) " · ${i.days_overdue} days overdue" else "", color = if (i.days_overdue > 0) Red else Muted, fontSize = 12.sp)
+            if (list.isEmpty()) EmptyState(if (tab == 1) "Nothing overdue 🎉" else "No pending fees 🎉", icon = Icons.Outlined.TaskAlt)
+            else LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Text("Total ${money(list.sumOf { it.balance_paise })} · ${list.size} invoice(s)", fontWeight = FontWeight.Bold, color = Ink) }
+                itemsIndexed(list, key = { _, i -> i.id }) { idx, i ->
+                    Entrance(idx) {
+                        PersonRow(i.student_name ?: "", "${i.title} · due ${prettyDate(i.due_date)}" + (if (i.days_overdue > 0) " · ${i.days_overdue} days overdue" else "") + (i.branch_name?.let { " · $it" } ?: ""),
+                            onClick = { if (me.can("fees.collect")) nav("collect/${i.student_id}") },
+                            trailing = {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(money(i.balance_paise), fontWeight = FontWeight.ExtraBold, color = Ink)
+                                    Pill(if (i.days_overdue > 0) "Overdue" else label(i.status), if (i.days_overdue > 0) Red else statusColor(i.status))
+                                }
+                            })
+                    }
+                }
+            }
+        }
+    }
+    if (confirm) ConfirmDialog("Send reminders?", "Every family with overdue fees gets a reminder with their own amount." + if (me.whatsappManualOnly) " WhatsApp messages are prepared for you to send." else "", "Send", onDismiss = { confirm = false }) {
+        confirm = false
+        vm.remindAll { m -> scope.launch { snack.showSnackbar(m) } }
+        if (me.whatsappManualOnly) wa.prepare(ManualPrepare(purpose = "fee_reminder", target = "dues", overdue_only = 1))
+    }
+}
+
+@HiltViewModel
+class PaymentsVm @Inject constructor(private val repo: Repository) : LoadVm<List<PaymentRow>>() {
+    var q = ""
+    private var job: Job? = null
+    init { refresh() }
+    fun refresh(silent: Boolean = false) = load(silent) { call { repo.api.payments(perPage = 100, q = q.ifBlank { null }) }.data ?: emptyList() }
+    fun search(v: String) { q = v; job?.cancel(); job = viewModelScope.launch { delay(300); refresh(true) } }
+    suspend fun receipt(p: PaymentRow) = repo.download("receipts/${p.receipt_id}/pdf?download=1", (p.receipt_no ?: "receipt").replace("/", "-") + ".pdf")
+    suspend fun whatsappLink(paymentId: Long) = call { repo.api.shareReceipt(paymentId, mapOf("channel" to "link")) }.data
+    fun reverse(p: PaymentRow, reason: String) = viewModelScope.launch {
+        try { val r = call { repo.api.postJson("payments/${p.id}/reverse", JsonObject(mapOf("reason" to JsonPrimitive(reason)))) }; say(r.message); refresh(true) } catch (e: Exception) { say(errorText(e)) }
+    }
+}
+
+@Composable
+fun PaymentsScreen(snack: SnackbarHostState, me: Me? = null, vm: PaymentsVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
+    val st by vm.state.collectAsState()
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var q by remember { mutableStateOf(vm.q) }
+    var open by remember { mutableStateOf<Long?>(null) }
+    var reverse by remember { mutableStateOf<PaymentRow?>(null) }
+    LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
+    LaunchedEffect(Unit) { wa.messages.collect { snack.showSnackbar(it) } }
+    WhatsAppSendDialog(wa, "Receipt")
+    Column(Modifier.fillMaxSize()) {
+        SearchBox(q, { q = it; vm.search(it) }, "Search receipt no. or student", Modifier.padding(16.dp, 12.dp, 16.dp, 4.dp))
+        LoadContent(st, { vm.refresh() }) { list ->
+            if (list.isEmpty()) EmptyState("No payments yet", "Payments you collect appear here with their receipts.", Icons.Outlined.ReceiptLong)
+            else LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                itemsIndexed(list, key = { _, p -> p.id }) { i, p ->
+                    Entrance(i) {
+                        CnxCard(Modifier.animateContentSize(), onClick = { open = if (open == p.id) null else p.id }, padding = 12.dp) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconCircle(Icons.Outlined.ReceiptLong, if (p.status == "success") Green else Red, 40.dp, 19.dp)
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(p.student_name ?: prettyDate(p.paid_on), fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${p.receipt_no ?: ""} · ${label(p.method)} · ${prettyDate(p.paid_on)}" + (p.branch_name?.let { " · $it" } ?: ""), color = Muted, fontSize = 12.sp, maxLines = 2)
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(money(p.amount_paise), fontWeight = FontWeight.ExtraBold, color = Ink, textDecoration = if (p.status == "reversed") TextDecoration.LineThrough else null)
+                                    if (p.status != "success") Pill(label(p.status), statusColor(p.status))
+                                }
                             }
-                            Text(money(i.balance_paise), fontWeight = FontWeight.ExtraBold)
+                            if (open == p.id) {
+                                HorizontalDivider(Modifier.padding(vertical = 10.dp), color = Line)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (p.receipt_id != null) {
+                                        SoftButton("PDF", { scope.launch { runCatching { openFile(ctx, vm.receipt(p)) }.onFailure { snack.showSnackbar(it.message ?: "Download failed") } } }, Modifier.weight(1f), Icons.Outlined.PictureAsPdf)
+                                        SoftButton("Share", { scope.launch { runCatching { shareFile(ctx, vm.receipt(p), "Receipt ${p.receipt_no} – ${money(p.amount_paise)}") }.onFailure { snack.showSnackbar(it.message ?: "Download failed") } } }, Modifier.weight(1f), Icons.Outlined.Share)
+                                    }
+                                    if (me?.whatsapp_mode != "off" && p.status == "success") SoftButton("WhatsApp", {
+                                        if (me?.whatsappManualOnly == true) wa.prepare(ManualPrepare(purpose = "receipt", payment_id = p.id))
+                                        else scope.launch { runCatching { vm.whatsappLink(p.id)?.whatsapp_link?.let { openUrl(ctx, it) } }.onFailure { snack.showSnackbar(it.message ?: "Could not share") } }
+                                    }, Modifier.weight(1f), Icons.Outlined.Chat, Green)
+                                }
+                                if (me != null && me.can("payments.reverse") && me.isClassAdmin && p.status == "success") {
+                                    Spacer(Modifier.height(8.dp))
+                                    SoftButton("Reverse payment", { reverse = p }, Modifier.fillMaxWidth(), Icons.Outlined.Undo, Red)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
-    if (confirm) AlertDialog(onDismissRequest = { confirm = false }, title = { Text("Send reminders?") }, text = { Text("Every family with overdue fees gets a reminder with their own amount.") },
-        confirmButton = { Button(onClick = {
-            confirm = false
-            vm.remindAll { m -> scope.launch { snack.showSnackbar(m) } }
-            // manual mode: one click-to-send WhatsApp message per family (bulk reminder preparation)
-            if (me.whatsappManualOnly) wa.prepare(`in`.classnex.app.data.net.ManualPrepare(purpose = "fee_reminder", target = "dues", overdue_only = 1))
-        }) { Text("Send") } },
-        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } })
+    reverse?.let { p ->
+        var reason by remember { mutableStateOf("") }
+        AlertDialog(onDismissRequest = { reverse = null }, containerColor = Color.White, shape = RoundedCornerShape(24.dp),
+            icon = { IconCircle(Icons.Outlined.WarningAmber, Red) },
+            title = { Text("Reverse ${money(p.amount_paise)}?") },
+            text = { Column { Text("The receipt is cancelled and the invoices become pending again. This is recorded in the audit log.", color = Muted); Spacer(Modifier.height(10.dp)); CnxField(reason, { reason = it }, "Reason *", singleLine = false, minLines = 2) } },
+            confirmButton = { Button(onClick = { vm.reverse(p, reason); reverse = null }, enabled = reason.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("Reverse") } },
+            dismissButton = { TextButton(onClick = { reverse = null }) { Text("Cancel") } })
+    }
 }
 
-@HiltViewModel
-class PaymentsVm @Inject constructor(private val repo: Repository) : LoadVm<List<PaymentRow>>() {
-    init { refresh() }
-    fun refresh() = load { call { repo.api.payments() }.data ?: emptyList() }
-    suspend fun receipt(p: PaymentRow) = repo.download("receipts/${p.receipt_id}/pdf?download=1", (p.receipt_no ?: "receipt").replace("/", "-") + ".pdf")
-}
-
+/** Kept for screens that only need a read-only list of payments (portal). */
 @Composable
-fun PaymentsScreen(snack: SnackbarHostState, vm: PaymentsVm = hiltViewModel()) {
-    val st by vm.state.collectAsState()
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    LoadContent(st, vm::refresh) { list -> PaymentList(list, ctx, onOpen = { p -> scope.launch { runCatching { openFile(ctx, vm.receipt(p)) }.onFailure { snack.showSnackbar(it.message ?: "Download failed") } } }) }
-}
-
-@Composable
-fun PaymentList(list: List<PaymentRow>, ctx: Context, onOpen: (PaymentRow) -> Unit) {
-    if (list.isEmpty()) EmptyView("No payments yet")
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(list) { p ->
-            AppCard(onClick = { if (p.receipt_id != null) onOpen(p) }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(p.student_name ?: prettyDate(p.paid_on), fontWeight = FontWeight.Bold)
-                        Text("${p.receipt_no ?: ""} · ${label(p.method)} · ${prettyDate(p.paid_on)}", color = Muted, fontSize = 12.sp)
-                    }
+fun PaymentList(list: List<PaymentRow>, ctx: android.content.Context, onOpen: (PaymentRow) -> Unit) {
+    if (list.isEmpty()) EmptyState("No payments yet", icon = Icons.Outlined.ReceiptLong)
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        itemsIndexed(list, key = { _, p -> p.id }) { i, p ->
+            Entrance(i) {
+                PersonRow(p.student_name ?: prettyDate(p.paid_on), "${p.receipt_no ?: ""} · ${label(p.method)} · ${prettyDate(p.paid_on)}", onClick = { if (p.receipt_id != null) onOpen(p) }, trailing = {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(money(p.amount_paise), fontWeight = FontWeight.ExtraBold, textDecoration = if (p.status == "reversed") TextDecoration.LineThrough else null)
-                        if (p.status != "success") StatusChip(p.status) else if (p.receipt_id != null) Icon(Icons.Outlined.Download, null, tint = Muted, modifier = Modifier.size(18.dp))
+                        Text(money(p.amount_paise), fontWeight = FontWeight.ExtraBold, color = Ink, textDecoration = if (p.status == "reversed") TextDecoration.LineThrough else null)
+                        if (p.status != "success") Pill(label(p.status), statusColor(p.status)) else if (p.receipt_id != null) Icon(Icons.Outlined.Download, null, tint = Muted, modifier = Modifier.size(18.dp))
                     }
-                }
+                })
             }
         }
     }
@@ -440,35 +365,55 @@ fun MessageScreen(me: Me, studentId: Long?, snack: SnackbarHostState, back: () -
     val st by vm.state.collectAsState()
     val busy by vm.busy.collectAsState()
     var target by remember { mutableStateOf(if (studentId != null) "students" else "batch") }
-    var batch by remember { mutableStateOf<Long?>(null) }
+    var batch by remember { mutableStateOf<String?>(null) }
     var type by remember { mutableStateOf("message") }
     var text by remember { mutableStateOf("") }
     val channels = remember { mutableStateMapOf<String, Boolean>().apply { listOf("whatsapp", "inapp", "push").filter { me.has(it) }.forEach { put(it, true) }; if (me.has("whatsapp_manual")) put("wa_manual", me.whatsappManualOnly) } }
     LaunchedEffect(Unit) { wa.messages.collect { snack.showSnackbar(it) } }
     WhatsAppSendDialog(wa, if (type == "fee_reminder") "Fee reminders" else "Message")
     LoadContent(st, {}) { batches ->
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (studentId == null) {
-                Text("Send to", fontWeight = FontWeight.Bold)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    buildList { add("batch" to "A batch"); if (me.role == "owner") add("all" to "Everyone"); if (me.has("fees")) add("dues" to "With pending fees") }.forEach { (k, l) -> FilterChip(target == k, { target = k }, label = { Text(l) }) }
+        Column(Modifier.fillMaxSize().imePadding()) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                when (me.whatsapp_mode) {
+                    "api" -> InfoBanner("WhatsApp is automatic (official WhatsApp Business API). Delivery status appears in the Message Log.", Green, Icons.Outlined.Verified)
+                    "manual" -> InfoBanner("WhatsApp is click-to-send: ClassNex prepares each message and you press send in WhatsApp.", Amber, Icons.Outlined.TouchApp)
+                    else -> InfoBanner("WhatsApp is not included in your plan. Messages go to the app inbox and notifications.", Muted, Icons.Outlined.Info)
                 }
-                if (target == "batch") Picker("Batch", batches.map { it.id to "${it.name} · ${it.activity_name}" }, batch, null) { batch = it }
+                CnxCard {
+                    if (studentId == null) {
+                        Text("Send to", fontWeight = FontWeight.Bold, color = Ink)
+                        Spacer(Modifier.height(6.dp))
+                        ChoiceChips(buildList { add("batch" to "A batch"); if (me.isClassAdmin) add("all" to "Everyone"); if (me.has("fees")) add("dues" to "With pending fees") }, target) { target = it }
+                        if (target == "batch") { Spacer(Modifier.height(10.dp)); SelectField("Batch", batches.map { it.id.toString() to "${it.name} · ${it.activity_name}" }, batch) { batch = it } }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    if (me.has("fees")) {
+                        SegmentedTabs(listOf("Message", "Fee reminder"), if (type == "message") 0 else 1) { type = if (it == 0) "message" else "fee_reminder" }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    if (type == "message") CnxField(text, { if (it.length <= 1000) text = it }, "Message", singleLine = false, minLines = 4, supporting = "${text.length}/1000")
+                    else Text("Each family receives a reminder with their own pending amount.", color = Muted)
+                }
+                CnxCard {
+                    Text("Send via", fontWeight = FontWeight.Bold, color = Ink)
+                    channels.keys.toList().forEach { c ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(when (c) { "inapp" -> "App inbox"; "whatsapp" -> "WhatsApp (automatic)"; "wa_manual" -> "WhatsApp – click to send"; "push" -> "Push notification"; else -> label(c) }, modifier = Modifier.weight(1f), color = Ink)
+                            Switch(channels[c] == true, { channels[c] = it }, colors = SwitchDefaults.colors(checkedTrackColor = Violet))
+                        }
+                    }
+                }
             }
-            if (me.has("fees")) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(type == "message", { type = "message" }, label = { Text("Message") })
-                FilterChip(type == "fee_reminder", { type = "fee_reminder" }, label = { Text("Fee reminder") })
+            Surface(color = Color.White, shadowElevation = 12.dp) {
+                GradientButton("Send", {
+                    val chosen = channels.filterValues { it }.keys.toList()
+                    val auto = chosen - "wa_manual"
+                    val bid = batch?.toLongOrNull()
+                    if ("wa_manual" in chosen) wa.prepare(ManualPrepare(purpose = if (type == "fee_reminder") "fee_reminder" else "custom", target = target, batch_id = bid, student_ids = listOfNotNull(studentId), message = text))
+                    if (auto.isNotEmpty()) vm.send(MessageRequest(target = target, batch_id = bid, student_ids = listOfNotNull(studentId), message = text, type = type, channels = auto, client_ref = UUID.randomUUID().toString())) { if ("wa_manual" !in chosen) back() }
+                }, Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), enabled = (type == "fee_reminder" || text.length >= 2) && (target != "batch" || studentId != null || batch != null) && channels.values.any { it },
+                    loading = busy, icon = Icons.AutoMirrored.Outlined.Send)
             }
-            if (type == "message") OutlinedTextField(text, { if (it.length <= 1000) text = it }, label = { Text("Message") }, minLines = 4, modifier = Modifier.fillMaxWidth(), supportingText = { Text("${text.length}/1000") })
-            else Text("Each family receives a reminder with their own pending amount.", color = Muted)
-            Text("Send via", fontWeight = FontWeight.Bold)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) { channels.keys.toList().forEach { c -> FilterChip(channels[c] == true, { channels[c] = !(channels[c] ?: false) }, label = { Text(when (c) { "inapp" -> "App inbox"; "whatsapp" -> "WhatsApp (automatic)"; "wa_manual" -> "WhatsApp – click to send"; else -> label(c) }) }) } }
-            Button(onClick = {
-                val chosen = channels.filterValues { it }.keys.toList()
-                val auto = chosen - "wa_manual"
-                if ("wa_manual" in chosen) wa.prepare(`in`.classnex.app.data.net.ManualPrepare(purpose = if (type == "fee_reminder") "fee_reminder" else "custom", target = target, batch_id = batch, student_ids = listOfNotNull(studentId), message = text))
-                if (auto.isNotEmpty()) vm.send(MessageRequest(target = target, batch_id = batch, student_ids = listOfNotNull(studentId), message = text, type = type, channels = auto, client_ref = UUID.randomUUID().toString())) { if ("wa_manual" !in chosen) back() }
-            }, enabled = !busy && (type == "fee_reminder" || text.length >= 2), modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Send") }
         }
     }
 }

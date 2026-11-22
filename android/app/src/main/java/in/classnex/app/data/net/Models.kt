@@ -133,7 +133,9 @@ data class ApiResponse<T>(
 
 @Serializable data class UpcomingDue(val id: Long, val student_id: Long, val student_name: String, val title: String, val due_date: String, val balance_paise: FLong)
 @Serializable data class TrendPoint(val month: String, val total: FLong)
-@Serializable data class TodayCounts(val present: FLong = 0, val absent: FLong = 0, val marked: FLong = 0)
+@Serializable data class TodayCounts(val present: FLong = 0, val absent: FLong = 0, val marked: FLong = 0, val late: FLong = 0, val leave: FLong = 0)
+@Serializable data class ScheduledMessage(val event_key: String? = null, val channel: String? = null, val recipient_name: String? = null, val subject: String? = null, val body: String? = null, val next_attempt_at: String? = null)
+@Serializable data class DashNotification(val id: Long = 0, val title: String = "", val body: String? = null, val created_at: String? = null)
 @Serializable data class TeacherClass(val id: Long, val name: String, val activity_name: String = "", val start_time: String? = null, val end_time: String? = null, val marked: FBool = false)
 @Serializable data class Dashboard(
     val role: String = "owner",
@@ -145,6 +147,9 @@ data class ApiResponse<T>(
     val todays_classes: List<TeacherClass> = emptyList(), val assigned_batches: FLong = 0, val total_students: FLong = 0, val attendance_pending: FLong = 0,
     // academy-wide student quota (all branches) and this month's branch figures
     val student_quota: Quota? = null, val branches: List<BranchFigures> = emptyList(),
+    // redesign: academy totals, branch filter, last month for the trend badge, scheduled reminders
+    val total_branches: FLong = 0, val total_activities: FLong = 0, val branch_id: Long? = null, val last_month_collection_paise: FLong = 0,
+    val scheduled_messages: List<ScheduledMessage> = emptyList(), val recent_notifications: List<DashNotification> = emptyList(), val subscription: SubState? = null,
 )
 @Serializable data class Quota(val active: FLong = 0, val limit: FLong? = null)
 @Serializable data class MessageRequest(val target: String, val batch_id: Long? = null, val student_ids: List<Long> = emptyList(), val message: String? = null, val title: String? = null, val type: String = "message", val channels: List<String>, val overdue_only: Int = 0, val client_ref: String, val send_at: String? = null)
@@ -157,6 +162,8 @@ data class ApiResponse<T>(
     val owner_name: String, val mobile: String, val academy_name: String, val password: String, val city: String? = null, val email: String? = null,
     val country_code: String = "+91", val accept_terms: Int = 1, val client: String = "android",
 )
+@Serializable data class RegStatusRequest(val identifier: String, val password: String)
+@Serializable data class RegStatus(val status: String = "", val academy_name: String = "", val registered_on: String? = null, val approved_on: String? = null, val reason: String? = null)
 @Serializable data class RegisterResult(val pending: FBool = false, val token: String? = null)
 @Serializable data class ChangePassword(val current_password: String, val new_password: String)
 
@@ -178,6 +185,7 @@ data class ApiResponse<T>(
 @Serializable data class AdminDashboard(
     val total_academies: FLong = 0, val total_students: FLong = 0, val active_subscriptions: FLong = 0, val trial_subscriptions: FLong = 0,
     val expired_subscriptions: FLong = 0, val monthly_revenue_paise: FLong = 0, val whatsapp_month: FLong = 0, val new_enquiries: FLong = 0, val open_tickets: FLong = 0,
+    val pending_registrations: FLong = 0, val total_owners: FLong = 0, val pending_subscription_payments: FLong = 0, val revenue_trend: List<TrendPoint> = emptyList(),
 )
 @Serializable data class OwnerRow(val academy_id: Long, val academy_name: String, val owner_name: String? = null, val mobile: String? = null, val package_name: String? = null, val sub_status: String? = null, val ends_on: String? = null, val students: FLong = 0, val student_limit: FLong? = null, val branches: FLong = 0)
 

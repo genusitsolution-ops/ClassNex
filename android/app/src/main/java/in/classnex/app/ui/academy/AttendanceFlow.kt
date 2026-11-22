@@ -1,0 +1,245 @@
+package `in`.classnex.app.ui.academy
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import `in`.classnex.app.data.ApiError
+import `in`.classnex.app.data.Repository
+import `in`.classnex.app.data.call
+import `in`.classnex.app.data.net.*
+import `in`.classnex.app.ui.common.*
+import `in`.classnex.app.ui.theme.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import java.time.LocalDate
+import javax.inject.Inject
+
+/*
+ * Mark Attendance: DATE (today by default) → BRANCH → ACTIVITY → BATCH, then the register.
+ * A new register starts with everyone Present; the user taps only the exceptions and presses Save.
+ * Nothing is saved until Save is pressed. An existing register for that date is loaded for editing.
+ * One register per batch per day (the database enforces it); several daily classes are separate batches.
+ */
+@HiltViewModel
+class MarkVm @Inject constructor(private val repo: Repository) : ViewModel() {
+    var date by mutableStateOf(LocalDate.now().toString())
+    var branch by mutableStateOf<Long?>(null)
+    var activity by mutableStateOf<Long?>(null)
+    var batch by mutableStateOf<Long?>(null)
+    val branches = MutableStateFlow<List<Branch>>(emptyList())
+    val activities = MutableStateFlow<List<Activity>>(emptyList())
+    val batches = MutableStateFlow<List<Batch>>(emptyList())
+    val sheet = MutableStateFlow<Load<AttSheet>?>(null)
+    val marks = mutableStateMapOf<Long, String>()
+    private var original: Map<Long, String> = emptyMap()
+    val saving = MutableStateFlow(false)
+    val saved = MutableStateFlow<String?>(null)
+    val absentToNotify = MutableStateFlow(0)
+    val messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    var reason by mutableStateOf("")
+    private var started = false
+
+    fun start(me: Me, initialBatch: Long) {
+        if (started) return
+        started = true
+        viewModelScope.launch {
+            if (me.isClassAdmin) branches.value = runCatching { call { repo.api.branches("active") }.data }.getOrNull() ?: emptyList()
+            activities.value = runCatching { call { repo.api.activities() }.data }.getOrNull() ?: emptyList()
+            batches.value = runCatching { call { repo.api.batches() }.data }.getOrNull() ?: emptyList()
+            if (initialBatch > 0) batches.value.firstOrNull { it.id == initialBatch }?.let { b -> branch = b.branch_id; activity = b.activity_id; choose(b.id) }
+            else if (batches.value.size == 1) choose(batches.value.first().id)
+        }
+    }
+
+    fun visibleBatches() = batches.value.filter { (branch == null || it.branch_id == branch) && (activity == null || it.activity_id == activity) }
+
+    fun setDate(d: String) {
+        if (d > LocalDate.now().toString()) { messages.tryEmit("Attendance cannot be marked for a future date."); return }
+        date = d
+        batch?.let { choose(it) }
+    }
+    fun setBranch(b: Long?) { branch = b; if (batch != null && visibleBatches().none { it.id == batch }) clearBatch() }
+    fun setActivity(a: Long?) { activity = a; if (batch != null && visibleBatches().none { it.id == batch }) clearBatch() }
+    private fun clearBatch() { batch = null; sheet.value = null; marks.clear() }
+
+    fun choose(id: Long) {
+        batch = id
+        sheet.value = Load.Loading
+        reason = ""
+        viewModelScope.launch {
+            sheet.value = try {
+                val s = call { repo.api.attendanceSheet(id, date) }.data!!
+                marks.clear()
+                s.students.forEach { st -> st.status?.let { marks[st.id] = it } }
+                original = marks.toMap()
+                // present by default: a new register starts with everyone present
+                if (!s.already_marked && s.holiday == null) s.students.forEach { st -> if (st.id !in marks) marks[st.id] = "present" }
+                Load.Ready(s)
+            } catch (e: Exception) { Load.Failed(e.message ?: "Could not load the register") }
+        }
+    }
+
+    fun all(status: String) { (sheet.value as? Load.Ready)?.data?.students?.forEach { marks[it.id] = status } }
+    fun changedCount() = marks.count { (k, v) -> original[k] != null && original[k] != v }
+
+    fun save(manualWhatsApp: Boolean) {
+        val b = batch ?: return
+        if (marks.isEmpty()) { messages.tryEmit("Mark at least one student."); return }
+        saving.value = true
+        viewModelScope.launch {
+            try {
+                val r = call { repo.api.saveAttendance(AttSave(b, date, marks.map { AttEntry(it.key, it.value) }, reason.ifBlank { null })) }
+                val d = r.data
+                absentToNotify.value = if (manualWhatsApp) marks.values.count { it == "absent" || it == "late" } else 0
+                saved.value = buildString {
+                    append(r.message.ifBlank { "Attendance saved." })
+                    if (d != null && d.changed > 0) append(" ${d.changed} change(s).")
+                    if ((d?.notifications ?: 0) > 0) append(" Parents notified: ${d?.notifications}.")
+                }
+                original = marks.toMap()
+            } catch (e: Exception) {
+                messages.tryEmit((e as? ApiError)?.let { it.fieldErrors.values.firstOrNull() ?: it.message } ?: (e.message ?: "Could not save"))
+            } finally { saving.value = false }
+        }
+    }
+}
+
+private val statuses = listOf(Triple("present", "P", Green), Triple("absent", "A", Red), Triple("late", "L", Amber), Triple("leave", "Lv", Violet))
+
+@Composable
+fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, nav: (String) -> Unit, vm: MarkVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
+    LaunchedEffect(Unit) { vm.start(me, initialBatch) }
+    LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
+    LaunchedEffect(Unit) { wa.messages.collect { snack.showSnackbar(it) } }
+    val branches by vm.branches.collectAsState()
+    val activities by vm.activities.collectAsState()
+    val batchesAll by vm.batches.collectAsState()
+    val sheet by vm.sheet.collectAsState()
+    val saving by vm.saving.collectAsState()
+    val saved by vm.saved.collectAsState()
+    val absentN by vm.absentToNotify.collectAsState()
+    val manualWa = me.whatsappManualOnly && me.can("notifications.send")
+    var askWa by remember { mutableStateOf(false) }
+    WhatsAppSendDialog(wa, "Attendance alerts")
+
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item {
+                    CnxCard {
+                        DateField("Date", vm.date) { it?.let(vm::setDate) }
+                        if (branches.isNotEmpty()) {
+                            Spacer(Modifier.height(10.dp))
+                            SelectField("Branch", listOf<Pair<String?, String>>(null to "All branches") + branches.map { it.id.toString() to it.name }, vm.branch?.toString(), icon = Icons.Outlined.Store) { vm.setBranch(it?.toLongOrNull()) }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        SelectField("Activity", listOf<Pair<String?, String>>(null to "All activities") + activities.map { it.id.toString() to it.name }, vm.activity?.toString(), icon = Icons.Outlined.Interests) { vm.setActivity(it?.toLongOrNull()) }
+                        Spacer(Modifier.height(10.dp))
+                        val vis = remember(batchesAll, vm.branch, vm.activity) { vm.visibleBatches() }
+                        SelectField("Batch", vis.map { it.id.toString() to "${it.name} · ${it.activity_name}" + (it.start_time?.let { t -> " · " + prettyTime(t) } ?: "") }, vm.batch?.toString(), icon = Icons.Outlined.Groups) { it?.toLongOrNull()?.let(vm::choose) }
+                        if (batchesAll.isNotEmpty() && vis.isEmpty()) Text("No batch matches this branch and activity.", color = Amber, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
+                }
+                when (val s = sheet) {
+                    null -> item { EmptyState("Choose a batch", "Pick the date, branch, activity and batch to open the register.", Icons.Outlined.HowToReg) }
+                    Load.Loading -> item { SkeletonList(4, Modifier.height(360.dp)) }
+                    is Load.Failed -> item { ErrorView(s.message) { vm.batch?.let(vm::choose) } }
+                    is Load.Ready -> {
+                        val sh = s.data
+                        item {
+                            when {
+                                sh.holiday != null -> InfoBanner("Holiday: ${sh.holiday}. You can still save if the class took place.", Violet, Icons.Outlined.BeachAccess)
+                                sh.already_marked -> InfoBanner("Already marked for ${prettyDate(sh.date)}. Changes are saved as corrections.", Blue, Icons.Outlined.EditCalendar)
+                                else -> InfoBanner("All students are marked Present by default. Tap only absent, late or on-leave students.", Green, Icons.Outlined.CheckCircle)
+                            }
+                        }
+                        item {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                SoftButton("All Present", { vm.all("present") }, Modifier.weight(1f), Icons.Outlined.DoneAll, Green)
+                                SoftButton("All Absent", { vm.all("absent") }, Modifier.weight(1f), Icons.Outlined.RemoveDone, Red)
+                            }
+                        }
+                        if (sh.students.isEmpty()) item { EmptyState("No students in this batch on this date", icon = Icons.Outlined.Group) }
+                        itemsIndexed(sh.students, key = { _, st -> st.id }) { i, st ->
+                            Entrance(i) {
+                                CnxCard(padding = 10.dp) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Avatar(st.photo_url, st.name, 38)
+                                        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                            Text(st.name, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            Text(st.student_code, color = Muted, fontSize = 11.sp, maxLines = 1)
+                                        }
+                                        statuses.forEach { (k, l, c) ->
+                                            val on = vm.marks[st.id] == k
+                                            Surface(onClick = { vm.marks[st.id] = k }, shape = RoundedCornerShape(12.dp), color = if (on) c else Color.White,
+                                                border = BorderStroke(1.5.dp, if (on) c else Line), modifier = Modifier.padding(start = 4.dp).size(38.dp, 38.dp)) {
+                                                Box(contentAlignment = Alignment.Center) { Text(l, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = if (on) Color.White else Muted) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (sh.already_marked) item { CnxField(vm.reason, { vm.reason = it }, "Reason for correction (optional)") }
+                    }
+                }
+            }
+            val ready = (sheet as? Load.Ready)?.data
+            if (ready != null && ready.students.isNotEmpty()) {
+                Surface(color = Color.White, shadowElevation = 12.dp, shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)) {
+                    Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp, 12.dp)) {
+                        val c = vm.marks.values.groupingBy { it }.eachCount()
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            CountBox("Present", c["present"] ?: 0, Green); CountBox("Absent", c["absent"] ?: 0, Red)
+                            CountBox("Late", c["late"] ?: 0, Amber); CountBox("Leave", c["leave"] ?: 0, Violet)
+                            CountBox("Total", ready.students.size, Ink)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        GradientButton(if (ready.already_marked) "Save Changes" else "Save Attendance", { vm.save(manualWa) }, Modifier.fillMaxWidth(), loading = saving, icon = Icons.Outlined.Save,
+                            enabled = me.can("attendance.mark"))
+                    }
+                }
+            }
+        }
+        SuccessOverlay(saved != null, "Attendance saved", saved) {
+            vm.saved.value = null
+            if (absentN > 0) askWa = true
+        }
+    }
+    if (askWa) AlertDialog(
+        onDismissRequest = { askWa = false }, containerColor = Color.White, shape = RoundedCornerShape(24.dp),
+        icon = { IconCircle(Icons.Outlined.Chat, Green) },
+        title = { Text("Message parents on WhatsApp?") },
+        text = { Text("$absentN student(s) are absent or late. Prepare WhatsApp messages for their parents? You send each one from WhatsApp.", color = Muted) },
+        confirmButton = { Button(onClick = { askWa = false; vm.batch?.let { wa.prepare(ManualPrepare(purpose = "attendance", batch_id = it, date = vm.date)) } }, colors = ButtonDefaults.buttonColors(containerColor = Green)) { Text("Prepare") } },
+        dismissButton = { TextButton(onClick = { askWa = false }) { Text("Skip") } },
+    )
+}
+
+@Composable
+private fun CountBox(label: String, n: Int, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("$n", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = color)
+        Text(label, fontSize = 11.sp, color = Muted)
+    }
+}

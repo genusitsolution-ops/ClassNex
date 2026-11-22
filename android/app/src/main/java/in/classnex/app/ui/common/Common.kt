@@ -51,13 +51,13 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import `in`.classnex.app.data.ApiError
-import `in`.classnex.app.ui.theme.Amber
-import `in`.classnex.app.ui.theme.Blue
-import `in`.classnex.app.ui.theme.Green
-import `in`.classnex.app.ui.theme.Muted
-import `in`.classnex.app.ui.theme.Purple
-import `in`.classnex.app.ui.theme.Red
 import coil.compose.AsyncImage
+import `in`.classnex.app.ui.theme.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -103,97 +103,71 @@ abstract class LoadVm<T> : ViewModel() {
 
 @Composable
 fun <T> LoadContent(state: Load<T>, onRetry: () -> Unit, content: @Composable (T) -> Unit) {
-    when (state) {
-        Load.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        is Load.Failed -> ErrorView(state.message, onRetry)
-        is Load.Ready -> content(state.data)
+    // skeleton while loading, friendly error with retry, then the content fades in
+    androidx.compose.animation.Crossfade(state is Load.Loading, label = "load") { loading ->
+        if (loading) SkeletonList()
+        else when (state) {
+            is Load.Failed -> ErrorView(state.message, onRetry)
+            is Load.Ready -> content(state.data)
+            else -> SkeletonList()
+        }
     }
 }
 
 @Composable
 fun ErrorView(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Outlined.CloudOff, null, Modifier.size(56.dp), tint = Muted)
-        Spacer(Modifier.height(12.dp))
+        IconCircle(Icons.Outlined.CloudOff, Red, 72.dp, 34.dp)
+        Spacer(Modifier.height(14.dp))
         Text(message, textAlign = TextAlign.Center, color = Muted)
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = onRetry) { Text("Try again") }
+        Spacer(Modifier.height(18.dp))
+        GradientButton("Try again", onRetry, Modifier.widthIn(min = 180.dp), icon = Icons.Outlined.Refresh)
     }
 }
 
 @Composable
-fun EmptyView(text: String, icon: ImageVector = Icons.Outlined.Inbox) {
-    Column(Modifier.fillMaxWidth().padding(40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, Modifier.size(48.dp), tint = Color(0xFFC3C9D9))
-        Spacer(Modifier.height(8.dp))
-        Text(text, color = Muted, textAlign = TextAlign.Center)
-    }
-}
+fun EmptyView(text: String, icon: ImageVector = Icons.Outlined.Inbox) = EmptyState(text, icon = icon)
 
 @Composable
 fun AppCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
-    val m = modifier.fillMaxWidth()
-    if (onClick != null) {
-        Card(onClick = onClick, modifier = m, colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(1.dp), shape = RoundedCornerShape(16.dp)) { Box(Modifier.padding(16.dp)) { content() } }
-    } else {
-        Card(modifier = m, colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(1.dp), shape = RoundedCornerShape(16.dp)) { Box(Modifier.padding(16.dp)) { content() } }
-    }
+    CnxCard(modifier, onClick) { content() }
 }
 
 @Composable
 fun StatCard(title: String, value: String, icon: ImageVector, tint: Color, modifier: Modifier = Modifier, sub: String? = null, onClick: (() -> Unit)? = null) {
-    AppCard(modifier, onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = .12f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = tint) }
-            Spacer(Modifier.padding(start = 12.dp))
-            Column {
-                Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, maxLines = 1)
-                Text(title, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (sub != null) Text(sub, fontSize = 11.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
+    StatTile(title, value, icon, tint, modifier, sub, onClick)
 }
 
 @Composable
 fun QuickAction(text: String, icon: ImageVector, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = modifier, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(1.dp)) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(tint.copy(alpha = .12f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = tint) }
-            Spacer(Modifier.height(6.dp))
-            Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp, textAlign = TextAlign.Center, maxLines = 1)
+    Column(modifier.clip(RoundedCornerShape(16.dp)).pressable(onClick).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Line, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+            IconCircle(icon, tint, 40.dp, 21.dp)
         }
+        Spacer(Modifier.height(6.dp))
+        Text(text, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, textAlign = TextAlign.Center, maxLines = 2, color = Ink, lineHeight = 14.sp)
     }
 }
 
 @Composable
-fun StatusChip(status: String, text: String? = null) {
-    val c = when (status) {
-        "active", "paid", "success", "present", "sent", "delivered", "read", "approved" -> Green
-        "partial", "pending", "late", "grace", "trial" -> Amber
-        "unpaid", "failed", "absent", "expired", "reversed", "overdue", "suspended" -> Red
-        "leave", "holiday" -> Purple
-        else -> Muted
-    }
-    Surface(color = c.copy(alpha = .12f), shape = RoundedCornerShape(8.dp)) {
-        Text(text ?: label(status), color = c, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-    }
-}
+fun StatusChip(status: String, text: String? = null) = Pill(text ?: label(status), statusColor(status))
 
 @Composable
 fun Avatar(url: String?, name: String, size: Int = 42) {
     if (url != null) {
-        AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size.dp).clip(CircleShape).background(Color(0xFFEEF1F6)))
+        AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size.dp).clip(CircleShape).background(VioletSoft))
     } else {
-        Box(Modifier.size(size.dp).clip(CircleShape).background(Blue), contentAlignment = Alignment.Center) {
-            Text(name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
+        val palette = listOf(listOf(Color(0xFF7C4DFF), Color(0xFF4F2BD8)), listOf(Color(0xFF3B82F6), Color(0xFF2563EB)), listOf(Color(0xFFEC4899), Color(0xFFBE185D)), listOf(Color(0xFF14B8A6), Color(0xFF0F766E)), listOf(Color(0xFFF59E0B), Color(0xFFD97706)))
+        val g = palette[(name.firstOrNull()?.code ?: 0) % palette.size]
+        Box(Modifier.size(size.dp).clip(CircleShape).background(Brush.linearGradient(g)), contentAlignment = Alignment.Center) {
+            Text(name.split(' ').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1) }.uppercase().ifBlank { "?" }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size / 2.8).sp)
         }
     }
 }
 
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(text, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, modifier = modifier.padding(top = 8.dp, bottom = 6.dp))
+    Text(text, style = MaterialTheme.typography.titleMedium, color = Ink, modifier = modifier.padding(top = 8.dp, bottom = 6.dp))
 }
 
 @Composable
@@ -244,8 +218,9 @@ fun mimeFor(format: String): String = when (format) {
 fun OptionPicker(label: String, options: List<Pair<String?, String>>, selected: String?, modifier: Modifier = Modifier, onSelect: (String?) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box(modifier) {
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(options.firstOrNull { it.first == selected }?.second ?: label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+            Text(options.firstOrNull { it.first == selected }?.second ?: label, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Ink, modifier = Modifier.weight(1f))
+            Icon(Icons.Outlined.KeyboardArrowDown, null, tint = Muted)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { (v, t) -> DropdownMenuItem(text = { Text(t) }, onClick = { open = false; onSelect(v) }) }

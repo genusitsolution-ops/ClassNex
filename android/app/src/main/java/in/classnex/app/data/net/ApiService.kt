@@ -13,6 +13,10 @@ import retrofit2.http.Part
 import retrofit2.http.PartMap
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.DELETE
+import retrofit2.http.Url
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 /** The same REST API v1 used by the web panels. */
 interface ApiService {
@@ -21,6 +25,7 @@ interface ApiService {
     @GET("auth/me") suspend fun me(): ApiResponse<Me>
     @POST("auth/logout") suspend fun logout(@Body body: Map<String, String>): ApiResponse<Unit?>
     @POST("public/register-owner") suspend fun registerAcademy(@Body body: RegisterAcademy): ApiResponse<RegisterResult>
+    @POST("public/registration-status") suspend fun registrationStatus(@Body body: RegStatusRequest): ApiResponse<RegStatus>
     @POST("auth/forgot-password") suspend fun forgot(@Body body: ForgotRequest): ApiResponse<Unit?>
     @POST("auth/change-password") suspend fun changePassword(@Body body: ChangePassword): ApiResponse<Unit?>
     @POST("devices") suspend fun registerDevice(@Body body: DeviceRequest): ApiResponse<Unit?>
@@ -28,7 +33,7 @@ interface ApiService {
     @POST("notifications/read") suspend fun markRead(@Body body: ReadRequest): ApiResponse<Unit?>
 
     // academy (owner / teacher)
-    @GET("dashboard") suspend fun dashboard(): ApiResponse<Dashboard>
+    @GET("dashboard") suspend fun dashboard(@Query("branch_id") branchId: Long? = null): ApiResponse<Dashboard>
     @GET("activities") suspend fun activities(@Query("status") status: String = "active"): ApiResponse<List<Activity>>
     @GET("batches") suspend fun batches(@Query("status") status: String = "active"): ApiResponse<List<Batch>>
     @GET("students") suspend fun students(@Query("q") q: String?, @Query("page") page: Int = 1, @Query("per_page") perPage: Int = 50, @Query("dues") dues: String? = null, @Query("branch_id") branchId: String? = null, @Query("not_branch_id") notBranchId: Long? = null): ApiResponse<List<StudentRow>>
@@ -78,5 +83,12 @@ interface ApiService {
     // WhatsApp click-to-send (manual mode) – the user sends from WhatsApp; history is kept on the server
     @POST("whatsapp/manual/prepare") suspend fun waPrepare(@Body body: ManualPrepare): ApiResponse<ManualBatch>
     @POST("whatsapp/manual/{id}/opened") suspend fun waOpened(@Path("id") id: Long, @Body body: Map<String, String> = emptyMap()): ApiResponse<Unit?>
+    // generic JSON access for the configurable module screens (activities, batches, teachers, fee plans, …)
+    @GET suspend fun getJson(@Url url: String, @QueryMap query: Map<String, String> = emptyMap()): ApiResponse<JsonElement>
+    @POST suspend fun postJson(@Url url: String, @Body body: JsonObject = JsonObject(emptyMap())): ApiResponse<JsonElement>
+    @PUT suspend fun putJson(@Url url: String, @Body body: JsonObject): ApiResponse<JsonElement>
+    @DELETE suspend fun deleteJson(@Url url: String): ApiResponse<JsonElement>
+    @Multipart @POST suspend fun postMultipart(@Url url: String, @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>, @Part file: MultipartBody.Part?): ApiResponse<JsonElement>
+
     @GET("whatsapp/manual/log") suspend fun waLog(@Query("page") page: Int = 1, @Query("per_page") perPage: Int = 50, @Query("purpose") purpose: String? = null): ApiResponse<List<ManualLogRow>>
 }

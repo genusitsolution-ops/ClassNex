@@ -3,7 +3,9 @@ package `in`.classnex.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,11 +38,25 @@ class MainActivity : ComponentActivity() {
                 val ui by auth.ui.collectAsState()
                 var onboarded by remember { mutableStateOf(auth.onboarded) }
                 LaunchedEffect(Unit) { events.expired.collect { auth.expired() } }
-                when {
-                    ui.checking -> SplashScreen()
-                    ui.me != null -> HomeScaffold(ui.me!!, onLogout = auth::logout)
-                    !onboarded -> OnboardingScreen { auth.finishOnboarding(); onboarded = true }
-                    else -> LoginScreen(auth)
+                // light status-bar icons over the indigo app bar; dark icons on the light login / splash pages
+                val loggedIn = ui.me != null
+                LaunchedEffect(loggedIn) {
+                    if (loggedIn) enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT), navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT))
+                    else enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT), navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT))
+                }
+                val screen = when {
+                    ui.checking -> "splash"
+                    ui.me != null -> "home"
+                    !onboarded -> "onboarding"
+                    else -> "login"
+                }
+                Crossfade(screen, label = "root") { s ->
+                    when (s) {
+                        "splash" -> SplashScreen()
+                        "home" -> ui.me?.let { HomeScaffold(it, onLogout = auth::logout) }
+                        "onboarding" -> OnboardingScreen { auth.finishOnboarding(); onboarded = true }
+                        else -> LoginScreen(auth)
+                    }
                 }
             }
         }
