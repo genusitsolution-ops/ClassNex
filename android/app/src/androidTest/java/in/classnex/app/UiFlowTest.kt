@@ -240,8 +240,8 @@ class UiFlowTest {
     @Test fun d_parentJourney() {
         step("login as parent") { login("9845200001", "Parent@123"); compose.waitUntil(25_000) { has("Meera") || has("Kabir") } }
         step("parent home") { shot("34_parent_home") }
-        step("parent attendance") { tab("Attendance"); compose.waitForIdle(); shot("35_parent_attendance") }
-        step("parent fees") { tab("Fees"); compose.waitForIdle(); shot("36_parent_fees") }
+        step("parent attendance") { tab("Attendance"); compose.waitUntil(25_000) { has("Present") }; shot("35_parent_attendance") }
+        step("parent fees") { tab("Fees"); compose.waitUntil(25_000) { has("₹") }; shot("36_parent_fees") }
         step("parent menu") { openDrawer(); shot("37_parent_drawer"); back() }
         assertTrue("$failures parent step(s) failed – see CNXUI log", failures == 0)
     }
