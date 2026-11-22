@@ -73,13 +73,13 @@ class MarkVm @Inject constructor(private val repo: Repository) : ViewModel() {
 
     fun visibleBatches() = batches.value.filter { (branch == null || it.branch_id == branch) && (activity == null || it.activity_id == activity) }
 
-    fun setDate(d: String) {
+    fun pickDate(d: String) {
         if (d > LocalDate.now().toString()) { messages.tryEmit("Attendance cannot be marked for a future date."); return }
         date = d
         batch?.let { choose(it) }
     }
-    fun setBranch(b: Long?) { branch = b; if (batch != null && visibleBatches().none { it.id == batch }) clearBatch() }
-    fun setActivity(a: Long?) { activity = a; if (batch != null && visibleBatches().none { it.id == batch }) clearBatch() }
+    fun pickBranch(b: Long?) { branch = b; if (batch != null && visibleBatches().none { it.id == batch }) clearBatch() }
+    fun pickActivity(a: Long?) { activity = a; if (batch != null && visibleBatches().none { it.id == batch }) clearBatch() }
     private fun clearBatch() { batch = null; sheet.value = null; marks.clear() }
 
     fun choose(id: Long) {
@@ -147,13 +147,13 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
                     CnxCard {
-                        DateField("Date", vm.date) { it?.let(vm::setDate) }
+                        DateField("Date", vm.date) { it?.let(vm::pickDate) }
                         if (branches.isNotEmpty()) {
                             Spacer(Modifier.height(10.dp))
-                            SelectField("Branch", listOf<Pair<String?, String>>(null to "All branches") + branches.map { it.id.toString() to it.name }, vm.branch?.toString(), icon = Icons.Outlined.Store) { vm.setBranch(it?.toLongOrNull()) }
+                            SelectField("Branch", listOf<Pair<String?, String>>(null to "All branches") + branches.map { it.id.toString() to it.name }, vm.branch?.toString(), icon = Icons.Outlined.Store) { vm.pickBranch(it?.toLongOrNull()) }
                         }
                         Spacer(Modifier.height(10.dp))
-                        SelectField("Activity", listOf<Pair<String?, String>>(null to "All activities") + activities.map { it.id.toString() to it.name }, vm.activity?.toString(), icon = Icons.Outlined.Interests) { vm.setActivity(it?.toLongOrNull()) }
+                        SelectField("Activity", listOf<Pair<String?, String>>(null to "All activities") + activities.map { it.id.toString() to it.name }, vm.activity?.toString(), icon = Icons.Outlined.Interests) { vm.pickActivity(it?.toLongOrNull()) }
                         Spacer(Modifier.height(10.dp))
                         val vis = remember(batchesAll, vm.branch, vm.activity) { vm.visibleBatches() }
                         SelectField("Batch", vis.map { it.id.toString() to "${it.name} · ${it.activity_name}" + (it.start_time?.let { t -> " · " + prettyTime(t) } ?: "") }, vm.batch?.toString(), icon = Icons.Outlined.Groups) { it?.toLongOrNull()?.let(vm::choose) }
