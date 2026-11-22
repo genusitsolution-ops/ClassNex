@@ -14,6 +14,10 @@ import org.junit.Rule
 import org.junit.FixMethodOrder
 import org.junit.Test
 import org.junit.runners.MethodSorters
+import org.junit.rules.Timeout
+import dagger.hilt.android.EntryPointAccessors
+import `in`.classnex.app.di.SessionEntryPoint
+import java.util.concurrent.TimeUnit
 import org.junit.runner.RunWith
 import java.io.FileInputStream
 
@@ -26,15 +30,17 @@ import java.io.FileInputStream
 @RunWith(AndroidJUnit4::class)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class UiFlowTest {
-    @get:Rule val compose = createEmptyComposeRule()
+    @get:Rule(order = 0) val compose = createEmptyComposeRule()
+    /** A stuck journey fails after 9 minutes instead of blocking the whole run. */
+    @get:Rule(order = 1) val timeout: Timeout = Timeout(9, TimeUnit.MINUTES)
+
     private var scenario: ActivityScenario<MainActivity>? = null
     private val inst get() = InstrumentationRegistry.getInstrumentation()
     private var failures = 0
 
     @Before fun reset() {
-        val ctx = inst.targetContext
-        ctx.deleteSharedPreferences("classnex_secure")
-        ctx.deleteSharedPreferences("classnex_fallback")
+        // log out through the app's own session store (the singleton keeps prefs in memory)
+        EntryPointAccessors.fromApplication(inst.targetContext.applicationContext, SessionEntryPoint::class.java).store().clear()
         shell("mkdir -p /data/local/tmp/cnx")
         failures = 0
     }
@@ -53,12 +59,14 @@ class UiFlowTest {
     }
 
     private fun step(name: String, block: () -> Unit) {
+        val t0 = System.currentTimeMillis()
+        Log.i("CNXUI", "START $name")
         try {
             block()
-            Log.i("CNXUI", "PASS $name")
+            Log.i("CNXUI", "PASS $name (${System.currentTimeMillis() - t0} ms)")
         } catch (t: Throwable) {
             failures++
-            Log.i("CNXUI", "FAIL $name: ${t.javaClass.simpleName}: ${t.message?.lineSequence()?.firstOrNull()?.take(200)}")
+            Log.i("CNXUI", "FAIL $name (${System.currentTimeMillis() - t0} ms): ${t.javaClass.simpleName}: ${t.message?.lineSequence()?.firstOrNull()?.take(200)}")
             runCatching { shot("FAIL_" + name.replace(Regex("[^A-Za-z0-9]+"), "_"), idle = false) }
         }
     }
@@ -115,6 +123,7 @@ class UiFlowTest {
 
     // ------------------------------------------------------------------ journeys
     @Test fun a_authScreens() {
+        EntryPointAccessors.fromApplication(inst.targetContext.applicationContext, SessionEntryPoint::class.java).store().onboarded = false
         launch()
         step("onboarding pages") {
             waitText("Add students in seconds"); shot("01_onboarding_1")

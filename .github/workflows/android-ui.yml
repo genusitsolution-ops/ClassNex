@@ -15,7 +15,7 @@ permissions:
 jobs:
   ui:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 90
     services:
       mysql:
         image: mysql:8.0
@@ -87,8 +87,9 @@ jobs:
           working-directory: android
           script: |
             adb logcat -c || true
-            ./gradlew --no-daemon connectedDebugAndroidTest -PclassnexApiUrl=http://10.0.2.2:8081/api/v1/ || touch /tmp/ui_failed
+            timeout 2700 ./gradlew --no-daemon connectedDebugAndroidTest -PclassnexApiUrl=http://10.0.2.2:8081/api/v1/ || touch /tmp/ui_failed
             adb logcat -d -s CNXUI:I > /tmp/ui-steps.txt || true
+            adb logcat -d -t 400 '*:E' > /tmp/ui-errors.txt || true
             adb pull /data/local/tmp/cnx /tmp/screens || true
 
       - name: Step results
@@ -96,6 +97,7 @@ jobs:
         run: |
           mkdir -p /tmp/screens
           cp /tmp/ui-steps.txt /tmp/screens/ui-steps.txt 2>/dev/null || true
+          cp /tmp/ui-errors.txt /tmp/screens/ui-errors.txt 2>/dev/null || true
           echo "## Android UI steps" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^.*CNXUI: //' /tmp/ui-steps.txt | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY" || true
           ls /tmp/screens | head -100
@@ -121,7 +123,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          [ -d /tmp/screens ] || exit 0
+          [ -n "$(ls -A /tmp/screens 2>/dev/null)" ] || exit 0
           (cd /tmp/screens && zip -q -r /tmp/ClassNex-Android-Screenshots.zip .)
           gh release view android-screenshots >/dev/null 2>&1 || gh release create android-screenshots --prerelease --title "ClassNex Android – screenshots" --notes "Screenshots from the emulator UI test run." --target "$GITHUB_SHA"
           gh release edit android-screenshots --notes "Emulator UI test run from commit ${GITHUB_SHA::7} on $(date -u +'%Y-%m-%d %H:%M UTC'). ui-steps.txt lists every step with PASS/FAIL."
