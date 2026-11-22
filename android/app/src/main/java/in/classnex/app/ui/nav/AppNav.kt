@@ -251,7 +251,7 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
                     val spec = remember(key) { moduleFor(key, me)?.form ?: formFor(key, me, it.arguments!!.getLong("parent")) }
                     val row = remember(key, id) { if (id > 0) FormBus.row?.takeIf { r -> r.id() == id } else null }
                     if (spec == null || (id > 0 && row == null)) LaunchedEffect(Unit) { nav.popBackStack() }
-                    else FormScreen(key, spec, row, snack) { m -> nav.popBackStack(); showMsg(m) }
+                    else FormScreen(key, spec, row, snack, onDone = { m -> nav.popBackStack(); showMsg(m) })
                 }
                 composable("batchStudents/{id}", listOf(navArgument("id") { type = NavType.LongType })) { BatchStudentsScreen(it.arguments!!.getLong("id"), go) }
                 composable("ticket/{id}", listOf(navArgument("id") { type = NavType.LongType })) { TicketScreen(it.arguments!!.getLong("id"), me, snack) }
