@@ -199,8 +199,8 @@ class UiFlowTest {
         }
         step("fees – pending and overdue") {
             compose.waitForIdle()
-            tab("Fees"); waitText("Pending"); shot("12_fees_pending")
-            click("Overdue"); shot("12b_fees_overdue")
+            tab("Fees"); waitText("invoice(s)"); shot("12_fees_pending")
+            click("Overdue"); compose.waitUntil(25_000) { has("invoice(s)") || has("Nothing overdue") }; shot("12b_fees_overdue")
         }
         step("collect fee") {
             menu("collect/0"); waitText("Choose the student"); click("Dancer 1"); waitText("Collect & Generate Receipt"); shot("13_collect_fee")
@@ -221,7 +221,7 @@ class UiFlowTest {
         }
         step("fee structure") { menu("module/feePlans"); waitText("Kathak monthly fee"); shot("20_fee_structure"); back() }
         step("discounts") { menu("module/discounts"); waitText("Sibling discount"); shot("20b_discounts"); back() }
-        step("timetable") { menu("timetable"); waitText("Mon"); shot("21_timetable"); back() }
+        step("timetable") { menu("timetable"); compose.waitUntil(25_000) { has("North Kathak") || has("No classes on this day") }; shot("21_timetable"); back() }
         step("attendance history") { menu("history"); waitText("Present"); shot("22_attendance_history"); back() }
         step("announcements") { menu("module/announcements"); waitText("Annual day rehearsal"); shot("23_announcements"); back() }
         step("whatsapp reminders") { menu("message"); waitText("Send via"); shot("24_whatsapp_reminders"); back() }
