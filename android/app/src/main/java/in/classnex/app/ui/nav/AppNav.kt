@@ -173,6 +173,11 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
         nav.navigate(r) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
     }
     val currentReal = currentRoute(entry)
+    // close the keyboard when the user arrives (after login) and whenever the screen changes
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(pattern) { keyboard?.hide() }
+    // system back closes the drawer first
+    androidx.activity.compose.BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
 
     ModalNavigationDrawer(
         drawerState = drawer,

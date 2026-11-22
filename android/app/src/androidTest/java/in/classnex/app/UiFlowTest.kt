@@ -87,6 +87,8 @@ class UiFlowTest {
         compose.onNode(hasText(label) and hasSetTextAction()).performTextReplacement(value)
     }
 
+    private fun pressButton(text: String) { hideKeyboard(); click(text) }
+
     private fun swipeUp() = compose.onAllNodes(isRoot())[0].performTouchInput { swipeUp(startY = bottom * .8f, endY = top + bottom * .25f) }
 
     private fun launch() {
@@ -100,12 +102,19 @@ class UiFlowTest {
         waitText("Log In")
         type("Mobile number or email", id)
         type("Password", pw)
+        hideKeyboard()
         compose.onNodeWithText("Log In").performClick()
     }
 
+    private fun hideKeyboard() { runCatching { Espresso.closeSoftKeyboard() } }
+
+    private fun drawerShown() = runCatching { compose.onNodeWithTag("drawerList").assertIsDisplayed() }.isSuccess
+
     private fun openDrawer() {
+        hideKeyboard()
         compose.onNodeWithContentDescription("Menu").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("drawerList").fetchSemanticsNodes().isNotEmpty() }
+        // the drawer content is always composed; wait until it is actually on screen
+        compose.waitUntil(10_000) { drawerShown() }
         compose.waitForIdle()
     }
 
@@ -117,7 +126,7 @@ class UiFlowTest {
         compose.waitForIdle()
     }
 
-    private fun back() { Espresso.pressBack(); compose.waitForIdle() }
+    private fun back() { hideKeyboard(); Espresso.pressBack(); compose.waitForIdle() }
 
     private fun tab(label: String) { compose.onNodeWithTag("tab:$label").performClick(); compose.waitForIdle() }
 
@@ -134,18 +143,18 @@ class UiFlowTest {
         step("login page") { waitText("Welcome Back"); shot("02_login") }
         step("wrong password shows a message") {
             type("Mobile number or email", "9845000001"); type("Password", "wrong-password")
-            compose.onNodeWithText("Log In").performClick()
+            hideKeyboard(); compose.onNodeWithText("Log In").performClick()
             compose.waitUntil(20_000) { has("password", true) && (has("incorrect") || has("Incorrect") || has("invalid") || has("Invalid") || has("wrong")) }
             shot("02b_login_error")
         }
         step("register page") {
-            click("Register Your Academy"); waitText("Free trial after approval"); shot("02c_register")
+            pressButton("Register Your Academy"); waitText("Free trial after approval"); shot("02c_register")
             back()
         }
         step("track registration status") {
-            click("Track Registration Status"); waitText("Track Registration")
+            pressButton("Track Registration Status"); waitText("Track Registration")
             type("Mobile number or email", "9845000001"); type("Password", "Asha@1234")
-            click("Check Status"); waitText("Approved", 20_000); shot("02d_track_status")
+            pressButton("Check Status"); waitText("Approved", 20_000); shot("02d_track_status")
             back()
         }
         assertTrue("$failures auth step(s) failed – see CNXUI log", failures == 0)
@@ -156,7 +165,7 @@ class UiFlowTest {
         step("dashboard") { shot("03_dashboard"); swipeUp(); shot("04_dashboard_attendance_fees"); swipeUp(); shot("04b_dashboard_actions") }
         step("navigation drawer") {
             openDrawer(); shot("05_drawer")
-            compose.onNodeWithTag("drawerList").performScrollToNode(hasTestTag("menu:module/support")); shot("05b_drawer_more")
+            compose.onNodeWithTag("drawerList").performTouchInput { swipeUp() }; shot("05b_drawer_more")
             back()
         }
         step("students list") { tab("Students"); waitText("Dancer 1"); shot("06_students") }

@@ -1,16 +1,43 @@
 # ClassNex Android App
 
-One native app (`in.classnex.app`) for every role. After login the app shows the menu, start screen and actions for the signed-in user's role and permissions — exactly the same rules as the web, because both use the same REST API.
+One native app (`in.classnex.app`) for every role. After login the app shows the menu, start screen and actions for the signed-in user's role, package features and permissions — the same rules as the web panel, because both use the same REST API.
 
-| Role | Screens |
+## Redesign (November 2026)
+
+The whole app was redesigned to the ClassNex concept: white / lavender background, deep-indigo gradient app bar, purple → indigo gradient buttons, rounded white cards with soft shadows, tinted circular icons, Plus Jakarta Sans typeface (same font as the website).
+
+| Area | What the user gets |
 |---|---|
-| Class Admin | Dashboard (academy-wide student quota, quick actions), **Branches** (list with per-branch and combined figures, add / edit / deactivate, branch detail with students, batches, teachers, attendance, collection and pending fees, branch reports, **assign students** with server-side search, paging and multi-select), students (branch filter, profile with branch, **Change branch** keeping the Student ID), quick registration (camera photo, gallery, document scan + OCR pre-fill, optional branch, **possible-duplicate dialog**: open / link existing / separate student with reason), **present-by-default** attendance, **attendance history** (date presets, branch / batch / activity / status filters, by class / student / branch, totals, PDF / Excel / CSV), collect fee with receipt, pending fees, payments, reports (branch-wise and combined), messages, **WhatsApp click-to-send** and WhatsApp history (manual mode), notifications |
-| Teacher | Today's classes, attendance for assigned batches, attendance history of those batches, assigned students; fees only if the Class Admin granted permission |
-| New academy | **Register your academy** from the login screen (same rules as the website: waits for Super Admin approval) |
-| Parent / Student | Child switcher, home (today, month %, next class, dues, last receipt), attendance by month, fees & receipt downloads, notifications |
-| Super Admin | Platform numbers and academies list; full management opens the web panel |
+| Navigation | Sectioned **drawer** per role (Overview · Academy Management · Daily Operations · Finance · Communication · Business & Account) showing only modules enabled in the package and allowed by permissions; **bottom bar** (Home · Students · Attendance · Fees · More) with an animated purple pill; gradient top bar with back / menu and notifications |
+| Splash / onboarding / login | Animated logo splash, 3-page onboarding, Welcome Back login, **Register Your Academy** (full page) and **Track Registration Status** (mobile/email + password → waiting / approved / not approved with reason) |
+| Dashboard (Class Admin) | Greeting, academy name, **branch selector** (all figures for one branch; student quota stays academy-wide), totals (students, teachers, branches, activities, batches, pending admissions), today's attendance **donut** (present / late / absent / leave), fee collection this month with change vs last month and 6-month **bar chart**, pending / overdue, quick actions, upcoming dues, scheduled reminders, recent payments, notifications – all from `GET /dashboard` |
+| Dashboard (Teacher) | Today's classes with "mark now", my students, my batches |
+| Attendance | **Date (today by default) → Branch → Activity → Batch**, register opens with everyone **Present**; tap P / A / L / Lv only for exceptions; All Present / All Absent; live counts; nothing saved until **Save**; an existing register loads for editing (saved as corrections with optional reason); success animation; optional click-to-send WhatsApp to parents (manual mode) |
+| Students | Search, branch chips, dues on each row, add-student button; **profile** with photo upload, Call / WhatsApp / Collect / Edit / Message, tabs **Overview · Attendance · Fees · Batches · Documents** (month donut + day list, invoices, payment history with receipt PDF, enrolments, change batch, change branch, assign fee, add charge, add parent, upload / open / delete documents – Aadhaar is never asked for) |
+| Fees | Collect fee (pending / overdue / advance tiles, select invoices, partial-payment and advance hints, methods Cash · UPI · Bank Transfer · Card · Online · Cheque · Other, reference, date, note) → success animation → receipt PDF view / share / WhatsApp; Pending / Overdue tabs with summary and search, remind-all; Payments & Receipts with PDF, share, WhatsApp and **reverse** (Class Admin with permission, reason required); Fee Structure (plans, apply to students), Discounts; Financial reports. Amounts are only sent to the server – the existing allocation logic is untouched |
+| Academy management | Branches (existing full module), Activities, Batches (days, timings, teachers, capacity, students list, cancel class), **Teachers** (add / edit, branch, salary type, batches, extra permissions, password / invite), Parents, Online Admissions (approve / reject), Holidays, Teacher Leaves (teacher: apply; Class Admin: approve / reject), Timetable (week view) |
+| Communication | WhatsApp reminders & messages (mode banner: automatic API / click-to-send / off), Announcements, Communication centre, Message log with honest statuses (**Queued** until the provider accepts; delivered/read only when the provider reports it), WhatsApp click-to-send history. In manual mode the app shows **"Opened ✓"** – never "sent" or "delivered" |
+| Business & account | Reports list (financial reports only with permission), Subscription (plan, usage bars, features, plans; renewal opens the secure web checkout), Academy Profile (details, logo, receipt texts, online admission switch, share admission link), Notification settings (event × channel matrix, automatic reminder days), Settings (profile, change password, log out), Help & Support (tickets with replies) |
+| Parent / Student | Child switcher, home, attendance by month, fees & receipts, notifications, help |
+| Super Admin | Platform figures and revenue chart, **registration approvals** (approve / reject with reason), academies list; full configuration stays on the web panel |
 
-**Stack:** Kotlin 2.0, Jetpack Compose (Material 3), MVVM with StateFlow/SharedFlow, Hilt, Retrofit + OkHttp + kotlinx.serialization, Coroutines, Coil (authenticated image loading), ML Kit Text Recognition (on-device OCR), Firebase Cloud Messaging, EncryptedSharedPreferences (Android Keystore). Min SDK 24, target SDK 35.
+Interaction details: card entrance animations, press-scale feedback, skeleton (shimmer) loading, cross-fades between screens, animated bottom bar, expand / collapse cards, success animations after saving attendance and collecting a fee, keyboard-aware forms (`imePadding`), edge-to-edge with correct status / navigation bar insets.
+
+### Code structure
+
+| Folder (`app/src/main/java/in/classnex/app/`) | Content |
+|---|---|
+| `ui/theme/Theme.kt` | Colours, gradients (`Brand`), typography (Plus Jakarta Sans in `res/font`), shapes (`Radius`) |
+| `ui/common/Components.kt` | Design-system components: `GradientTopBar`, `GradientButton`, `SoftButton`, `CnxCard`, `StatTile`, `IconCircle`, `Pill`, `DonutChart`, `BarChart`, `ProgressLine`, `SkeletonList`, `EmptyState`, `SuccessOverlay`, `CnxField`, `SelectField`, `DateField`, `TimeField`, `SegmentedTabs`, `ChoiceChips`, `SearchBox`, `PersonRow`, `CnxBottomBar`, `ConfirmDialog`, `Entrance`, `pressable` |
+| `ui/common/Common.kt` | Formatting helpers, `LoadVm` / `Load` state, file open / share |
+| `ui/crud/Crud.kt`, `Modules.kt` | Configurable list + form engine (field types: text, number, money, phone, email, date, time, select, multi-select, switch, weekdays, password) and the module definitions with their permission rules |
+| `ui/nav/AppNav.kt` | Routes, drawer menu per role (`menuFor`), bottom bar, titles |
+| `ui/academy/*` | Dashboard, students and profile, attendance flow, fees / payments / messages, branches, history / reports / WhatsApp, timetable, subscription, academy profile, notification settings, support |
+| `ui/auth`, `ui/portal`, `ui/admin` | Login & registration, parent / student portal, super admin + notifications + settings |
+
+API additions used by the redesign (additive, web unchanged): `GET /dashboard?branch_id=` (+ `total_branches`, late / leave counts, last month collection, scheduled reminders), `POST /public/registration-status`, `batch_ids` in `GET /teachers`.
+
+**Stack (unchanged):** Kotlin 2.0, Jetpack Compose (Material 3), MVVM with StateFlow/SharedFlow, Hilt, Retrofit + OkHttp + kotlinx.serialization, Coroutines, Coil, ML Kit Text Recognition, Firebase Cloud Messaging, EncryptedSharedPreferences. Min SDK 24 (java.time via core-library desugaring), target SDK 35.
 
 ## Configuration
 
@@ -21,6 +48,23 @@ One native app (`in.classnex.app`) for every role. After login the app shows the
 | Release signing | Secrets `CLASSNEX_KEYSTORE_BASE64`, `CLASSNEX_KEYSTORE_PASSWORD`, `CLASSNEX_KEY_ALIAS`, `CLASSNEX_KEY_PASSWORD` |
 
 Never commit keystores, passwords or `google-services.json` (they are in `.gitignore`).
+
+## Building locally
+
+```bash
+cd android
+./gradlew testDebugUnitTest assembleDebug                         # unit + API contract tests, debug APK
+./gradlew assembleRelease bundleRelease                           # release APK / AAB (signed only with signing env vars)
+./gradlew assembleDebug -PclassnexApiUrl=http://10.0.2.2:8081/api/v1/   # debug build against a local test server (emulator)
+```
+
+Requires JDK 17 and the Android SDK (platform 35). The debug build allows plain HTTP **only** to `10.0.2.2` / `127.0.0.1` (emulator → local test server); release builds are HTTPS-only.
+
+## Emulator UI tests and screenshots
+
+Workflow `.github/workflows/android-ui.yml` starts PHP 8.2 + MySQL 8, seeds a test database (`tests/e2e_final.php` + `tests/android_ui_seed.php`), boots an API 30 emulator and runs `UiFlowTest` (`app/src/androidTest`): auth screens, Class Admin journey (dashboard, drawer, students, profile, attendance save, fees, collect + receipt, payments, branches, activities, batches, teachers, fee plans, discounts, timetable, history, announcements, reminders, reports, subscription, academy profile, settings, support, notifications), teacher (checks the menu hides Branches / Subscription), parent and Super Admin. Each step is logged PASS / FAIL with its duration and a screenshot is taken of every screen; both are published to the GitHub release **android-screenshots** (`ClassNex-Android-Screenshots.zip`, `ui-steps.txt`).
+
+Test logins (test database only): Class Admin 9845000001 / Asha@1234 · Teacher 9845100001 / Teach@123 · Parent 9845200001 / Parent@123 · Super Admin qa-admin@classnex.test / Admin@12345.
 
 ## Building with GitHub Actions
 

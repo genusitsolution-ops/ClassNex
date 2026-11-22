@@ -277,6 +277,7 @@ private fun AuthHeader(title: String, sub: String) {
 
 @Composable
 private fun LoginPage(vm: AuthViewModel, onRegister: () -> Unit, onTrack: () -> Unit) {
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val ui by vm.ui.collectAsState()
     var id by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
@@ -291,7 +292,7 @@ private fun LoginPage(vm: AuthViewModel, onRegister: () -> Unit, onTrack: () -> 
             CnxField(pw, { pw = it }, "Password", icon = Icons.Outlined.Lock, password = true)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = { forgot = true }) { Text("Forgot password?", color = Violet) } }
             AnimatedVisibility(ui.error != null) { ui.error?.let { InfoBanner(it, Red, Icons.Outlined.ErrorOutline, Modifier.padding(bottom = 12.dp)) } }
-            GradientButton("Log In", { vm.login(id, pw) }, Modifier.fillMaxWidth(), loading = ui.busy, icon = Icons.AutoMirrored.Outlined.Login)
+            GradientButton("Log In", { keyboard?.hide(); vm.login(id, pw) }, Modifier.fillMaxWidth(), loading = ui.busy, icon = Icons.AutoMirrored.Outlined.Login)
         }
         Spacer(Modifier.height(20.dp))
         Row(verticalAlignment = Alignment.CenterVertically) { HorizontalDivider(Modifier.weight(1f), color = Line); Text("  New to ClassNex?  ", color = Muted, fontSize = 12.sp); HorizontalDivider(Modifier.weight(1f), color = Line) }
@@ -314,6 +315,7 @@ private fun LoginPage(vm: AuthViewModel, onRegister: () -> Unit, onTrack: () -> 
 
 @Composable
 private fun RegisterPage(vm: AuthViewModel, back: () -> Unit) {
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val ui by vm.ui.collectAsState()
     var name by remember { mutableStateOf("") }
     var mobile by remember { mutableStateOf("") }
@@ -356,7 +358,7 @@ private fun RegisterPage(vm: AuthViewModel, back: () -> Unit) {
             }
             AnimatedVisibility(ui.error != null) { ui.error?.let { InfoBanner(it, Red, Icons.Outlined.ErrorOutline, Modifier.padding(vertical = 8.dp)) } }
             Spacer(Modifier.height(8.dp))
-            GradientButton("Register", { vm.register(RegisterAcademy(name.trim(), mobile, academy.trim(), password, city.ifBlank { null }, email.ifBlank { null })) { msg -> done = msg } },
+            GradientButton("Register", { keyboard?.hide(); vm.register(RegisterAcademy(name.trim(), mobile, academy.trim(), password, city.ifBlank { null }, email.ifBlank { null })) { msg -> done = msg } },
                 Modifier.fillMaxWidth(), enabled = terms && name.isNotBlank() && mobile.length == 10 && academy.isNotBlank() && password.length >= 8, loading = ui.busy)
         }
     }
@@ -364,6 +366,7 @@ private fun RegisterPage(vm: AuthViewModel, back: () -> Unit) {
 
 @Composable
 private fun TrackPage(vm: AuthViewModel, back: () -> Unit) {
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val ui by vm.ui.collectAsState()
     var id by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
@@ -379,7 +382,7 @@ private fun TrackPage(vm: AuthViewModel, back: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             CnxField(pw, { pw = it }, "Password", icon = Icons.Outlined.Lock, password = true)
             Spacer(Modifier.height(14.dp))
-            GradientButton("Check Status", { vm.trackStatus(id, pw) { r, m -> res = r; msg = m } }, Modifier.fillMaxWidth(), enabled = id.isNotBlank() && pw.isNotBlank(), loading = ui.busy, icon = Icons.Outlined.Search)
+            GradientButton("Check Status", { keyboard?.hide(); vm.trackStatus(id, pw) { r, m -> res = r; msg = m } }, Modifier.fillMaxWidth(), enabled = id.isNotBlank() && pw.isNotBlank(), loading = ui.busy, icon = Icons.Outlined.Search)
         }
         Spacer(Modifier.height(16.dp))
         AnimatedVisibility(msg != null, enter = fadeIn() + expandVertically()) {

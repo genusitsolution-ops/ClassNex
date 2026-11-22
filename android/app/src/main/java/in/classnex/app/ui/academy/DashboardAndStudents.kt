@@ -157,7 +157,7 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
                             row.forEachIndexed { ci, (a, v) ->
                                 Box(Modifier.weight(1f)) {
                                     Entrance(ri * 3 + ci + 1) {
-                                        StatTile(a.text, v, a.icon, a.tint, sub = when (a.text) { "Students" -> d.student_quota?.limit?.let { "of $it · all branches" } ?: "+${d.new_admissions} this month"; "Admissions" -> "pending"; else -> null }, onClick = { nav(a.route) })
+                                        StatTile(a.text, v, a.icon, a.tint, sub = when (a.text) { "Students" -> d.student_quota?.limit?.let { "of $it" } ?: "+${d.new_admissions} this month"; "Admissions" -> "pending"; else -> null }, onClick = { nav(a.route) })
                                     }
                                 }
                             }
