@@ -169,7 +169,9 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
     val start = target(tabs.first().route)
     val go: (String) -> Unit = { r -> nav.navigate(r) { launchSingleTop = true } }
     val goTab: (String) -> Unit = { r ->
-        nav.navigate(r) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
+        // module tabs share one destination ("module/{key}"), so their state is not saved / restored per tab
+        val module = r.startsWith("module/")
+        nav.navigate(r) { popUpTo(nav.graph.findStartDestination().id) { saveState = !module }; launchSingleTop = !module; restoreState = !module }
     }
     val currentReal = currentRoute(entry)
     // a tab is matched by its route pattern, or by the real route for module tabs (module/registrations)

@@ -217,7 +217,7 @@ class UiFlowTest {
         step("batches") { menu("module/batches"); waitText("North Kathak"); shot("18_batches"); click("North Kathak"); waitText("Cancel class"); shot("18b_batch_actions"); back() }
         step("teachers and teacher form") {
             menu("module/teachers"); waitText("Guru North"); shot("19_teachers")
-            hideKeyboard(); compose.onNode(hasText("Add teacher") and hasClickAction()).performClick(); waitText("Extra permissions"); shot("19b_teacher_form"); back(); back()
+            hideKeyboard(); compose.onNode(hasText("Add teacher") and hasClickAction()).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick); waitText("Extra permissions"); shot("19b_teacher_form"); back(); back()
         }
         step("fee structure") { menu("module/feePlans"); waitText("Kathak monthly fee"); shot("20_fee_structure"); back() }
         step("discounts") { menu("module/discounts"); waitText("Sibling discount"); shot("20b_discounts"); back() }
