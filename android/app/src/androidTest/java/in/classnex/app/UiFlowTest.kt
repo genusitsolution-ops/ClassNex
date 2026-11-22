@@ -58,7 +58,17 @@ class UiFlowTest {
         shell("screencap -p /data/local/tmp/cnx/$name.png")
     }
 
+    /** After a failed step, go back to a main (tab) screen so the next step starts from a known place. */
+    private var recover = false
+    private fun toMainScreen() {
+        repeat(5) {
+            if (compose.onAllNodesWithContentDescription("Menu").fetchSemanticsNodes().isNotEmpty() && !drawerShown()) return
+            runCatching { back() }
+        }
+    }
+
     private fun step(name: String, block: () -> Unit) {
+        if (recover) { runCatching { toMainScreen() }; recover = false }
         val t0 = System.currentTimeMillis()
         Log.i("CNXUI", "START $name")
         try {
@@ -66,6 +76,7 @@ class UiFlowTest {
             Log.i("CNXUI", "PASS $name (${System.currentTimeMillis() - t0} ms)")
         } catch (t: Throwable) {
             failures++
+            recover = true
             Log.i("CNXUI", "FAIL $name (${System.currentTimeMillis() - t0} ms): ${t.javaClass.simpleName}: ${t.message?.lineSequence()?.firstOrNull()?.take(200)}")
             runCatching { shot("FAIL_" + name.replace(Regex("[^A-Za-z0-9]+"), "_"), idle = false) }
         }
@@ -206,7 +217,7 @@ class UiFlowTest {
         step("batches") { menu("module/batches"); waitText("North Kathak"); shot("18_batches"); click("North Kathak"); waitText("Cancel class"); shot("18b_batch_actions"); back() }
         step("teachers and teacher form") {
             menu("module/teachers"); waitText("Guru North"); shot("19_teachers")
-            click("Add teacher"); waitText("Extra permissions"); shot("19b_teacher_form"); back(); back()
+            hideKeyboard(); compose.onNode(hasText("Add teacher") and hasClickAction()).performClick(); waitText("Extra permissions"); shot("19b_teacher_form"); back(); back()
         }
         step("fee structure") { menu("module/feePlans"); waitText("Kathak monthly fee"); shot("20_fee_structure"); back() }
         step("discounts") { menu("module/discounts"); waitText("Sibling discount"); shot("20b_discounts"); back() }

@@ -250,7 +250,9 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
                     MessageScreen(me, it.arguments!!.getLong("student").takeIf { s -> s > 0 }, snack, back = { nav.popBackStack() })
                 }
                 composable("module/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
-                    val spec = remember(me) { moduleFor(it.arguments!!.getString("key") ?: "", me) }
+                    // keyed by the module: a single-top navigation between modules reuses this entry with new arguments
+                    val key = it.arguments!!.getString("key") ?: ""
+                    val spec = remember(key, me) { moduleFor(key, me) }
                     if (spec != null) CrudListScreen(spec, snack, go) else EmptyState("This section is not available for your account.", icon = Icons.Outlined.Lock)
                 }
                 composable("form/{key}?id={id}&parent={parent}", listOf(navArgument("key") { type = NavType.StringType }, navArgument("id") { type = NavType.LongType; defaultValue = 0L }, navArgument("parent") { type = NavType.LongType; defaultValue = 0L })) {
