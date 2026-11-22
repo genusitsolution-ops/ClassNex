@@ -270,11 +270,18 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
                 }
             }
             if (d.recent_notifications.isNotEmpty()) {
-                item { SectionHeader("Notifications", action = "All") { nav("notifications") } }
-                items(d.recent_notifications, key = { "n" + it.id }) { n ->
-                    CnxCard(padding = 12.dp, onClick = { nav("notifications") }) {
-                        Text(n.title, fontWeight = FontWeight.Bold, color = Ink)
-                        n.body?.let { Text(it, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                // latest outgoing messages; the queue has no ids here, so no item keys (avoids duplicate keys)
+                item { SectionHeader("Recent messages", action = if (me.isClassAdmin) "Log" else null) { nav("module/messageLog") } }
+                items(d.recent_notifications.take(6)) { n ->
+                    CnxCard(padding = 12.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconCircle(Icons.Outlined.Forum, Teal, 38.dp, 18.dp)
+                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                Text(n.recipient_name ?: "–", fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${label(n.event_key)} · ${label(n.channel)} · ${prettyDate(n.created_at)}", color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Pill(when (n.status) { "pending" -> "Queued"; "processing" -> "Sending"; else -> label(n.status) }, statusColor(n.status))
+                        }
                     }
                 }
             }

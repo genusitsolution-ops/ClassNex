@@ -135,7 +135,8 @@ data class ApiResponse<T>(
 @Serializable data class TrendPoint(val month: String, val total: FLong)
 @Serializable data class TodayCounts(val present: FLong = 0, val absent: FLong = 0, val marked: FLong = 0, val late: FLong = 0, val leave: FLong = 0)
 @Serializable data class ScheduledMessage(val event_key: String? = null, val channel: String? = null, val recipient_name: String? = null, val subject: String? = null, val body: String? = null, val next_attempt_at: String? = null)
-@Serializable data class DashNotification(val id: Long = 0, val title: String = "", val body: String? = null, val created_at: String? = null)
+/** Latest outgoing messages (notification queue) shown on the dashboard. */
+@Serializable data class DashNotification(val event_key: String? = null, val channel: String? = null, val recipient_name: String? = null, val status: String? = null, val created_at: String? = null)
 @Serializable data class TeacherClass(val id: Long, val name: String, val activity_name: String = "", val start_time: String? = null, val end_time: String? = null, val marked: FBool = false)
 @Serializable data class Dashboard(
     val role: String = "owner",

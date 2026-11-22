@@ -167,12 +167,14 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
     val menu = remember(me) { menuFor(me) }
     val tabs = remember(me) { bottomFor(me) }
     val start = target(tabs.first().route)
-    val isTab = tabs.any { it.route == pattern }
     val go: (String) -> Unit = { r -> nav.navigate(r) { launchSingleTop = true } }
     val goTab: (String) -> Unit = { r ->
         nav.navigate(r) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
     }
     val currentReal = currentRoute(entry)
+    // a tab is matched by its route pattern, or by the real route for module tabs (module/registrations)
+    val currentTab = tabs.firstOrNull { it.route == pattern || it.route == currentReal }?.route
+    val isTab = currentTab != null
     // close the keyboard when the user arrives (after login) and whenever the screen changes
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(pattern) { keyboard?.hide() }
@@ -208,7 +210,7 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
             },
             bottomBar = {
                 AnimatedVisibility(isTab, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
-                    CnxBottomBar(tabs, pattern) { t ->
+                    CnxBottomBar(tabs, currentTab) { t ->
                         if (t.route == MORE) scope.launch { drawer.open() } else goTab(target(t.route))
                     }
                 }
