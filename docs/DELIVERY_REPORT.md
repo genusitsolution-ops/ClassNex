@@ -106,3 +106,33 @@ verification checklist). Cron (verify the PHP path with `which php` first):
 4. Run the physical-device checklist on 1–2 phones; add signing secrets for a signed release / Play Store upload.
 5. Note on naming: the brief said “Genuine IT Solutions”; the domain and repository are *Genus IT Solution*, so the website
    footer reads “Operated by Genus IT Solution”. Change it in *Super Admin → Website CMS → SEO & footer* if needed.
+
+## 17. Android UI/UX redesign (23 Nov 2026)
+
+**Completed** (all pushed to `main`, details in docs/ANDROID.md → *Redesign*):
+- Design system (indigo / purple gradients, Plus Jakarta Sans, cards, tiles, charts, skeletons, success animations) and
+  reusable components; sectioned role-based drawer + animated bottom bar.
+- Redesigned: splash, onboarding, login, full-page registration, **Track Registration Status**, Class Admin and teacher
+  dashboards (branch selector, donut, fee trend), students and **tabbed student profile** (photo, edit, change batch /
+  branch, assign fee, charges, parents, documents), **Date → Branch → Activity → Batch attendance** (present by default,
+  save on press, edit existing), collect fee (invoice selection, Cash / UPI / Bank Transfer / Card / Online / Cheque),
+  receipts (PDF, share, WhatsApp, reverse), pending / overdue, payments, parent portal, Super Admin.
+- New on mobile: Activities, Batches, **Teachers with permissions**, Parents, Admissions, Holidays, Leaves, Timetable,
+  Fee Structure, Discounts, Announcements, Communication centre, Message log, Reports list, Financial reports,
+  Subscription, Academy Profile (logo, admission link), Notification settings, Help & Support tickets,
+  Super Admin registration approvals and academies.
+- API additions (additive): dashboard `branch_id` filter + late / leave / branches / scheduled reminders,
+  `POST /public/registration-status`, teacher `batch_ids`. Backend suites: e2e_final **104 / 104**, e2e_branches 80 / 80, e2e 107 / 107.
+- Payment calculation / allocation logic unchanged (the app only sends the amount and selected invoices).
+
+**Verified:** GitHub Actions build (unit + API contract tests, debug APK, release APK, AAB) – run 45061533078;
+**emulator UI journeys: 5 / 5 tests, 45 / 45 steps passed, 59 screenshots** – run 45061533025 (release *android-screenshots*).
+
+**Remaining / not verified:**
+- Physical-device testing (no device available to me).
+- Signed release (signing secrets not added – builds are unsigned).
+- Subscription renewal opens the web checkout (no in-app Razorpay SDK).
+- Teacher photo upload, multiple attendance sessions of the same batch on one day (the database allows one register per
+  batch per day – use separate batches), bulk-assign UI beyond the existing branch assignment.
+- Screens not covered by the automated journey: holiday / leave / parent / support creation forms (same form engine as
+  the tested teacher and batch forms), notification-settings save, document upload, photo upload.

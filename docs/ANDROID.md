@@ -64,6 +64,8 @@ Requires JDK 17 and the Android SDK (platform 35). The debug build allows plain 
 
 Workflow `.github/workflows/android-ui.yml` starts PHP 8.2 + MySQL 8, seeds a test database (`tests/e2e_final.php` + `tests/android_ui_seed.php`), boots an API 30 emulator and runs `UiFlowTest` (`app/src/androidTest`): auth screens, Class Admin journey (dashboard, drawer, students, profile, attendance save, fees, collect + receipt, payments, branches, activities, batches, teachers, fee plans, discounts, timetable, history, announcements, reminders, reports, subscription, academy profile, settings, support, notifications), teacher (checks the menu hides Branches / Subscription), parent and Super Admin. Each step is logged PASS / FAIL with its duration and a screenshot is taken of every screen; both are published to the GitHub release **android-screenshots** (`ClassNex-Android-Screenshots.zip`, `ui-steps.txt`).
 
+**Latest result (commit f6378b0, run 45061533025):** 5 / 5 tests passed, **45 / 45 steps PASS**, 59 screenshots – on the API 30 emulator (Pixel 6 profile). Bugs found by these runs and fixed: keyboard staying open over the dashboard after login, system back closing the app instead of the drawer, dashboard list crash on "recent messages" (duplicate list keys), module tabs not switching (Super Admin).
+
 Test logins (test database only): Class Admin 9845000001 / Asha@1234 · Teacher 9845100001 / Teach@123 · Parent 9845200001 / Parent@123 · Super Admin qa-admin@classnex.test / Admin@12345.
 
 ## Building with GitHub Actions
