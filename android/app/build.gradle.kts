@@ -33,6 +33,7 @@ android {
         val api = (project.findProperty("classnexApiUrl") as String?) ?: "https://genusitsolution.com/ClassNex/api/v1/"
         buildConfigField("String", "API_BASE_URL", "\"${if (api.endsWith("/")) api else "$api/"}\"")
         vectorDrawables { useSupportLibrary = true }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -109,4 +110,13 @@ dependencies {
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
     testImplementation("junit:junit:4.13.2")
+
+    // emulator UI tests (screens, navigation and flows against a real test server)
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }

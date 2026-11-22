@@ -1,0 +1,136 @@
+name: Android UI tests (emulator)
+
+# Runs the redesigned app on an Android emulator against a real ClassNex test server
+# (PHP 8.2 + MySQL 8, seeded by tests/e2e_final.php and tests/android_ui_seed.php),
+# logs in as every role, walks through the screens and saves a screenshot of each one.
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', 'api/**', 'tests/android_ui_seed.php', '.github/workflows/android-ui.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # publishes the screenshots to the "android-screenshots" release
+
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, sodium, gd, curl, mbstring, openssl, zip, fileinfo, intl, exif
+          coverage: none
+
+      - name: Test server configuration (test data only)
+        run: |
+          cat > config/config.php <<'PHP'
+          <?php
+          $c = require __DIR__ . '/config.sample.php';
+          $c['env'] = 'testing'; $c['debug'] = true;
+          $c['app_url'] = getenv('CNX_URL') ?: 'http://127.0.0.1:8081';
+          $c['db'] = ['host' => '127.0.0.1', 'port' => 3306, 'name' => 'classnex_test', 'user' => 'root', 'pass' => 'root', 'charset' => 'utf8mb4'];
+          $c['app_key'] = 'q2J4b0m2bF9ySmRlNnFxT0V4a3dXQnNQd0J2a1RkVnM=';
+          return $c;
+          PHP
+
+      - name: Seed test data
+        run: |
+          mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE classnex_test"
+          CNX_DB=classnex_test CNX_URL=http://127.0.0.1:8081 php -S 127.0.0.1:8081 tests/devserver.php > /tmp/seed-server.log 2>&1 &
+          sleep 2
+          CNX_DB=classnex_test php tests/e2e_final.php http://127.0.0.1:8081 | tail -3
+          CNX_DB=classnex_test php tests/android_ui_seed.php http://127.0.0.1:8081
+          pkill -f "php -S 127.0.0.1:8081" || true
+          sleep 1
+          # the emulator reaches this computer as 10.0.2.2, so links (photos, receipts) use that address
+          CNX_DB=classnex_test CNX_URL=http://10.0.2.2:8081 nohup php -S 127.0.0.1:8081 tests/devserver.php > /tmp/server.log 2>&1 &
+          sleep 2
+          curl -s -o /dev/null -w "server: %{http_code}\n" http://127.0.0.1:8081/api/v1/public/packages || true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build app and tests
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest -PclassnexApiUrl=http://10.0.2.2:8081/api/v1/
+
+      - name: Run UI journeys on the emulator (API 30)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          working-directory: android
+          script: |
+            adb logcat -c || true
+            ./gradlew --no-daemon connectedDebugAndroidTest -PclassnexApiUrl=http://10.0.2.2:8081/api/v1/ || touch /tmp/ui_failed
+            adb logcat -d -s CNXUI:I > /tmp/ui-steps.txt || true
+            adb pull /data/local/tmp/cnx /tmp/screens || true
+
+      - name: Step results
+        if: always()
+        run: |
+          mkdir -p /tmp/screens
+          cp /tmp/ui-steps.txt /tmp/screens/ui-steps.txt 2>/dev/null || true
+          echo "## Android UI steps" >> "$GITHUB_STEP_SUMMARY"
+          sed 's/^.*CNXUI: //' /tmp/ui-steps.txt | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY" || true
+          ls /tmp/screens | head -100
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-ui-screenshots
+          path: /tmp/screens
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-ui-test-report
+          path: |
+            android/app/build/reports/androidTests/
+            android/app/build/outputs/androidTest-results/
+          if-no-files-found: ignore
+
+      - name: Publish screenshots to the android-screenshots release
+        if: always() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d /tmp/screens ] || exit 0
+          (cd /tmp/screens && zip -q -r /tmp/ClassNex-Android-Screenshots.zip .)
+          gh release view android-screenshots >/dev/null 2>&1 || gh release create android-screenshots --prerelease --title "ClassNex Android – screenshots" --notes "Screenshots from the emulator UI test run." --target "$GITHUB_SHA"
+          gh release edit android-screenshots --notes "Emulator UI test run from commit ${GITHUB_SHA::7} on $(date -u +'%Y-%m-%d %H:%M UTC'). ui-steps.txt lists every step with PASS/FAIL."
+          gh release upload android-screenshots /tmp/ClassNex-Android-Screenshots.zip /tmp/screens/ui-steps.txt --clobber || gh release upload android-screenshots /tmp/ClassNex-Android-Screenshots.zip --clobber
+
+      - name: Server log
+        if: failure()
+        run: tail -60 /tmp/server.log; tail -60 storage/logs/php-error.log || true
+
+      - name: Fail if a UI journey failed
+        if: always()
+        run: test ! -f /tmp/ui_failed

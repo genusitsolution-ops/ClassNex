@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -333,7 +334,7 @@ private fun AppDrawer(me: Me, menu: List<MenuSection>, current: String, onLogout
             Text("${me.name} · ${roleName(me.role)}", color = Color.White.copy(alpha = .8f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             me.subscription?.package_name?.let { Pill("$it · ${label(me.subscription?.status)}", Color.White, Modifier.padding(top = 8.dp)) }
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 8.dp)) {
+        LazyColumn(Modifier.weight(1f).testTag("drawerList"), contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 8.dp)) {
             menu.forEach { sec ->
                 item { Text(sec.title.uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 12.dp, top = 14.dp, bottom = 4.dp)) }
                 sec.items.forEach { mi ->
@@ -342,7 +343,7 @@ private fun AppDrawer(me: Me, menu: List<MenuSection>, current: String, onLogout
                         NavigationDrawerItem(
                             label = { Text(mi.label, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium) },
                             icon = { Icon(mi.icon, null) }, selected = on, onClick = { onSelect(mi) },
-                            shape = RoundedCornerShape(14.dp), modifier = Modifier.height(48.dp),
+                            shape = RoundedCornerShape(14.dp), modifier = Modifier.height(48.dp).testTag("menu:" + mi.route),
                             colors = NavigationDrawerItemDefaults.colors(selectedContainerColor = VioletSoft, selectedTextColor = Indigo800, selectedIconColor = Violet, unselectedIconColor = Muted, unselectedTextColor = Ink),
                         )
                     }

@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -538,7 +539,7 @@ fun CnxBottomBar(items: List<BottomItem>, selected: String?, onSelect: (BottomIt
                 val bg by animateColorAsState(if (on) VioletSoft else Color.Transparent, tween(250), label = "bn")
                 val tint by animateColorAsState(if (on) Violet else Muted, tween(250), label = "bt")
                 Column(
-                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { onSelect(item) }.padding(vertical = 2.dp),
+                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { onSelect(item) }.testTag("tab:" + item.label).padding(vertical = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(Modifier.clip(RoundedCornerShape(50)).background(bg).padding(horizontal = 18.dp, vertical = 5.dp)) {
