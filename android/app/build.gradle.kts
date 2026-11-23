@@ -28,8 +28,10 @@ android {
         applicationId = "in.classnex.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = (System.getenv("CLASSNEX_VERSION_CODE") ?: "1").toInt()
-        versionName = System.getenv("CLASSNEX_VERSION_NAME") ?: "1.0.0"
+        // Release version. Raise both for every release (versionCode must always increase so the
+        // new APK installs as an update over the previous one with the same signing key).
+        versionCode = (System.getenv("CLASSNEX_VERSION_CODE") ?: "22").toInt()
+        versionName = System.getenv("CLASSNEX_VERSION_NAME") ?: "1.0.22"
         val api = (project.findProperty("classnexApiUrl") as String?) ?: "https://genusitsolution.com/ClassNex/api/v1/"
         buildConfigField("String", "API_BASE_URL", "\"${if (api.endsWith("/")) api else "$api/"}\"")
         vectorDrawables { useSupportLibrary = true }

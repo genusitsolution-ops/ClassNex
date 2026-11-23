@@ -136,6 +136,11 @@ fun moduleFor(key: String, me: Me): ModuleSpec? {
             actions = listOf(RowAction("Retry", Icons.Outlined.Replay, url = { "messages/retry" }, body = { mapOf("ids" to JsonArray(listOf(JsonPrimitive(it.id())))) }, visible = { it.s("status") == "failed" && me.can("notifications.send") })),
             icon = Icons.Outlined.Forum, emptyTitle = "No messages yet",
         )
+        "auditLog" -> ModuleSpec(
+            key, "Activity Log", "audit-logs", query = mapOf("per_page" to "100"),
+            row = { r -> RowView(label(r.s("action")?.replace('.', ' ')), "${r.s("user_name") ?: "System"} · ${prettyDate(r.s("created_at"))} ${prettyTime(r.s("created_at")?.drop(11))}", note = (r.s("new_values") ?: r.s("old_values"))?.take(160), icon = Icons.Outlined.History, tint = Muted) },
+            icon = Icons.Outlined.History, emptyTitle = "No activity yet",
+        )
         "registrations" -> ModuleSpec(
             key, "Academy Registrations", "admin/registrations",
             filters = listOf<Pair<String?, String>>("pending" to "Pending", "rejected" to "Rejected"),
@@ -312,6 +317,14 @@ fun formFor(key: String, me: Me, parent: Long = 0): FormSpec? = when (key) {
             FieldSpec("end_date", "End date", FType.Date, advanced = true),
         ), "students/$parent/fees", null, submitText = "Assign fee",
     )
+    "studentEnroll" -> FormSpec(
+        "Add to another activity", listOf(
+            FieldSpec("activity_id", "Activity", FType.Select, required = true, source = srcActivities),
+            FieldSpec("batch_id", "Batch", FType.Select, source = srcBatches, noneLabel = "Choose later", help = "Pick a batch of the chosen activity."),
+            FieldSpec("start_date", "Starts on", FType.Date, default = today()),
+        ), "students/$parent/enroll", null, submitText = "Add",
+    )
+    "auditLog" -> null
     "studentCharge" -> FormSpec(
         "Add charge", listOf(
             FieldSpec("title", "Charge for", required = true, help = "e.g. Costume, exam fee"),

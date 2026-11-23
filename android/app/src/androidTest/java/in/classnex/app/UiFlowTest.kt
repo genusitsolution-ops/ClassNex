@@ -176,14 +176,17 @@ class UiFlowTest {
     @Test fun b_classAdminJourney() {
         step("login as Class Admin") { login("9845000001", "Asha@1234"); waitText("Hello, Asha") }
         step("dashboard: quick actions first") {
-            waitText("Today at a glance"); shot("03_dashboard")
+            waitText("Today at a Glance"); shot("03_dashboard")
             for (q in listOf("Add Student", "Mark Attendance", "Collect Fee", "Pending Fees", "Students", "Send Reminder"))
                 assertTrue("quick action $q", compose.onAllNodesWithTag("quick:$q").fetchSemanticsNodes().isNotEmpty())
             swipeUp(); shot("04_dashboard_glance")
         }
-        step("more tab") { tab("More"); waitText("Activities & Batches"); shot("05_more"); swipeUp(); shot("05b_more_other_tools") }
+        step("more tab") { tab("More"); waitText("Academy Management"); shot("05_more"); swipeUp(); shot("05b_more_lower") }
         step("add student form") { quick("Add Student"); waitText("Student name"); shot("05c_add_student"); click("More details (optional)"); waitText("Date of birth"); shot("05d_add_student_more"); back() }
-        step("students list") { tab("Students"); waitText("Dancer 1"); shot("06_students") }
+        step("students list") {
+            tab("Students"); waitText("Dancer 1"); compose.waitUntil(15_000) { has("All (") }; shot("06_students")
+            compose.onNodeWithContentDescription("Filters").performClick(); waitText("Filter students"); shot("06b_student_filters"); back()
+        }
         step("student profile") {
             click("Dancer 1"); waitText("Overview"); shot("07_student_profile")
             click("Fees"); waitText("Pending fees"); shot("08_student_fees")
@@ -203,8 +206,10 @@ class UiFlowTest {
         }
         step("fees – pending and overdue") {
             compose.waitForIdle()
-            tab("Fees"); waitText("fee(s) pending"); shot("12_fees_pending")
-            click("Overdue"); compose.waitUntil(25_000) { has("fee(s) pending") || has("Nothing overdue") }; shot("12b_fees_overdue")
+            tab("Fees"); waitText("Recent Payments"); compose.waitUntil(20_000) { has("This month") }; shot("12_fees_collect_tab")
+            compose.onAllNodes(hasSetTextAction())[0].performTextReplacement("Dancer 1"); waitText("RDS0001", 20_000); click("Dancer 1"); waitText("Advance"); shot("12a_fees_student_balance")
+            click("Pending"); waitText("fee(s) pending"); shot("12b_fees_pending")
+            click("Overdue"); compose.waitUntil(25_000) { has("fee(s) pending") || has("Nothing overdue") }; shot("12c_fees_overdue")
         }
         step("collect fee in simple steps") {
             quick("Collect Fee"); waitText("Choose the student"); click("Dancer 1"); waitText("Select the fees"); shot("13_collect_fee")
@@ -225,8 +230,8 @@ class UiFlowTest {
         step("payments and receipts") { menu("payments"); waitText("RCPT"); shot("15_payments"); click("RCPT", substring = true); shot("15b_payment_actions"); back() }
         step("branches") { menu("branches"); waitText("North"); shot("16_branches"); back() }
         step("activities and batches") {
-            menu("structure"); waitText("North Kathak"); shot("18_batches"); click("Activities"); waitText("Yoga"); shot("17_activities")
-            click("Batches"); waitText("North Kathak"); click("North Kathak"); click("Edit"); waitText("Class days"); shot("18c_batch_form")
+            menu("module/activities"); waitText("Yoga"); shot("17_activities"); back()
+            menu("module/batches"); waitText("North Kathak"); shot("18_batches"); click("North Kathak"); click("Edit"); waitText("Class days"); shot("18c_batch_form")
             click("More options (optional)"); waitText("Capacity"); shot("18d_batch_form_more"); back(); back()
         }
         step("teachers and teacher form") {
@@ -241,7 +246,11 @@ class UiFlowTest {
         step("reports") { menu("reports?financial=0"); waitText("Branch-wise"); shot("25_reports"); click("Branch-wise", substring = true); compose.waitUntil(25_000) { has("North") }; shot("25b_report"); back(); back() }
         step("subscription") { menu("subscription"); waitText("Current plan"); shot("26_subscription"); back() }
         step("academy profile") { menu("academyProfile"); waitText("Academy name"); shot("27_academy_profile"); back() }
-        step("settings") { menu("profile"); waitText("Change password"); shot("28_settings"); back() }
+        step("settings and academy settings") {
+            menu("profile"); waitText("Change password"); shot("28_settings")
+            click("Receipts & IDs"); waitText("Receipt number prefix"); shot("28b_receipts_ids"); back()
+            click("Activity log"); compose.waitUntil(20_000) { has("System") || has("No activity yet") || has("Asha") }; shot("28c_activity_log"); back(); back()
+        }
         step("help and support") { menu("module/support"); waitText("How do I print receipts"); shot("29_support"); click("How do I print receipts", substring = true); waitText("Write a reply"); shot("29b_ticket"); back(); back() }
         step("notifications") { compose.onNodeWithContentDescription("Notifications").performClick(); compose.waitForIdle(); shot("30_notifications"); back() }
         assertTrue("$failures Class Admin step(s) failed – see CNXUI log", failures == 0)
@@ -251,7 +260,7 @@ class UiFlowTest {
         step("login as teacher") { login("9845100001", "Teach@123"); waitText("Today's classes") }
         step("teacher dashboard") { shot("31_teacher_dashboard") }
         step("teacher More shows only permitted sections") {
-            tab("More"); waitText("Activities & Batches"); shot("32_teacher_more")
+            tab("More"); waitText("Academy Management"); shot("32_teacher_more")
             assertTrue("teacher must not see Branches", compose.onAllNodesWithTag("more:branches").fetchSemanticsNodes().isEmpty())
             assertTrue("teacher must not see Subscription", compose.onAllNodesWithTag("more:subscription").fetchSemanticsNodes().isEmpty())
             assertTrue("teacher must not see Teachers", compose.onAllNodesWithTag("more:module/teachers").fetchSemanticsNodes().isEmpty())

@@ -91,10 +91,10 @@ abstract class LoadVm<T> : ViewModel() {
     val state: StateFlow<Load<T>> = _state
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
 
-    fun load(silent: Boolean = false, block: suspend () -> T) {
+    fun load(silent: Boolean = false, block: suspend () -> T): kotlinx.coroutines.Job {
         if (!silent) _state.value = Load.Loading
-        viewModelScope.launch {
-            _state.value = try { Load.Ready(block()) } catch (e: Exception) { Load.Failed(e.message ?: "Could not load") }
+        return viewModelScope.launch {
+            _state.value = try { Load.Ready(block()) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e; Load.Failed(e.message ?: "Could not load") }
         }
     }
     fun say(msg: String) { messages.tryEmit(msg) }

@@ -188,6 +188,12 @@ fun ProfileScreen(me: Me, snack: SnackbarHostState, onLogout: () -> Unit, nav: (
             SettingLink("Academy profile & receipts", Icons.Outlined.Storefront) { nav("academyProfile") }
             if (me.can("settings.manage")) SettingLink("Reminders & WhatsApp", Icons.Outlined.NotificationsActive) { nav("reminders") }
             SettingLink("Subscription", Icons.Outlined.WorkspacePremium) { nav("subscription") }
+            if (me.can("settings.manage")) {
+                SettingLink("Receipts & IDs", Icons.Outlined.Receipt) { nav("academySettings/receipts") }
+                SettingLink("Online admission", Icons.Outlined.AssignmentInd) { nav("academySettings/admission") }
+                if (me.has("online_payments")) SettingLink("Online payments (Razorpay)", Icons.Outlined.CreditCard) { nav("academySettings/payments") }
+                SettingLink("Activity log", Icons.Outlined.History) { nav("module/auditLog") }
+            }
         }
         CnxCard {
             SectionHeader("Change password")

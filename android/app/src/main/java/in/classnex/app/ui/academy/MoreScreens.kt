@@ -9,6 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -509,5 +511,95 @@ fun StructureScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit) {
         SegmentedTabs(listOf("Activities", "Batches"), tab, Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp)) { tab = it }
         val spec = remember(tab, me) { moduleFor(if (tab == 0) "activities" else "batches", me) }
         Box(Modifier.weight(1f)) { spec?.let { CrudListScreen(it, snack, nav) } }
+    }
+}
+
+// ================================================================ academy settings (same tabs as the web Settings page)
+/** Receipts & IDs, Online admission and Online payments – the web Settings tabs on mobile. */
+@Composable
+fun AcademySettingsScreen(kind: String, me: Me, snack: SnackbarHostState, vm: JsonVm = hiltViewModel()) {
+    val url = if (kind == "payments") "payment-gateway" else "academy"
+    LaunchedEffect(kind) { vm.open(url) }
+    LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
+    val st by vm.state.collectAsState()
+    val busy by vm.busy.collectAsState()
+    val ctx = LocalContext.current
+    LoadContent(st, { vm.open(url, true) }) { d ->
+        val a = d as? JsonObject ?: return@LoadContent
+        val set = a.obj("settings") ?: JsonObject(emptyMap())
+        val fields = set.obj("online_admission_fields")
+        // initial values are set once per loaded document (never written during composition)
+        val text = remember(a) {
+            mutableStateMapOf<String, String>().apply {
+                when (kind) {
+                    "receipts" -> { put("receipt_prefix", set.s("receipt_prefix") ?: ""); put("invoice_prefix", set.s("invoice_prefix") ?: ""); put("student_id_prefix", set.s("student_id_prefix") ?: ""); put("receipt_footer", a.s("receipt_footer") ?: "") }
+                    "payments" -> { put("key_id", a.s("key_id") ?: ""); put("key_secret", ""); put("webhook_secret", "") }
+                }
+            }
+        }
+        val sw = remember(a) {
+            mutableStateMapOf<String, Boolean>().apply {
+                when (kind) {
+                    "receipts" -> listOf("prorate_first_month", "send_admission_message", "send_payment_message").forEach { put(it, set.b(it)) }
+                    "admission" -> { put("online_admission_enabled", a.b("online_admission_enabled")); listOf("dob", "address", "email", "photo", "document").forEach { k -> put("f_$k", fields?.b(k) == true) } }
+                    else -> put("is_enabled", a.b("is_enabled"))
+                }
+            }
+        }
+        Column(Modifier.fillMaxSize().imePadding()) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                @Composable fun field(k: String, l: String, help: String? = null, password: Boolean = false) = CnxField(text[k] ?: "", { text[k] = it }, l, supporting = help, password = password)
+                @Composable fun switch(k: String, l: String, help: String? = null) = Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White).pressable({ sw[k] = sw[k] != true }).padding(14.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { Text(l, fontWeight = FontWeight.SemiBold, color = Ink); help?.let { Text(it, color = Muted, fontSize = 12.sp) } }
+                    Switch(sw[k] == true, { sw[k] = it }, colors = SwitchDefaults.colors(checkedTrackColor = Violet))
+                }
+                when (kind) {
+                    "receipts" -> {
+                        field("receipt_prefix", "Receipt number prefix", "e.g. RCPT → RCPT/2026-27/00001")
+                        field("invoice_prefix", "Invoice prefix")
+                        field("student_id_prefix", "Student ID prefix", "Blank = academy code (${a.s("code") ?: ""})")
+                        CnxField(text["receipt_footer"] ?: "", { text["receipt_footer"] = it }, "Receipt footer text", singleLine = false, minLines = 2)
+                        switch("prorate_first_month", "Charge only for remaining days when a student joins mid-month")
+                        switch("send_admission_message", "Send admission confirmation")
+                        switch("send_payment_message", "Send payment confirmation with receipt link")
+                    }
+                    "admission" -> {
+                        if (!me.has("online_admission")) InfoBanner("Online admission is not in your plan.", Amber)
+                        a.s("admission_link")?.let { link -> SoftButton("Share admission link", { ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "Apply for admission at ${a.s("name")}: $link"), "Share link")) }, Modifier.fillMaxWidth(), Icons.Outlined.Share) }
+                        switch("online_admission_enabled", "Accept online applications")
+                        Text("Optional fields on the form", fontWeight = FontWeight.Bold, color = Ink)
+                        listOf("dob" to "Date of birth", "address" to "Address", "email" to "Email", "photo" to "Photo", "document" to "Document").forEach { (k, l) -> switch("f_$k", l) }
+                    }
+                    else -> {
+                        if (!me.has("online_payments")) InfoBanner("Online payments are not in your plan.", Amber)
+                        Text("Parents can pay fees online through Razorpay. The money goes directly to your Razorpay account and every payment is verified on the server.", color = Muted, fontSize = 13.sp)
+                        field("key_id", "Razorpay Key ID")
+                        field("key_secret", "Key Secret", a.s("key_secret")?.let { "Saved: $it – leave blank to keep" }, password = true)
+                        field("webhook_secret", "Webhook secret", a.s("webhook_secret")?.let { "Saved: $it – leave blank to keep" }, password = true)
+                        switch("is_enabled", "Enable online payments")
+                        a.s("webhook_url")?.let { InfoBanner("Webhook URL for Razorpay (events payment.captured, order.paid): $it", Blue, Icons.Outlined.Link) }
+                    }
+                }
+            }
+            Surface(color = Color.White, shadowElevation = 12.dp) {
+                GradientButton("Save", {
+                    val body: JsonObject = when (kind) {
+                        "receipts" -> buildJsonObject {
+                            put("receipt_footer", text["receipt_footer"] ?: "")
+                            put("settings", JsonObject(set + mapOf(
+                                "receipt_prefix" to JsonPrimitive(text["receipt_prefix"] ?: ""), "invoice_prefix" to JsonPrimitive(text["invoice_prefix"] ?: ""), "student_id_prefix" to JsonPrimitive(text["student_id_prefix"] ?: ""),
+                                "prorate_first_month" to JsonPrimitive(sw["prorate_first_month"] == true), "send_admission_message" to JsonPrimitive(sw["send_admission_message"] == true), "send_payment_message" to JsonPrimitive(sw["send_payment_message"] == true),
+                            )))
+                        }
+                        "admission" -> buildJsonObject {
+                            put("online_admission_enabled", if (sw["online_admission_enabled"] == true) 1 else 0)
+                            put("settings", JsonObject(set + mapOf("online_admission_fields" to buildJsonObject { listOf("dob", "address", "email", "photo", "document").forEach { k -> put(k, sw["f_$k"] == true) } })))
+                        }
+                        else -> buildJsonObject { put("key_id", text["key_id"] ?: ""); put("key_secret", text["key_secret"] ?: ""); put("webhook_secret", text["webhook_secret"] ?: ""); put("is_enabled", if (sw["is_enabled"] == true) 1 else 0) }
+                    }
+                    vm.post(url, body) { vm.open(url, true) }
+                }, Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), loading = busy, icon = Icons.Outlined.Save, enabled = me.can("settings.manage"))
+            }
+        }
     }
 }

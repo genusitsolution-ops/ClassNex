@@ -6,6 +6,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -70,6 +73,9 @@ class DashboardVm @Inject constructor(private val repo: Repository) : LoadVm<Das
     }
     fun choose(b: Long?) { branch = b; refresh() }
     fun refresh(silent: Boolean = false) = load(silent) { call { repo.api.dashboard(branch) }.data!! }
+    val refreshing = MutableStateFlow(false)
+    /** Pull-to-refresh: reload in place, keep the screen visible. */
+    fun pull() = viewModelScope.launch { refreshing.value = true; try { refresh(true).join() } finally { refreshing.value = false } }
 }
 
 private data class Act(val text: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val tint: Color, val route: String)
@@ -80,28 +86,33 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
     LaunchedEffect(Unit) { vm.start(me) }
     val st by vm.state.collectAsState()
     val branches by vm.branches.collectAsState()
+    val refreshing by vm.refreshing.collectAsState()
     LoadContent(st, { vm.refresh() }) { d ->
-        LazyColumn(Modifier.testTag("dashList"), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            // ---- greeting + branch selector
+      Refreshable(refreshing, { vm.pull() }) {
+        LazyColumn(Modifier.testTag("dashList"), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // ---- welcome card with branch selector
             item {
                 Entrance(0) {
-                    Column(Modifier.fillMaxWidth().clip(Radius.card).background(Brand.drawer).padding(18.dp)) {
-                        Text("Hello, ${me.name.substringBefore(' ')} 👋", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
-                        Text(me.academy?.name ?: "", color = Color.White.copy(alpha = .85f), fontWeight = FontWeight.SemiBold)
-                        Text(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, dd MMM yyyy")), color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
-                        if (me.isClassAdmin && branches.size > 0) {
-                            Spacer(Modifier.height(12.dp))
-                            var open by remember { mutableStateOf(false) }
-                            Box {
-                                Row(Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .18f)).clickable { open = true }.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Outlined.Store, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(branches.firstOrNull { it.id == vm.branch }?.name ?: "All branches", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Icon(Icons.Outlined.KeyboardArrowDown, null, tint = Color.White)
-                                }
-                                DropdownMenu(open, { open = false }) {
-                                    DropdownMenuItem(text = { Text("All branches") }, onClick = { open = false; vm.choose(null) })
-                                    branches.forEach { b -> DropdownMenuItem(text = { Text(b.name) }, onClick = { open = false; vm.choose(b.id) }) }
+                    Box(Modifier.fillMaxWidth().shadow(10.dp, Radius.card, spotColor = Violet).clip(Radius.card).background(Brand.drawer)) {
+                        TrophyArt(Modifier.align(Alignment.CenterEnd).padding(end = 10.dp))
+                        Column(Modifier.padding(18.dp).padding(end = 90.dp)) {
+                            Text("Hello, ${me.name.substringBefore(' ')} 👋", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(if (d.role == "teacher") "Here are your classes for today" else "Manage your academy anytime, anywhere", color = Color.White.copy(alpha = .85f), fontSize = 13.sp)
+                            Text(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, dd MMM")), color = Color.White.copy(alpha = .7f), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                            if (me.isClassAdmin && branches.isNotEmpty()) {
+                                Spacer(Modifier.height(12.dp))
+                                var open by remember { mutableStateOf(false) }
+                                Box {
+                                    Row(Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .2f)).clickable { open = true }.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Outlined.LocationOn, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(branches.firstOrNull { it.id == vm.branch }?.name ?: "All Branches", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                                        Icon(Icons.Outlined.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    }
+                                    DropdownMenu(open, { open = false }) {
+                                        DropdownMenuItem(text = { Text("All Branches") }, onClick = { open = false; vm.choose(null) })
+                                        branches.forEach { b -> DropdownMenuItem(text = { Text(b.name) }, onClick = { open = false; vm.choose(b.id) }) }
+                                    }
                                 }
                             }
                         }
@@ -148,64 +159,110 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
                 return@LazyColumn
             }
 
-            // ---- 1. the everyday tasks, big and first
+            // ---- quick actions: one group of icon tiles
             item {
                 val acts = buildList {
                     if (me.can("students.manage")) add(Act("Add Student", Icons.Outlined.PersonAdd, Violet, "addStudent"))
-                    if (me.has("attendance") && me.can("attendance.mark")) add(Act("Mark Attendance", Icons.Outlined.HowToReg, Green, "markAttendance?batch=0"))
-                    if (me.has("fees") && me.can("fees.collect")) add(Act("Collect Fee", Icons.Outlined.CurrencyRupee, Orange, "collect/0"))
-                    if (me.has("fees") && me.can("fees.view")) add(Act("Pending Fees", Icons.Outlined.HourglassBottom, Red, "fees"))
-                    if (me.can("students.view")) add(Act("Students", Icons.Outlined.Group, Blue, "students"))
-                    if (me.has("manual_reminders") && me.can("notifications.send")) add(Act("Send Reminder", Icons.Outlined.NotificationsActive, Teal, "message?type=fee_reminder"))
+                    if (me.has("attendance") && me.can("attendance.mark")) add(Act("Mark Attendance", Icons.Outlined.EventAvailable, Blue, "markAttendance?batch=0"))
+                    if (me.has("fees") && me.can("fees.collect")) add(Act("Collect Fee", Icons.Outlined.CurrencyRupee, Red, "collect/0"))
+                    if (me.can("students.view")) add(Act("Students", Icons.Outlined.Groups, Indigo600, "students"))
+                    if (me.has("fees") && me.can("fees.view")) add(Act("Pending Fees", Icons.Outlined.HourglassBottom, Orange, "fees?tab=1"))
+                    if (me.has("manual_reminders") && me.can("notifications.send")) add(Act("Send Reminder", Icons.Outlined.Chat, Green, "message?type=fee_reminder"))
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    acts.chunked(2).forEachIndexed { ri, row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            row.forEachIndexed { ci, a ->
-                                Box(Modifier.weight(1f)) {
-                                    Entrance(ri * 2 + ci + 1) {
-                                        CnxCard(Modifier.testTag("quick:" + a.text), onClick = { nav(a.route) }, padding = 14.dp) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                IconCircle(a.icon, a.tint, 44.dp, 22.dp)
-                                                Text(a.text, fontWeight = FontWeight.Bold, color = Ink, fontSize = 15.sp, lineHeight = 18.sp, modifier = Modifier.padding(start = 10.dp), maxLines = 2)
-                                            }
-                                        }
-                                    }
-                                }
+                Entrance(1) {
+                    GroupCard(null) {
+                        acts.chunked(3).forEach { row ->
+                            Row {
+                                row.forEach { a -> IconTile(a.text, a.icon, a.tint, Modifier.weight(1f).testTag("quick:" + a.text)) { nav(a.route) } }
+                                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                             }
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
             }
 
-            // ---- 2. four simple numbers
-            item { SectionHeader("Today at a glance") }
-            item {
+            // ---- today at a glance: attendance donut
+            if (me.has("attendance")) item {
                 val t = d.today_attendance
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile("Total Students", "${d.active_students}", Icons.Outlined.Group, Violet, Modifier.weight(1f), d.student_quota?.limit?.let { "of $it allowed" }) { nav("students") }
-                        if (me.has("attendance")) StatTile("Today's Attendance", if (t.marked > 0) "${t.present} / ${t.marked}" else "–", Icons.Outlined.HowToReg, Green, Modifier.weight(1f),
-                            if (t.marked == 0L) "Not marked yet" else if (d.batches_not_marked > 0) "${d.batches_not_marked} batch(es) left" else "${t.present * 100 / t.marked}% present") { nav("markAttendance?batch=0") }
-                        else Spacer(Modifier.weight(1f))
-                    }
-                    if (me.has("fees") && me.can("fees.view")) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile("Collected This Month", money(d.month_collection_paise), Icons.Outlined.Savings, Green, Modifier.weight(1f), "Today ${money(d.today_collection_paise)}") { nav("payments") }
-                        StatTile("Pending Fees", money(d.pending_fees_paise), Icons.Outlined.HourglassBottom, Red, Modifier.weight(1f), if (d.overdue_students > 0) "${d.overdue_students} student${if (d.overdue_students == 1L) "" else "s"} overdue" else null) { nav("fees") }
+                val presentOnly = (t.present - t.late).coerceAtLeast(0)
+                Entrance(2) {
+                    GroupCard("Today at a Glance", action = "Mark", onAction = { nav("markAttendance?batch=0") }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            DonutChart(
+                                listOf(presentOnly.toFloat() to Green, t.late.toFloat() to Amber, t.absent.toFloat() to Red, t.leave.toFloat() to Violet),
+                                if (t.marked > 0) "${t.present * 100 / t.marked}%" else "–", if (t.marked > 0) "present" else "not marked", 116.dp, 15.dp,
+                            )
+                            Spacer(Modifier.width(18.dp))
+                            Column(Modifier.weight(1f)) {
+                                GlanceRow("Present", presentOnly, Green); GlanceRow("Absent", t.absent, Red); GlanceRow("Late", t.late, Amber)
+                                if (t.leave > 0) GlanceRow("Leave", t.leave, Violet)
+                                Text(if (t.marked == 0L) "Attendance not marked yet today" else if (d.batches_not_marked > 0) "${d.batches_not_marked} batch(es) still to mark" else "All batches marked ✓",
+                                    color = if (d.batches_not_marked > 0 || t.marked == 0L) Amber else Green, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
+                            }
+                        }
+                        Text("${d.active_students} active students" + (d.student_quota?.limit?.let { " · $it allowed in your plan" } ?: ""), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
             }
 
-            // ---- 3. the only list: fees due soon
-            if (me.has("fees") && me.can("fees.view") && d.upcoming_dues.isNotEmpty()) {
-                item { SectionHeader("Fees due this week", action = "See all") { nav("fees") } }
-                items(d.upcoming_dues.take(3), key = { "due" + it.id }) { u ->
-                    PersonRow(u.student_name, "${u.title} · due ${prettyDate(u.due_date)}", onClick = { if (me.can("fees.collect")) nav("collect/${u.student_id}") }, trailing = { Text(money(u.balance_paise), fontWeight = FontWeight.ExtraBold, color = Ink) })
+            // ---- fee collection
+            if (me.has("fees") && me.can("fees.view")) item {
+                Entrance(3) {
+                    GroupCard(null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconCircle(Icons.Outlined.CurrencyRupee, Pink, 46.dp, 22.dp)
+                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                CountUpText(d.month_collection_paise, ::money, MaterialTheme.typography.headlineSmall)
+                                Text("Fees Collected (This Month)", color = Muted, fontSize = 12.sp)
+                            }
+                            if (d.last_month_collection_paise > 0) {
+                                val ch = (d.month_collection_paise - d.last_month_collection_paise) * 100 / d.last_month_collection_paise
+                                Pill((if (ch >= 0) "▲ " else "▼ ") + "${kotlin.math.abs(ch)}%", if (ch >= 0) Green else Red)
+                            }
+                        }
+                        if (d.collection_trend.size > 1) {
+                            Spacer(Modifier.height(12.dp))
+                            BarChart(d.collection_trend.map { it.total }, d.collection_trend.map { runCatching { YearMonth.parse(it.month).format(DateTimeFormatter.ofPattern("MMM")) }.getOrDefault(it.month) }, height = 90.dp)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            MiniFig("Pending", money(d.pending_fees_paise), Amber, Modifier.weight(1f)) { nav("fees?tab=1") }
+                            MiniFig("Overdue", money(d.overdue_fees_paise), Red, Modifier.weight(1f), if (d.overdue_students > 0) "${d.overdue_students} student${if (d.overdue_students == 1L) "" else "s"}" else null) { nav("fees?tab=2") }
+                            MiniFig("Today", money(d.today_collection_paise), Green, Modifier.weight(1f)) { nav("payments") }
+                        }
+                    }
                 }
             }
-            item { Text("Branches, teachers, reports and more are in the More tab.", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+
+            // ---- fees due this week
+            if (me.has("fees") && me.can("fees.view") && d.upcoming_dues.isNotEmpty()) {
+                item {
+                    GroupCard("Fees due this week", action = "See all", onAction = { nav("fees?tab=1") }) {
+                        d.upcoming_dues.take(4).forEachIndexed { idx, u ->
+                            if (idx > 0) HorizontalDivider(color = Line)
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { if (me.can("fees.collect")) nav("collect/${u.student_id}") }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Avatar(null, u.student_name, 38)
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(u.student_name, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${u.title} · ${prettyDate(u.due_date)}", color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Text(money(u.balance_paise), fontWeight = FontWeight.ExtraBold, color = Ink)
+                            }
+                        }
+                    }
+                }
+            }
         }
+      }
+    }
+}
+
+@Composable
+private fun GlanceRow(label: String, n: Long, color: Color) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        Text(label, color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(start = 8.dp))
+        CountUpText(n, { "$it" }, MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -223,63 +280,126 @@ private fun MiniFig(title: String, value: String, color: Color, modifier: Modifi
 class StudentsVm @Inject constructor(private val repo: Repository) : LoadVm<List<StudentRow>>() {
     private var job: Job? = null
     var query = ""
-    private var branchFilter: String? = null
+    var branchFilter by mutableStateOf<String?>(null)
+    var activityFilter by mutableStateOf<Long?>(null)
+    var batchFilter by mutableStateOf<Long?>(null)
+    var status by mutableStateOf("active")
     val branches = MutableStateFlow<List<Branch>>(emptyList())
+    val activities = MutableStateFlow<List<Activity>>(emptyList())
+    val batches = MutableStateFlow<List<Batch>>(emptyList())
+    /** Totals for the All / Active / Inactive chips (from the list's page totals). */
+    val counts = mutableStateMapOf<String, Long>()
+    val refreshing = MutableStateFlow(false)
     init {
-        viewModelScope.launch { branches.value = runCatching { call { repo.api.branches() }.data }.getOrNull() ?: emptyList() }
+        viewModelScope.launch {
+            branches.value = runCatching { call { repo.api.branches() }.data }.getOrNull() ?: emptyList()
+            activities.value = runCatching { call { repo.api.activities() }.data }.getOrNull() ?: emptyList()
+            batches.value = runCatching { call { repo.api.batches() }.data }.getOrNull() ?: emptyList()
+        }
     }
-    fun start(b: Long?) { branchFilter = b?.toString(); search(query) }
+    private var started = false
+    fun start(b: Long?) { if (started && b == null) return; started = true; branchFilter = b?.toString(); search(query) }
     fun chooseBranch(b: String?) { branchFilter = b; search(query) }
-    fun search(q: String) {
+    fun filters(branch: String?, activity: Long?, batch: Long?) { branchFilter = branch; activityFilter = activity; batchFilter = batch; search(query) }
+    fun chooseStatus(s: String) { status = s; search(query) }
+    val filterCount get() = listOfNotNull(activityFilter, batchFilter).size + (if (branchFilter != null) 1 else 0)
+    private suspend fun fetch(st: String?, per: Int) = call { repo.api.students(query.ifBlank { null }, perPage = per, branchId = branchFilter, status = st, activityId = activityFilter, batchId = batchFilter) }
+    fun search(q: String, silent: Boolean = q.isNotEmpty()) {
         query = q
         job?.cancel()
         job = viewModelScope.launch {
             if (q.isNotEmpty()) delay(300)
-            load(silent = q.isNotEmpty()) { call { repo.api.students(q.ifBlank { null }, perPage = 100, branchId = branchFilter) }.data ?: emptyList() }
+            load(silent) { fetch(status, 100).data ?: emptyList() }.join()
+            listOf("all", "active", "inactive").forEach { k -> runCatching { fetch(k, 5).meta?.get("total")?.toString()?.toLongOrNull() }.getOrNull()?.let { counts[k] = it } }
         }
     }
+    fun pull() = viewModelScope.launch { refreshing.value = true; try { search(query, true); job?.join() } finally { refreshing.value = false } }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentsScreen(me: Me, nav: (String) -> Unit, pickMode: Boolean = false, onPick: ((StudentRow) -> Unit)? = null, branchId: Long? = null, vm: StudentsVm = hiltViewModel()) {
     LaunchedEffect(branchId) { vm.start(branchId) }
     val st by vm.state.collectAsState()
     val branches by vm.branches.collectAsState()
+    val activities by vm.activities.collectAsState()
+    val batches by vm.batches.collectAsState()
+    val refreshing by vm.refreshing.collectAsState()
     var q by remember { mutableStateOf(vm.query) }
-    var br by remember { mutableStateOf(branchId?.toString()) }
+    var sheet by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Column(Modifier.padding(16.dp, 12.dp, 16.dp, 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SearchBox(q, { q = it; vm.search(it) }, "Search name, Student ID or phone")
-                if (branches.isNotEmpty() && branchId == null) {
-                    ChoiceChips(listOf("" to "All branches") + branches.map { it.id.toString() to it.name } + listOf("none" to "No branch"), br ?: "") { k -> br = k.ifEmpty { null }; vm.chooseBranch(br) }
+            Column(Modifier.padding(16.dp, 4.dp, 16.dp, 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SearchBox(q, { q = it; vm.search(it) }, "Search by name, ID or phone", Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    BadgedBox(badge = { if (vm.filterCount > 0) Badge(containerColor = Violet) { Text("${vm.filterCount}") } }) {
+                        RoundIconButton(Icons.Outlined.Tune, "Filters", Violet) { sheet = true }
+                    }
+                }
+                if (!pickMode) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("all" to "All", "active" to "Active", "inactive" to "Inactive").forEach { (k, l) ->
+                        val on = vm.status == k
+                        val bg by animateColorAsState(if (on) Violet else Color.White, label = "chip")
+                        Box(Modifier.clip(RoundedCornerShape(50)).background(bg).border(1.dp, if (on) Violet else Line, RoundedCornerShape(50)).clickable { vm.chooseStatus(k) }.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                            Text(l + (vm.counts[k]?.let { " ($it)" } ?: ""), color = if (on) Color.White else Ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        }
+                    }
                 }
             }
             LoadContent(st, { vm.search(q) }) { rows ->
-                if (rows.isEmpty()) EmptyState(if (q.isBlank()) "No students yet" else "No match for \"$q\"", if (q.isBlank() && me.can("students.manage")) "Add your first student – it takes less than a minute." else null, Icons.Outlined.Group,
-                    if (q.isBlank() && !pickMode && me.can("students.manage")) "Add student" else null) { nav("addStudent") }
-                else LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    item { Text("${rows.size}${if (rows.size >= 100) "+" else ""} student(s)", color = Muted, fontSize = 12.sp) }
-                    itemsIndexed(rows, key = { _, s -> s.id }) { i, s ->
-                        Entrance(i) {
-                            PersonRow(s.name, "${s.student_code} · ${s.enrolled_in ?: "Not enrolled"}${s.branch_name?.let { " · $it" } ?: ""}", s.photo_url,
-                                onClick = { if (pickMode) onPick?.invoke(s) else nav("student/${s.id}") },
-                                trailing = {
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        if (s.status != "active") Pill(label(s.status), statusColor(s.status))
-                                        if (s.pending_paise > 0 && me.can("fees.view")) Text(money(s.pending_paise), color = Red, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        else if (!pickMode) Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
+                Refreshable(refreshing, { vm.pull() }) {
+                    if (rows.isEmpty()) EmptyState(if (q.isBlank()) "No students here" else "No match for \"$q\"", if (q.isBlank() && me.can("students.manage") && vm.filterCount == 0) "Add your first student – it takes less than a minute." else "Try another search or filter.", Icons.Outlined.Group,
+                        if (q.isBlank() && !pickMode && me.can("students.manage")) "Add student" else null) { nav("addStudent") }
+                    else LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        itemsIndexed(rows, key = { _, s -> s.id }) { i, s ->
+                            Entrance(i) {
+                                CnxCard(onClick = { if (pickMode) onPick?.invoke(s) else nav("student/${s.id}") }, padding = 12.dp) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Avatar(s.photo_url, s.name, 50)
+                                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(s.name, fontWeight = FontWeight.Bold, color = Ink, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                                                Spacer(Modifier.width(6.dp))
+                                                Pill(label(s.status), statusColor(s.status))
+                                            }
+                                            Text(s.student_code + (s.branch_name?.let { " · $it" } ?: ""), color = Muted, fontSize = 12.sp, maxLines = 1)
+                                            Text(s.enrolled_in ?: "Not in a batch yet", color = if (s.enrolled_in == null) Amber else Indigo600, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            if (s.pending_paise > 0 && me.can("fees.view")) {
+                                                Text(money(s.pending_paise), color = Red, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                                                Text("due", color = Red, fontSize = 11.sp)
+                                            } else Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
+                                        }
                                     }
-                                })
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-        if (!pickMode && me.can("students.manage")) ExtendedFloatingActionButton(
-            onClick = { nav("addStudent") }, icon = { Icon(Icons.Outlined.PersonAdd, null) }, text = { Text("Add student") },
-            containerColor = Violet, contentColor = Color.White, shape = RoundedCornerShape(18.dp), modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp),
-        )
+        if (!pickMode && me.can("students.manage")) FloatingActionButton(
+            onClick = { nav("addStudent") }, containerColor = Violet, contentColor = Color.White, shape = CircleShape, modifier = Modifier.align(Alignment.BottomEnd).padding(18.dp),
+        ) { Icon(Icons.Outlined.PersonAdd, "Add student") }
+    }
+    if (sheet) {
+        var b by remember { mutableStateOf(vm.branchFilter) }
+        var a by remember { mutableStateOf(vm.activityFilter) }
+        var bt by remember { mutableStateOf(vm.batchFilter) }
+        ModalBottomSheet(onDismissRequest = { sheet = false }, containerColor = Color.White) {
+            Column(Modifier.padding(20.dp, 0.dp, 20.dp, 28.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Filter students", style = MaterialTheme.typography.titleLarge, color = Ink)
+                if (branches.isNotEmpty() && branchId == null) SelectField("Branch", listOf<Pair<String?, String>>(null to "All branches") + branches.map { it.id.toString() to it.name } + listOf("none" to "No branch"), b, icon = Icons.Outlined.LocationOn) { b = it; bt = null }
+                SelectField("Activity", listOf<Pair<String?, String>>(null to "All activities") + activities.map { it.id.toString() to it.name }, a?.toString(), icon = Icons.Outlined.Interests) { a = it?.toLongOrNull(); bt = null }
+                SelectField("Batch", listOf<Pair<String?, String>>(null to "All batches") + batches.filter { (a == null || it.activity_id == a) && (b == null || b == "none" || it.branch_id == null || it.branch_id.toString() == b) }.map { it.id.toString() to "${it.name} · ${it.activity_name}" }, bt?.toString(), icon = Icons.Outlined.Groups) { bt = it?.toLongOrNull() }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SoftButton("Clear", { vm.filters(branchId?.toString(), null, null); sheet = false }, Modifier.weight(1f), Icons.Outlined.Close, Muted)
+                    GradientButton("Show students", { vm.filters(b, a, bt); sheet = false }, Modifier.weight(2f))
+                }
+            }
+        }
     }
 }
 
@@ -314,6 +434,10 @@ class StudentDetailVm @Inject constructor(private val repo: Repository) : LoadVm
         val s = call { repo.api.student(id) }.data!!
         val d = runCatching { call { repo.api.dues(id) }.data }.getOrNull()
         StudentPage(s, d)
+    }
+    /** Small actions (remove parent, cancel fee): POST or DELETE, then reload the profile. */
+    fun post(body: JsonObject?, url: String, delete: Boolean = false) = viewModelScope.launch {
+        try { val r = if (delete) call { repo.api.deleteJson(url) } else call { repo.api.postJson(url, body ?: JsonObject(emptyMap())) }; say(r.message.ifBlank { "Done." }); open(sid, true) } catch (e: Exception) { say(errorText(e)) }
     }
     fun loadAttendance() = viewModelScope.launch { att.value = runCatching { call { repo.api.studentAttendance(sid, month.toString()) }.data }.getOrNull() }
     fun shiftMonth(by: Long) { month = month.plusMonths(by); loadAttendance() }
@@ -360,6 +484,8 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
     val allBatches by vm.batches.collectAsState()
     val busy by vm.busy.collectAsState()
     var moveOpen by remember { mutableStateOf(false) }
+    var unlink by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    var cancelInv by remember { mutableStateOf<Pair<Long, String>?>(null) }
     var transferOpen by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val ctx = LocalContext.current
@@ -435,6 +561,7 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
                                         Text("${p.country_code} ${p.whatsapp}", color = Muted, fontSize = 12.sp)
                                     }
                                     Pill(if (p.login_status == null) "No app login" else "App: " + label(p.login_status), statusColor(p.login_status))
+                                    if (canEdit) IconButton(onClick = { unlink = p.id to p.name }) { Icon(Icons.Outlined.LinkOff, "Remove parent", tint = Muted) }
                                 }
                             }
                         }
@@ -498,6 +625,8 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
                                     Pill(if (i.days_overdue > 0) "Overdue" else label(i.status), if (i.days_overdue > 0) Red else statusColor(i.status))
                                 }
                             }
+                            if (me.isClassAdmin && me.can("fees.manage") && i.paid_paise == 0L) Text("Cancel this fee", color = Red, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(8.dp)).clickable { cancelInv = i.id to i.title }.padding(4.dp))
                         }
                     }
                     item { SectionHeader("Payments", Modifier.padding(horizontal = 16.dp)) }
@@ -539,12 +668,21 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
                             if (me.isClassAdmin && branches.isNotEmpty()) SoftButton("Change branch", { moveOpen = true }, Modifier.weight(1f), Icons.Outlined.Store)
                         }
                     }
+                    if (canEdit && me.isClassAdmin) item { SoftButton("Add to another activity", { nav("form/studentEnroll?id=0&parent=${s.id}") }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), Icons.Outlined.AddCircleOutline) }
                 }
                 "Documents" -> {
                     item { LaunchedEffect(Unit) { vm.loadDocs() } }
                     item { DocumentsCard(vm, snack) }
                 }
             }
+        }
+        unlink?.let { (pid, name) -> ConfirmDialog("Remove $name?", "$name will no longer be linked to this student (the parent's other children are not affected).", "Remove", true, { unlink = null }) { vm.post(null, "students/${s.id}/parents/$pid", delete = true); unlink = null } }
+        cancelInv?.let { (iid, title) ->
+            var reason by remember { mutableStateOf("") }
+            AlertDialog(onDismissRequest = { cancelInv = null }, containerColor = Color.White, shape = RoundedCornerShape(24.dp), title = { Text("Cancel \"$title\"?") },
+                text = { Column { Text("Only fees with no payment can be cancelled. This is recorded in the activity log.", color = Muted, fontSize = 13.sp); Spacer(Modifier.height(8.dp)); CnxField(reason, { reason = it }, "Reason *") } },
+                confirmButton = { Button(onClick = { vm.post(JsonObject(mapOf("reason" to kotlinx.serialization.json.JsonPrimitive(reason))), "invoices/$iid/cancel"); cancelInv = null }, enabled = reason.length >= 3, colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("Cancel fee") } },
+                dismissButton = { TextButton(onClick = { cancelInv = null }) { Text("Keep") } })
         }
         if (moveOpen) ChangeBranchDialog(s.branch_id, branches, allBatches, onDismiss = { moveOpen = false }) { b, bt -> moveOpen = false; vm.changeBranch(b, bt) }
         if (transferOpen) {

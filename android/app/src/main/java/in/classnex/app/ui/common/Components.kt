@@ -67,8 +67,18 @@ private fun rippleInd() = androidx.compose.material3.ripple()
 
 // ------------------------------------------------------------------ entrance animation
 /** Cards fade and slide in, staggered by their position (capped so long lists stay quick). */
+/** True when the user turned animations off in Android settings (accessibility / developer options). */
+val LocalReduceMotion = staticCompositionLocalOf { false }
+
+@Composable
+fun rememberReduceMotion(): Boolean {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    return remember { runCatching { android.provider.Settings.Global.getFloat(ctx.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f }.getOrDefault(false) }
+}
+
 @Composable
 fun Entrance(index: Int = 0, content: @Composable () -> Unit) {
+    if (LocalReduceMotion.current) { content(); return }
     val state = remember { MutableTransitionState(false).apply { targetState = true } }
     AnimatedVisibility(
         visibleState = state,
@@ -226,7 +236,8 @@ fun KeyRow(k: String, v: String?, modifier: Modifier = Modifier) {
 fun DonutChart(segments: List<Pair<Float, Color>>, center: String, centerSub: String? = null, size: Dp = 128.dp, stroke: Dp = 16.dp) {
     val total = segments.sumOf { it.first.toDouble() }.toFloat()
     val anim = remember { Animatable(0f) }
-    LaunchedEffect(segments) { anim.snapTo(0f); anim.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
+    val still = LocalReduceMotion.current
+    LaunchedEffect(segments) { if (still) anim.snapTo(1f) else { anim.snapTo(0f); anim.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) } }
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val sw = stroke.toPx()
@@ -264,7 +275,8 @@ fun LegendDot(text: String, color: Color, value: String? = null) {
 fun BarChart(values: List<Long>, labels: List<String>, modifier: Modifier = Modifier, height: Dp = 110.dp) {
     val max = (values.maxOrNull() ?: 0L).coerceAtLeast(1L).toFloat()
     val anim = remember { Animatable(0f) }
-    LaunchedEffect(values) { anim.snapTo(0f); anim.animateTo(1f, tween(800, easing = FastOutSlowInEasing)) }
+    val still = LocalReduceMotion.current
+    LaunchedEffect(values) { if (still) anim.snapTo(1f) else { anim.snapTo(0f); anim.animateTo(1f, tween(800, easing = FastOutSlowInEasing)) } }
     Column(modifier) {
         Canvas(Modifier.fillMaxWidth().height(height)) {
             val n = values.size.coerceAtLeast(1)
@@ -529,26 +541,148 @@ fun PersonRow(
 // ------------------------------------------------------------------ bottom navigation
 data class BottomItem(val route: String, val label: String, val icon: ImageVector)
 
-/** Bottom navigation with an animated purple pill behind the selected item. */
+/**
+ * Bottom navigation (v1.0.22): the selected item gets a filled purple pill with a white icon that
+ * grows in smoothly; labels never clip (one line, ellipsis on very small screens).
+ */
 @Composable
 fun CnxBottomBar(items: List<BottomItem>, selected: String?, onSelect: (BottomItem) -> Unit) {
-    Surface(color = Color.White, shadowElevation = 14.dp, shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)) {
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 6.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceAround) {
+    Surface(color = Color.White, shadowElevation = 16.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 4.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceAround) {
             items.forEach { item ->
                 val on = item.route == selected
-                val bg by animateColorAsState(if (on) VioletSoft else Color.Transparent, tween(250), label = "bn")
-                val tint by animateColorAsState(if (on) Violet else Muted, tween(250), label = "bt")
+                val pill by animateDpAsState(if (on) 54.dp else 40.dp, tween(260), label = "pill")
+                val bg by animateColorAsState(if (on) Violet else Color.Transparent, tween(260), label = "bn")
+                val tint by animateColorAsState(if (on) Color.White else Muted, tween(260), label = "bt")
+                val text by animateColorAsState(if (on) Violet else Muted, tween(260), label = "bl")
                 Column(
                     Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable { onSelect(item) }.testTag("tab:" + item.label).padding(vertical = 2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Box(Modifier.clip(RoundedCornerShape(50)).background(bg).padding(horizontal = 18.dp, vertical = 5.dp)) {
-                        Icon(item.icon, item.label, tint = tint, modifier = Modifier.size(22.dp))
+                    Box(Modifier.width(pill).height(34.dp).shadow(if (on) 6.dp else 0.dp, RoundedCornerShape(50), spotColor = Violet).clip(RoundedCornerShape(50)).background(if (on) Brand.primary else Brush.linearGradient(listOf(bg, bg))), contentAlignment = Alignment.Center) {
+                        Icon(item.icon, item.label, tint = tint, modifier = Modifier.size(21.dp))
                     }
-                    Text(item.label, color = tint, fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+                    Text(item.label, color = text, fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
                 }
             }
         }
+    }
+}
+
+// ------------------------------------------------------------------ v1.0.22 building blocks
+/** Light app bar (white over lavender): dark title, optional back / custom leading content and actions. */
+@Composable
+fun LightTopBar(
+    title: String,
+    subtitle: String? = null,
+    navigation: (@Composable () -> Unit)? = null,
+    titleContent: (@Composable () -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    Box(Modifier.fillMaxWidth().background(Lavender).statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().height(62.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (navigation != null) navigation() else Spacer(Modifier.width(12.dp))
+            Box(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                if (titleContent != null) titleContent()
+                else Column {
+                    AnimatedContent(title, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "title") { t ->
+                        Text(t, color = Ink, style = MaterialTheme.typography.titleLarge, fontSize = 21.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (subtitle != null) Text(subtitle, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            CompositionLocalProvider(LocalContentColor provides Ink) { actions() }
+        }
+    }
+}
+
+@Composable
+fun RoundIconButton(icon: ImageVector, desc: String, tint: Color = Ink, badge: Boolean = false, onClick: () -> Unit) {
+    Box(Modifier.padding(4.dp).size(42.dp).clip(CircleShape).background(Color.White).border(1.dp, Line, CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, desc, tint = tint, modifier = Modifier.size(21.dp))
+        if (badge) Box(Modifier.align(Alignment.TopEnd).padding(9.dp).size(8.dp).clip(CircleShape).background(Red))
+    }
+}
+
+/** Big purple pill used for the main action in a top bar ("+ Add"). */
+@Composable
+fun PillAction(text: String, icon: ImageVector, onClick: () -> Unit) {
+    Row(Modifier.padding(end = 6.dp).height(42.dp).shadow(6.dp, RoundedCornerShape(50), spotColor = Violet).clip(RoundedCornerShape(50)).background(Brand.primary).pressable(onClick).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** Rounded-square tinted icon with a label underneath – compact navigation tile. */
+@Composable
+fun IconTile(label: String, icon: ImageVector, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).pressable(onClick).padding(vertical = 8.dp, horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(tint.copy(alpha = .16f), tint.copy(alpha = .08f)))), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(26.dp))
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(label, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, lineHeight = 15.sp, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** A white rounded group with a heading – used to group related modules instead of many separate cards. */
+@Composable
+fun GroupCard(title: String?, modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    Surface(modifier.fillMaxWidth().shadow(2.dp, Radius.card, ambientColor = Color(0x1A311C8F), spotColor = Color(0x1A311C8F)), shape = Radius.card, color = Color.White) {
+        Column(Modifier.padding(14.dp)) {
+            if (title != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 2.dp, bottom = 6.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.weight(1f))
+                    if (action != null && onAction != null) Text(action, color = Violet, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onAction).padding(6.dp))
+                }
+            }
+            content()
+        }
+    }
+}
+
+/** Number that counts up when it first appears (instant when reduce-motion is on). */
+@Composable
+fun CountUpText(value: Long, format: (Long) -> String, style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineSmall, color: Color = Ink, modifier: Modifier = Modifier) {
+    val still = LocalReduceMotion.current
+    val anim = remember { Animatable(if (still) value.toFloat() else 0f) }
+    LaunchedEffect(value) { if (still) anim.snapTo(value.toFloat()) else anim.animateTo(value.toFloat(), tween(750, easing = FastOutSlowInEasing)) }
+    Text(format(anim.value.toLong()), style = style, color = color, modifier = modifier, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+/** Coloured count box (attendance: Present / Absent / Late / Leave). */
+@Composable
+fun CountTile(value: Int, label: String, color: Color, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(color.copy(alpha = .1f)).padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        AnimatedContent(value, transitionSpec = { (slideInVertically { -it / 2 } + fadeIn()) togetherWith (slideOutVertically { it / 2 } + fadeOut()) }, label = "count") { v ->
+            Text("$v", color = color, fontWeight = FontWeight.ExtraBold, fontSize = 21.sp)
+        }
+        Text(label, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+/** Pull-to-refresh wrapper used by the main lists and the dashboard. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun Refreshable(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = modifier.fillMaxSize(), content = content)
+}
+
+/** Simple trophy illustration for the welcome card (drawn, no image files). */
+@Composable
+fun TrophyArt(modifier: Modifier = Modifier) {
+    val t = rememberInfiniteTransition(label = "glow")
+    val still = LocalReduceMotion.current
+    val glow by t.animateFloat(.55f, .85f, infiniteRepeatable(tween(1800), RepeatMode.Reverse), label = "g")
+    Box(modifier.size(96.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(Brush.radialGradient(listOf(Color(0xFFFFE08A).copy(alpha = if (still) .7f else glow), Color.Transparent)), radius = size.minDimension / 2)
+            listOf(Offset(.15f, .25f), Offset(.85f, .2f), Offset(.9f, .7f), Offset(.12f, .75f)).forEach { o ->
+                drawCircle(Color.White.copy(alpha = .8f), radius = 2.5.dp.toPx(), center = Offset(size.width * o.x, size.height * o.y))
+            }
+        }
+        Icon(Icons.Outlined.EmojiEvents, null, tint = Color(0xFFFFC53D), modifier = Modifier.size(62.dp))
     }
 }
 

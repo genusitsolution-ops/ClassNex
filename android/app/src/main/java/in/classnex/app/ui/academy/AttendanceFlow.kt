@@ -2,6 +2,14 @@ package `in`.classnex.app.ui.academy
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -184,37 +192,45 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
                         item {
                             when {
                                 sh.holiday != null -> InfoBanner("Holiday: ${sh.holiday}. You can still save if the class took place.", Violet, Icons.Outlined.BeachAccess)
-                                sh.already_marked -> InfoBanner("Attendance for ${prettyDate(sh.date)} is already saved. You can change it and save again.", Blue, Icons.Outlined.EditCalendar)
-                                else -> InfoBanner("Everyone is Present. Just tap Absent, Late or Leave for students who are not.", Green, Icons.Outlined.CheckCircle)
+                                sh.already_marked -> InfoBanner("Attendance for ${prettyDate(sh.date)} is already saved. Tap a status to change it and save again.", Blue, Icons.Outlined.EditCalendar)
+                                else -> InfoBanner("All students are marked Present. Tap a student's status to change it: Absent → Late → Leave.", Green, Icons.Outlined.Bolt)
+                            }
+                        }
+                        // live counts
+                        item {
+                            val c = vm.marks.values.groupingBy { it }.eachCount()
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                statuses.forEach { (k, l, col) -> CountTile(c[k] ?: 0, l, col, Modifier.weight(1f)) }
                             }
                         }
                         item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                SoftButton("All Present", { vm.all("present") }, Modifier.weight(1f), Icons.Outlined.DoneAll, Green)
-                                SoftButton("All Absent", { vm.all("absent") }, Modifier.weight(1f), Icons.Outlined.RemoveDone, Red)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Students (${sh.students.size})", style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { vm.all("present") }) { Icon(Icons.Outlined.DoneAll, null, tint = Green, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("All Present", color = Green, fontWeight = FontWeight.Bold) }
+                                TextButton(onClick = { vm.all("absent") }) { Text("All Absent", color = Red, fontWeight = FontWeight.Bold) }
                             }
                         }
                         if (sh.students.isEmpty()) item { EmptyState("No students in this batch on this date", icon = Icons.Outlined.Group) }
-                        itemsIndexed(sh.students, key = { _, st -> st.id }) { i, st ->
-                            Entrance(i) {
-                                val cur = vm.marks[st.id]
-                                CnxCard(padding = 10.dp) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Avatar(st.photo_url, st.name, 38)
+                        item {
+                            if (sh.students.isNotEmpty()) GroupCard(null) {
+                                sh.students.forEachIndexed { idx, st ->
+                                    if (idx > 0) HorizontalDivider(color = Line, modifier = Modifier.padding(start = 52.dp))
+                                    // a student added after the register was saved has no status yet: shown as "Not marked"
+                                    val cur = vm.marks[st.id]
+                                    val (_, word, col) = statuses.firstOrNull { it.first == cur } ?: Triple("", "Not marked", Muted)
+                                    val bg by animateColorAsState(col.copy(alpha = .14f), tween(220), label = "st")
+                                    val fg by animateColorAsState(col, tween(220), label = "fg")
+                                    val next = { vm.marks[st.id] = if (cur == null) "present" else statuses[(statuses.indexOfFirst { it.first == cur } + 1) % statuses.size].first }
+                                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = next).padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Avatar(st.photo_url, st.name, 42)
                                         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                                             Text(st.name, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            Text(st.student_code, color = Muted, fontSize = 11.sp, maxLines = 1)
+                                            Text(st.student_code, color = Muted, fontSize = 12.sp, maxLines = 1)
                                         }
-                                    }
-                                    Spacer(Modifier.height(8.dp))
-                                    // clear word buttons: Present · Absent · Late · Leave
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        statuses.forEach { (k, l, c) ->
-                                            val on = cur == k
-                                            Surface(onClick = { vm.marks[st.id] = k }, shape = RoundedCornerShape(12.dp), color = if (on) c else Color.White,
-                                                border = BorderStroke(1.5.dp, if (on) c else Line), modifier = Modifier.weight(1f).height(38.dp)) {
-                                                Box(contentAlignment = Alignment.Center) { Text(l, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (on) Color.White else Muted, maxLines = 1) }
-                                            }
+                                        Row(Modifier.testTag("status:" + st.id).clip(RoundedCornerShape(50)).background(bg).clickable(onClick = next).padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(when (cur) { "present" -> Icons.Outlined.CheckCircle; "absent" -> Icons.Outlined.Cancel; "late" -> Icons.Outlined.Schedule; "leave" -> Icons.Outlined.EventBusy; else -> Icons.Outlined.RadioButtonUnchecked }, null, tint = fg, modifier = Modifier.size(17.dp))
+                                            Spacer(Modifier.width(5.dp))
+                                            AnimatedContent(word, transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(100)) }, label = "w") { w -> Text(w, color = fg, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
                                         }
                                     }
                                 }
@@ -226,16 +242,8 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
             }
             val ready = (sheet as? Load.Ready)?.data
             if (ready != null && ready.students.isNotEmpty()) {
-                Surface(color = Color.White, shadowElevation = 12.dp, shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp, 10.dp)) {
-                        val c = vm.marks.values.groupingBy { it }.eachCount()
-                        // one compact line of counts so more students stay visible
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            CountBox("Present", c["present"] ?: 0, Green); CountBox("Absent", c["absent"] ?: 0, Red)
-                            CountBox("Late", c["late"] ?: 0, Amber); CountBox("Leave", c["leave"] ?: 0, Violet)
-                            CountBox("of", ready.students.size, Ink)
-                        }
-                        Spacer(Modifier.height(8.dp))
+                Surface(color = Lavender) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp, 8.dp)) {
                         GradientButton(if (ready.already_marked) "Save Changes" else "Save Attendance", { vm.save(manualWa) }, Modifier.fillMaxWidth(), loading = saving, icon = Icons.Outlined.Save,
                             enabled = me.can("attendance.mark"))
                     }

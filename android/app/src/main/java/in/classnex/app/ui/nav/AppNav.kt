@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -56,55 +57,63 @@ import kotlinx.coroutines.launch
 
 /** One entry of the More screen. Only entries the user's package and permissions allow are built. */
 data class MenuItem(val label: String, val route: String, val icon: ImageVector, val tint: Color = Violet, val hint: String? = null)
-data class MenuSection(val title: String, val items: List<MenuItem>)
+/** [grid] = shown as icon tiles; otherwise as a list. */
+data class MenuSection(val title: String, val items: List<MenuItem>, val grid: Boolean = true)
 
-/**
- * The More screen: the main sections as large tiles, then the other tools in a short list.
- * Same modules and permission rules as the web panel for each role.
- */
+/** The More screen, grouped like the web panel: same modules and permission rules for each role. */
 fun moreFor(me: Me): List<MenuSection> {
     val owner = me.isClassAdmin
     val fees = me.has("fees") && me.can("fees.view")
     val att = me.has("attendance")
-    fun sec(title: String, vararg items: MenuItem?) = MenuSection(title, items.filterNotNull())
+    fun sec(title: String, grid: Boolean, vararg items: MenuItem?) = MenuSection(title, items.filterNotNull(), grid)
     fun MenuItem.on(b: Boolean) = if (b) this else null
     val list = when {
         me.role == "super_admin" -> listOf(
-            sec("Main", MenuItem("Registrations", "module/registrations", Icons.Outlined.HowToReg, Amber, "Approve new academies"), MenuItem("Academies", "module/academies", Icons.Outlined.Apartment, Violet, "All academies and plans"),
-                MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue), MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Password and log out")),
+            sec("Platform", true, MenuItem("Registrations", "module/registrations", Icons.Outlined.HowToReg, Amber), MenuItem("Academies", "module/academies", Icons.Outlined.Apartment, Violet), MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue)),
+            sec("Account", false, MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Password and log out")),
         )
         me.isFamily -> listOf(
-            sec("Main", MenuItem("Attendance", "portalAttendance", Icons.Outlined.HowToReg, Green).on(att), MenuItem("Fees & Receipts", "portalFees", Icons.Outlined.ReceiptLong, Orange).on(me.has("fees")),
-                MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue), MenuItem("Help & Support", "module/support", Icons.Outlined.SupportAgent, Pink, "Ask the academy"),
-                MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Password and log out")),
+            sec("My Child", true, MenuItem("Attendance", "portalAttendance", Icons.Outlined.HowToReg, Green).on(att), MenuItem("Fees & Receipts", "portalFees", Icons.Outlined.ReceiptLong, Orange).on(me.has("fees")), MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue)),
+            sec("Account", false, MenuItem("Help & Support", "module/support", Icons.Outlined.SupportAgent, Pink, "Ask the academy"), MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Password and log out")),
         )
         else -> listOf(
             sec(
-                "Main",
-                MenuItem("Branches", "branches", Icons.Outlined.Store, Teal, "Your centres").on(owner),
-                MenuItem("Teachers", "module/teachers", Icons.Outlined.Badge, Blue, "Add teachers, set access").on(owner),
-                MenuItem("Activities & Batches", "structure", Icons.Outlined.Groups, Orange, "Classes, timings, batches"),
-                MenuItem("Reports", "reports?financial=0", Icons.Outlined.Assessment, Pink, "Attendance, fees, students").on(me.has("reports") && me.can("reports.view")),
-                MenuItem("Reminders & WhatsApp", "reminders", Icons.Outlined.NotificationsActive, Green, "Fee reminders, messages").on(me.can("notifications.send") || (owner && me.can("settings.manage"))),
-                MenuItem("Announcements", "module/announcements", Icons.Outlined.Campaign, Amber, "News for everyone").on(me.can("notifications.send")),
-                MenuItem("Subscription", "subscription", Icons.Outlined.WorkspacePremium, Violet, "Your plan and usage").on(owner),
-                MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Profile, password, log out"),
-                MenuItem("Help & Support", "module/support", Icons.Outlined.SupportAgent, Pink, "We are here to help"),
+                "Academy Management", true,
+                MenuItem("Branches", "branches", Icons.Outlined.AccountBalance, Red).on(owner),
+                MenuItem("Teachers", "module/teachers", Icons.Outlined.School, Indigo600).on(owner),
+                MenuItem("Activities", "module/activities", Icons.Outlined.DirectionsRun, Blue),
+                MenuItem("Batches", "module/batches", Icons.Outlined.Layers, Violet),
+                MenuItem("Students", "students", Icons.Outlined.Groups, Pink).on(me.can("students.view")),
+                MenuItem("Parents", "module/parents", Icons.Outlined.FamilyRestroom, Teal).on(owner || me.can("students.manage")),
             ),
             sec(
-                "Other tools",
-                MenuItem("Payments & Receipts", "payments", Icons.Outlined.ReceiptLong, Green).on(fees),
-                MenuItem("Fee Plans", "module/feePlans", Icons.Outlined.RequestQuote, Teal).on(fees),
-                MenuItem("Discounts", "module/discounts", Icons.Outlined.Sell, Pink).on(fees && owner),
-                MenuItem("Fee Reports", "reports?financial=1", Icons.Outlined.Insights, Orange).on(fees && me.has("reports") && me.can("reports.financial")),
-                MenuItem("Attendance History", "history", Icons.Outlined.History, Blue).on(att),
+                "Operations", true,
                 MenuItem("Timetable", "timetable", Icons.Outlined.CalendarViewWeek, Indigo600),
                 MenuItem("Admission Requests", "module/admissions", Icons.Outlined.AssignmentInd, Amber).on(me.has("online_admission") && me.can("admissions.manage")),
-                MenuItem("Parents", "module/parents", Icons.Outlined.FamilyRestroom, Violet).on(owner || me.can("students.manage")),
                 MenuItem("Holidays", "module/holidays", Icons.Outlined.BeachAccess, Pink).on(owner),
                 MenuItem(if (owner) "Teacher Leaves" else "My Leaves", "module/leaves", Icons.Outlined.EventAvailable, Blue),
-                MenuItem("Academy Profile", "academyProfile", Icons.Outlined.Storefront, Violet).on(owner),
-                MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue),
+                MenuItem("Announcements", "module/announcements", Icons.Outlined.Campaign, Red).on(me.can("notifications.send")),
+            ),
+            sec(
+                "Finance & Reports", true,
+                MenuItem("Payments & Receipts", "payments", Icons.Outlined.ReceiptLong, Green).on(fees),
+                MenuItem("Fee Plans", "module/feePlans", Icons.Outlined.RequestQuote, Teal).on(fees),
+                MenuItem("Fee Reports", "reports?financial=1", Icons.Outlined.Insights, Orange).on(fees && me.has("reports") && me.can("reports.financial")),
+                MenuItem("Discounts", "module/discounts", Icons.Outlined.Sell, Pink).on(fees && owner),
+                MenuItem("Attendance History", "history", Icons.Outlined.History, Blue).on(att),
+                MenuItem("Reports", "reports?financial=0", Icons.Outlined.BarChart, Violet).on(me.has("reports") && me.can("reports.view")),
+            ),
+            sec(
+                "Communication", false,
+                MenuItem("Reminders & WhatsApp", "reminders", Icons.Outlined.Chat, Green, "Fee reminders, messages, WhatsApp").on(me.can("notifications.send") || (owner && me.can("settings.manage"))),
+                MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue, "Your alerts"),
+            ),
+            sec(
+                "Account", false,
+                MenuItem("Academy Profile", "academyProfile", Icons.Outlined.Storefront, Violet, "Name, logo, receipts, admission link").on(owner),
+                MenuItem("Subscription", "subscription", Icons.Outlined.WorkspacePremium, Amber, "Your plan and usage").on(owner),
+                MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Password, receipts & IDs, online payments, activity log"),
+                MenuItem("Help & Support", "module/support", Icons.Outlined.HeadsetMic, Pink, "We are here to help"),
             ),
         )
     }
@@ -162,18 +171,28 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit, onRefreshMe: () -> Unit = {}) {
     // close the keyboard when the user arrives (after login) and whenever the screen changes
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(pattern) { keyboard?.hide() }
-    run {
+    CompositionLocalProvider(LocalReduceMotion provides rememberReduceMotion()) {
         Scaffold(
             containerColor = Lavender,
             snackbarHost = { SnackbarHost(snack) { d -> Snackbar(d, shape = RoundedCornerShape(14.dp), containerColor = Indigo900, contentColor = Color.White) } },
             topBar = {
-                GradientTopBar(
+                val home = pattern == "dashboard" || pattern == "portal" || pattern == "admin"
+                LightTopBar(
                     title = titleFor(pattern, entry, me),
-                    subtitle = if (isTab && pattern != "dashboard") me.academy?.name else null,
-                    navigation = if (isTab) null else ({ BackIcon { nav.popBackStack() } }),
+                    navigation = if (isTab) null else ({ IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = Ink) } }),
+                    titleContent = if (home) ({
+                        // brand + academy on the home screen
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(painterResource(R.drawable.classnex_icon), null, Modifier.size(34.dp))
+                            Column(Modifier.padding(start = 8.dp)) {
+                                Text("ClassNex", fontWeight = FontWeight.ExtraBold, color = Indigo800, fontSize = 19.sp)
+                                Text(me.academy?.name ?: roleName(me.role), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }) else null,
                     actions = {
-                        if (pattern != "notifications") BarIcon(Icons.Outlined.Notifications, "Notifications") { go("notifications") }
-                        if (pattern == "students" && me.can("students.manage")) BarIcon(Icons.Outlined.PersonAdd, "Add student") { go("addStudent") }
+                        if (pattern == "students" && me.can("students.manage")) PillAction("Add", Icons.Outlined.Add) { go("addStudent") }
+                        else if (pattern != "notifications") RoundIconButton(Icons.Outlined.Notifications, "Notifications") { go("notifications") }
                     },
                 )
             },
@@ -196,6 +215,7 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit, onRefreshMe: () -> Unit = {}) {
                 composable("dashboard") { DashboardScreen(me, go) }
                 composable("more") { MoreScreen(me, more, go, onLogout) }
                 composable("structure") { StructureScreen(me, snack, go) }
+                composable("academySettings/{kind}", listOf(navArgument("kind") { type = NavType.StringType })) { AcademySettingsScreen(it.arguments!!.getString("kind") ?: "receipts", me, snack) }
                 composable("reminders") { RemindersScreen(me, snack, go, onRefreshMe) }
                 composable("students") { StudentsScreen(me, go) }
                 composable("student/{id}", listOf(navArgument("id") { type = NavType.LongType })) { StudentDetailScreen(it.arguments!!.getLong("id"), me, go, snack) }
@@ -259,7 +279,7 @@ private fun currentRoute(e: NavBackStackEntry?): String {
     val a = e.arguments
     return when {
         p.startsWith("module/") -> "module/" + (a?.getString("key") ?: "")
-        p.startsWith("fees") -> if ((a?.getInt("tab") ?: 0) == 1) "fees?tab=1" else "fees"
+        p.startsWith("fees") -> when (a?.getInt("tab") ?: 0) { 1 -> "fees?tab=1"; 2 -> "fees?tab=2"; else -> "fees" }
         p.startsWith("reports") -> "reports?financial=" + (a?.getInt("financial") ?: 0)
         p.startsWith("markAttendance") -> "markAttendance?batch=0"
         p.startsWith("history") -> "history"
@@ -285,7 +305,7 @@ private fun titleFor(pattern: String, e: NavBackStackEntry?, me: Me): String {
             if (t.startsWith("Edit") || t.startsWith("Add") || t.startsWith("New") || t.startsWith("Assign") || t.contains("profile")) t
             else (if ((a?.getLong("id") ?: 0L) > 0) "Edit " else "New ") + t.replaceFirstChar { it.lowercase() }
         }
-        pattern.startsWith("fees") -> if ((a?.getInt("tab") ?: 0) == 1) "Overdue Fees" else "Pending Fees"
+        pattern.startsWith("fees") -> "Fees"
         pattern.startsWith("reports") -> if ((a?.getInt("financial") ?: 0) == 1) "Fee Reports" else "Reports"
         pattern.startsWith("markAttendance") || pattern.startsWith("attendance/") -> "Attendance"
         pattern.startsWith("history") -> "Attendance History"
@@ -298,58 +318,51 @@ private fun titleFor(pattern: String, e: NavBackStackEntry?, me: Me): String {
         pattern.startsWith("report/") -> "Report"
         pattern.startsWith("batchStudents") -> "Batch Students"
         pattern.startsWith("ticket/") -> "Support Ticket"
+        pattern.startsWith("academySettings") -> when (a?.getString("kind")) { "admission" -> "Online Admission"; "payments" -> "Online Payments"; else -> "Receipts & IDs" }
         else -> "ClassNex"
     }
 }
 
-/** The More tab: main sections as large tiles, other tools as a short list. */
+/** The More tab: profile header, module groups as icon tiles, communication and account as lists. */
 @Composable
 private fun MoreScreen(me: Me, sections: List<MenuSection>, go: (String) -> Unit, onLogout: () -> Unit) {
     var logout by remember { mutableStateOf(false) }
-    LazyColumn(Modifier.fillMaxSize().testTag("moreList"), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("moreList"), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Row(Modifier.fillMaxWidth().clip(Radius.card).background(Brand.drawer).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+            Row(Modifier.fillMaxWidth().shadow(8.dp, Radius.card, spotColor = Violet).clip(Radius.card).background(Brand.drawer).pressable({ go("profile") }).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(54.dp).clip(CircleShape).background(Color.White.copy(alpha = .2f)).padding(3.dp)) {
                     val logo = me.academy?.logo_url
-                    if (logo != null) AsyncImage(logo, null, Modifier.fillMaxSize().padding(4.dp)) else Image(painterResource(R.drawable.classnex_icon), null, Modifier.size(36.dp))
+                    if (logo != null) AsyncImage(logo, null, Modifier.fillMaxSize().clip(CircleShape).background(Color.White)) else Avatar(null, me.name, 48)
                 }
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(me.academy?.name ?: "ClassNex", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text("${me.name} · ${roleName(me.role)}", color = Color.White.copy(alpha = .8f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(me.name, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(roleName(me.role) + (me.academy?.name?.let { " · $it" } ?: ""), color = Color.White.copy(alpha = .85f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Color.White)
             }
         }
         sections.forEachIndexed { si, sec ->
-            if (si == 0) {
-                // main sections: two large tiles per row
-                sec.items.chunked(2).forEachIndexed { ri, row ->
-                    item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            row.forEachIndexed { ci, mi ->
-                                Box(Modifier.weight(1f)) {
-                                    Entrance(ri * 2 + ci) {
-                                        CnxCard(Modifier.testTag("more:" + mi.route).heightIn(min = 112.dp), onClick = { go(mi.route) }, padding = 14.dp) {
-                                            IconCircle(mi.icon, mi.tint, 42.dp, 21.dp)
-                                            Spacer(Modifier.height(10.dp))
-                                            Text(mi.label, fontWeight = FontWeight.Bold, color = Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                            mi.hint?.let { Text(it, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                                        }
-                                    }
+            item {
+                Entrance(si) {
+                    GroupCard(sec.title) {
+                        if (sec.grid) {
+                            sec.items.chunked(3).forEach { row ->
+                                Row {
+                                    row.forEach { mi -> IconTile(mi.label, mi.icon, mi.tint, Modifier.weight(1f).testTag("more:" + mi.route)) { go(mi.route) } }
+                                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
                             }
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                    }
-                }
-            } else {
-                item { SectionHeader(sec.title) }
-                item {
-                    CnxCard(padding = 6.dp) {
-                        sec.items.forEach { mi ->
-                            Row(Modifier.fillMaxWidth().testTag("more:" + mi.route).clip(RoundedCornerShape(12.dp)).clickable { go(mi.route) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                IconCircle(mi.icon, mi.tint, 36.dp, 18.dp)
-                                Text(mi.label, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
-                                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
+                        } else {
+                            sec.items.forEachIndexed { idx, mi ->
+                                if (idx > 0) HorizontalDivider(color = Line, modifier = Modifier.padding(start = 58.dp))
+                                Row(Modifier.fillMaxWidth().testTag("more:" + mi.route).clip(RoundedCornerShape(12.dp)).clickable { go(mi.route) }.padding(vertical = 10.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(mi.tint.copy(alpha = .12f)), contentAlignment = Alignment.Center) { Icon(mi.icon, null, tint = mi.tint, modifier = Modifier.size(22.dp)) }
+                                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                        Text(mi.label, color = Ink, fontWeight = FontWeight.SemiBold)
+                                        mi.hint?.let { Text(it, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                    }
+                                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
+                                }
                             }
                         }
                     }
@@ -357,8 +370,11 @@ private fun MoreScreen(me: Me, sections: List<MenuSection>, go: (String) -> Unit
             }
         }
         item {
-            SoftButton("Log out", { logout = true }, Modifier.fillMaxWidth(), Icons.AutoMirrored.Outlined.Logout, Red)
-            Text("ClassNex v${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Row(Modifier.fillMaxWidth().clip(Radius.card).background(Red.copy(alpha = .07f)).testTag("more:logout").clickable { logout = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.AutoMirrored.Outlined.Logout, null, tint = Red)
+                Text("Log out", color = Red, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                Text("v${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 12.sp)
+            }
         }
     }
     if (logout) ConfirmDialog("Log out?", "You will need your password to log in again.", "Log out", true, { logout = false }) { logout = false; onLogout() }

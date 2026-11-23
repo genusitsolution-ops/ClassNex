@@ -36,7 +36,7 @@ interface ApiService {
     @GET("dashboard") suspend fun dashboard(@Query("branch_id") branchId: Long? = null): ApiResponse<Dashboard>
     @GET("activities") suspend fun activities(@Query("status") status: String = "active"): ApiResponse<List<Activity>>
     @GET("batches") suspend fun batches(@Query("status") status: String = "active"): ApiResponse<List<Batch>>
-    @GET("students") suspend fun students(@Query("q") q: String?, @Query("page") page: Int = 1, @Query("per_page") perPage: Int = 50, @Query("dues") dues: String? = null, @Query("branch_id") branchId: String? = null, @Query("not_branch_id") notBranchId: Long? = null): ApiResponse<List<StudentRow>>
+    @GET("students") suspend fun students(@Query("q") q: String?, @Query("page") page: Int = 1, @Query("per_page") perPage: Int = 50, @Query("dues") dues: String? = null, @Query("branch_id") branchId: String? = null, @Query("not_branch_id") notBranchId: Long? = null, @Query("status") status: String? = null, @Query("activity_id") activityId: Long? = null, @Query("batch_id") batchId: Long? = null): ApiResponse<List<StudentRow>>
     @GET("students/{id}") suspend fun student(@Path("id") id: Long): ApiResponse<StudentDetail>
     @Multipart @POST("students") suspend fun createStudent(@PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>, @Part photo: MultipartBody.Part?): ApiResponse<CreateStudentData>
     @Multipart @POST("students/{id}/documents") suspend fun uploadDocument(@Path("id") id: Long, @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>, @Part file: MultipartBody.Part): ApiResponse<Map<String, Long>>
