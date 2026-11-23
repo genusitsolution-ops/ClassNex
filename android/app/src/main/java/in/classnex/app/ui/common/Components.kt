@@ -170,7 +170,7 @@ fun StatTile(title: String, value: String, icon: ImageVector, tint: Color, modif
         IconCircle(icon, tint, 40.dp, 20.dp)
         Spacer(Modifier.height(10.dp))
         Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(title, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, color = Muted, fontSize = 12.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (sub != null) Text(sub, color = tint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

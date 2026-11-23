@@ -146,6 +146,22 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
         Column(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
+                    // once the students are on screen, the choices fold into one line to leave room for the list
+                    var editing by remember { mutableStateOf(false) }
+                    val chosen = batchesAll.firstOrNull { it.id == vm.batch }
+                    if (chosen != null && sheet is Load.Ready && !editing) {
+                        CnxCard(onClick = { editing = true }, padding = 12.dp) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconCircle(Icons.Outlined.Groups, Violet, 38.dp, 18.dp)
+                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                                    Text(chosen.name, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(prettyDate(vm.date) + (chosen.branch_name?.let { " · $it" } ?: ""), color = Muted, fontSize = 12.sp)
+                                }
+                                Text("Change", color = Violet, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    } else {
+                        LaunchedEffect(vm.batch, vm.date) { if (editing && sheet is Load.Ready) editing = false }
                     CnxCard {
                         DateField("Date", vm.date) { it?.let(vm::pickDate) }
                         if (branches.isNotEmpty()) {
@@ -156,6 +172,7 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
                         val vis = remember(batchesAll, vm.branch, vm.activity) { vm.visibleBatches() }
                         SelectField("Batch", vis.map { it.id.toString() to "${it.name} · ${it.activity_name}" + (it.start_time?.let { t -> " · " + prettyTime(t) } ?: "") }, vm.batch?.toString(), icon = Icons.Outlined.Groups) { it?.toLongOrNull()?.let(vm::choose) }
                         if (batchesAll.isNotEmpty() && vis.isEmpty()) Text("No batch in this branch.", color = Amber, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
                     }
                 }
                 when (val s = sheet) {
