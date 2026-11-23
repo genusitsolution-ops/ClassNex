@@ -23,6 +23,23 @@ The whole app was redesigned to the ClassNex concept: white / lavender backgroun
 
 Interaction details: card entrance animations, press-scale feedback, skeleton (shimmer) loading, cross-fades between screens, animated bottom bar, expand / collapse cards, success animations after saving attendance and collecting a fee, keyboard-aware forms (`imePadding`), edge-to-edge with correct status / navigation bar insets.
 
+## Simplification for academy owners (v1.0.19 onwards)
+
+Design rule: **fewer decisions, fewer steps, simple words.** Nothing was removed – advanced options are folded away.
+
+| Area | Simple by default | Still available |
+|---|---|---|
+| Dashboard | Six big buttons first: Add Student, Mark Attendance, Collect Fee, Pending Fees, Students, Send Reminder; then four numbers (Total Students, Today's Attendance, Collected This Month, Pending Fees); then fees due this week | Branch selector; everything else in **More** |
+| Navigation | Bottom bar: Home · Students · Attendance · Fees · More. **More** shows large tiles: Branches, Teachers, Activities & Batches, Reports, Reminders & WhatsApp, Announcements, Subscription, Settings, Help & Support | "Other tools" list: Payments & Receipts, Fee Plans, Discounts, Fee Reports, Attendance History, Timetable, Admission Requests, Parents, Holidays, Leaves, Academy Profile |
+| Reminders & WhatsApp | "Would you like ClassNex to remind parents about pending fees automatically?" – **Automatic Reminders ON / OFF** with ClassNex default timings; "How would you like to send WhatsApp messages?" – Manual / Automatic / Turned off in plain words (no tokens, no API details; a clear note if Automatic is not connected yet) | **Advanced settings**: own reminder days, which messages go to which channel |
+| Attendance | Date → Branch → Batch, everyone Present, clear **Present / Absent / Late / Leave** buttons, compact counts, choices fold into one line | Activity filter kept internally; correction reason |
+| Collect fee | Pending / Overdue / Advance, then 1 Select the fees → 2 Enter the amount → 3 How did they pay? → **Confirm** → receipt | "More options": transaction number, date, note; partial, advance, discounts, cancel payment unchanged |
+| Add student | Photo (optional), name, WhatsApp, branch, activity, batch, (parent name for under-18) | "More details": date of birth, gender, email, address, document scan with auto-fill, consent and message options |
+| Forms | Only the fields needed to save | "More options" in activities, batches, teachers, fee plans, student edit, assigned fees |
+
+Same settings on the web: *Settings → Reminders & WhatsApp* shows the same two simple cards with the existing matrix and schedule under *Advanced settings*.
+API (additive): `GET/POST /notification-settings` – `reminder_mode` (`default` / `custom` / `off`), `default_reminder_rules`, `whatsapp` (choices allowed by the plan) and `whatsapp_preference`. The academy can choose the same or a simpler WhatsApp mode than its plan, never a higher one.
+
 ### Code structure
 
 | Folder (`app/src/main/java/in/classnex/app/`) | Content |

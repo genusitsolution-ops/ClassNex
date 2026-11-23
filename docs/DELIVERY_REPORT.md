@@ -136,3 +136,23 @@ verification checklist). Cron (verify the PHP path with `which php` first):
   batch per day – use separate batches), bulk-assign UI beyond the existing branch assignment.
 - Screens not covered by the automated journey: holiday / leave / parent / support creation forms (same form engine as
   the tested teacher and batch forms), notification-settings save, document upload, photo upload.
+
+## 18. Ease-of-use update (23 Nov 2026, app v1.0.21)
+
+**Done** (details: docs/ANDROID.md → *Simplification for academy owners*):
+- Dashboard with six big everyday actions, four simple numbers and the fees due this week.
+- Side menu replaced by a **More** tab (large tiles for the main sections + short "Other tools" list).
+- **Reminders & WhatsApp**: Automatic Reminders ON/OFF with ClassNex default timings, three plain WhatsApp
+  choices (Manual / Automatic / Turned off) limited by the plan, no technical details; reminder days and the
+  message matrix moved to *Advanced settings*. Same simple cards on the web Settings page.
+- Attendance Date → Branch → Batch with Present / Absent / Late / Leave word buttons; choices fold away.
+- Collect fee in three numbered steps + confirmation; optional details under *More options*.
+- Add Student: essentials only; the rest under *More details*. Long forms: *More options*.
+- Plain wording across the app.
+- Nothing removed: existing reminder days, payment logic, permissions, branch isolation, quota and all three
+  WhatsApp modes are unchanged.
+
+**Verified:** backend suites e2e_final 110/110, e2e 107/107, e2e_branches 80/80, web UI smoke 187/187;
+Android build run 45186737092 (#21); emulator UI journeys 5/5 tests, 44/44 steps, 63 screenshots (run 45186737491).
+
+**Still pending:** physical-device testing, signed release (signing secrets), and the items listed in section 17.
