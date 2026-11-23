@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -117,6 +118,12 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
             if (d.role == "teacher") {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (me.has("attendance") && me.can("attendance.mark")) Box(Modifier.weight(1f)) { CnxCard(onClick = { nav("markAttendance?batch=0") }, padding = 14.dp) { Row(verticalAlignment = Alignment.CenterVertically) { IconCircle(Icons.Outlined.HowToReg, Green, 44.dp, 22.dp); Text("Mark Attendance", fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.padding(start = 10.dp)) } } }
+                        if (me.has("fees") && me.can("fees.collect")) Box(Modifier.weight(1f)) { CnxCard(onClick = { nav("collect/0") }, padding = 14.dp) { Row(verticalAlignment = Alignment.CenterVertically) { IconCircle(Icons.Outlined.CurrencyRupee, Orange, 44.dp, 22.dp); Text("Collect Fee", fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.padding(start = 10.dp)) } } }
+                    }
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         StatTile("Today's classes", d.todays_classes.size.toString(), Icons.Outlined.CalendarMonth, Green, Modifier.weight(1f), if (d.attendance_pending > 0) "${d.attendance_pending} not marked" else "All marked") { nav("markAttendance?batch=0") }
                         StatTile("My students", d.total_students.toString(), Icons.Outlined.Group, Violet, Modifier.weight(1f)) { nav("students") }
                         StatTile("My batches", d.assigned_batches.toString(), Icons.Outlined.Groups, Blue, Modifier.weight(1f)) { nav("module/batches") }
@@ -141,150 +148,63 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
                 return@LazyColumn
             }
 
-            // ---- totals
-            item {
-                val tiles = buildList {
-                    add(Act("Students", Icons.Outlined.Group, Violet, "students") to "${d.active_students}")
-                    if (me.isClassAdmin) add(Act("Teachers", Icons.Outlined.Badge, Blue, "module/teachers") to "${d.total_teachers}")
-                    if (me.isClassAdmin) add(Act("Branches", Icons.Outlined.Store, Teal, "branches") to "${d.total_branches}")
-                    add(Act("Activities", Icons.Outlined.Interests, Pink, "module/activities") to "${d.total_activities}")
-                    add(Act("Batches", Icons.Outlined.Groups, Orange, "module/batches") to "${d.total_batches}")
-                    if (me.has("online_admission") && me.can("admissions.manage")) add(Act("Admissions", Icons.Outlined.AssignmentInd, Amber, "module/admissions") to "${d.pending_online_admissions}")
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    tiles.chunked(3).forEachIndexed { ri, row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            row.forEachIndexed { ci, (a, v) ->
-                                Box(Modifier.weight(1f)) {
-                                    Entrance(ri * 3 + ci + 1) {
-                                        StatTile(a.text, v, a.icon, a.tint, sub = when (a.text) { "Students" -> d.student_quota?.limit?.let { "of $it" } ?: "+${d.new_admissions} this month"; "Admissions" -> "pending"; else -> null }, onClick = { nav(a.route) })
-                                    }
-                                }
-                            }
-                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                        }
-                    }
-                }
-            }
-
-            // ---- today's attendance
-            if (me.has("attendance")) item {
-                val t = d.today_attendance
-                val presentOnly = (t.present - t.late).coerceAtLeast(0)
-                CnxCard(onClick = { nav("markAttendance?batch=0") }) {
-                    SectionHeader("Today's Attendance", action = "Mark", onAction = { nav("markAttendance?batch=0") })
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        DonutChart(
-                            listOf(presentOnly.toFloat() to Green, t.late.toFloat() to Amber, t.absent.toFloat() to Red, t.leave.toFloat() to Violet),
-                            if (t.marked > 0) "${(t.present * 100 / t.marked)}%" else "–", if (t.marked > 0) "present" else "not marked",
-                        )
-                        Spacer(Modifier.width(18.dp))
-                        Column(Modifier.weight(1f)) {
-                            LegendDot("Present", Green, "$presentOnly")
-                            LegendDot("Late", Amber, "${t.late}")
-                            LegendDot("Absent", Red, "${t.absent}")
-                            LegendDot("On leave", Violet, "${t.leave}")
-                            if (d.batches_not_marked > 0) Text("${d.batches_not_marked} batch(es) not marked yet", color = Amber, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
-                        }
-                    }
-                }
-            }
-
-            // ---- fees
-            if (me.has("fees") && me.can("fees.view")) item {
-                CnxCard(onClick = { nav("payments") }) {
-                    SectionHeader("Fee Collection – This Month", action = "Payments", onAction = { nav("payments") })
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(money(d.month_collection_paise), fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, color = Ink, modifier = Modifier.weight(1f, fill = false))
-                        Spacer(Modifier.width(10.dp))
-                        if (d.last_month_collection_paise > 0) {
-                            val ch = ((d.month_collection_paise - d.last_month_collection_paise) * 100 / d.last_month_collection_paise)
-                            Pill((if (ch >= 0) "▲ +" else "▼ ") + "$ch% vs last month", if (ch >= 0) Green else Red)
-                        }
-                    }
-                    Text("Today ${money(d.today_collection_paise)}", color = Muted, fontSize = 12.sp)
-                    if (d.collection_trend.isNotEmpty()) {
-                        Spacer(Modifier.height(12.dp))
-                        BarChart(d.collection_trend.map { it.total }, d.collection_trend.map { runCatching { YearMonth.parse(it.month).format(DateTimeFormatter.ofPattern("MMM")) }.getOrDefault(it.month) })
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        MiniFig("Pending", money(d.pending_fees_paise), Amber, Modifier.weight(1f)) { nav("fees") }
-                        MiniFig("Overdue", money(d.overdue_fees_paise), Red, Modifier.weight(1f), "${d.overdue_students} students") { nav("fees?tab=1") }
-                    }
-                }
-            }
-
-            // ---- quick actions
+            // ---- 1. the everyday tasks, big and first
             item {
                 val acts = buildList {
                     if (me.can("students.manage")) add(Act("Add Student", Icons.Outlined.PersonAdd, Violet, "addStudent"))
-                    if (me.has("attendance") && me.can("attendance.mark")) add(Act("Attendance", Icons.Outlined.HowToReg, Green, "markAttendance?batch=0"))
+                    if (me.has("attendance") && me.can("attendance.mark")) add(Act("Mark Attendance", Icons.Outlined.HowToReg, Green, "markAttendance?batch=0"))
                     if (me.has("fees") && me.can("fees.collect")) add(Act("Collect Fee", Icons.Outlined.CurrencyRupee, Orange, "collect/0"))
-                    if (me.has("manual_reminders") && me.can("notifications.send")) add(Act("Reminders", Icons.Outlined.NotificationsActive, Teal, "message"))
-                    if (me.has("attendance")) add(Act("History", Icons.Outlined.History, Blue, "history"))
-                    if (me.can("reports.view") && me.has("reports")) add(Act("Reports", Icons.Outlined.Assessment, Pink, "reports"))
-                    if (me.can("notifications.send")) add(Act("Announce", Icons.Outlined.Campaign, Amber, "module/announcements"))
-                    add(Act("Timetable", Icons.Outlined.CalendarViewWeek, Indigo600, "timetable"))
+                    if (me.has("fees") && me.can("fees.view")) add(Act("Pending Fees", Icons.Outlined.HourglassBottom, Red, "fees"))
+                    if (me.can("students.view")) add(Act("Students", Icons.Outlined.Group, Blue, "students"))
+                    if (me.has("manual_reminders") && me.can("notifications.send")) add(Act("Send Reminder", Icons.Outlined.NotificationsActive, Teal, "message?type=fee_reminder"))
                 }
-                CnxCard {
-                    SectionHeader("Quick Actions")
-                    Spacer(Modifier.height(6.dp))
-                    acts.chunked(4).forEach { row ->
-                        Row {
-                            row.forEach { a -> QuickAction(a.text, a.icon, a.tint, Modifier.weight(1f)) { nav(a.route) } }
-                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    acts.chunked(2).forEachIndexed { ri, row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            row.forEachIndexed { ci, a ->
+                                Box(Modifier.weight(1f)) {
+                                    Entrance(ri * 2 + ci + 1) {
+                                        CnxCard(Modifier.testTag("quick:" + a.text), onClick = { nav(a.route) }, padding = 14.dp) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                IconCircle(a.icon, a.tint, 44.dp, 22.dp)
+                                                Text(a.text, fontWeight = FontWeight.Bold, color = Ink, fontSize = 15.sp, lineHeight = 18.sp, modifier = Modifier.padding(start = 10.dp), maxLines = 2)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
             }
 
-            if (me.has("fees") && me.can("fees.view")) {
-                item { SectionHeader("Upcoming dues · next 7 days", action = if (d.upcoming_dues.isNotEmpty()) "All" else null) { nav("fees") } }
-                if (d.upcoming_dues.isEmpty()) item { CnxCard { Text("No dues in the next 7 days 🎉", color = Muted) } }
-                items(d.upcoming_dues, key = { "due" + it.id }) { u ->
+            // ---- 2. four simple numbers
+            item { SectionHeader("Today at a glance") }
+            item {
+                val t = d.today_attendance
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatTile("Total Students", "${d.active_students}", Icons.Outlined.Group, Violet, Modifier.weight(1f), d.student_quota?.limit?.let { "of $it allowed" }) { nav("students") }
+                        if (me.has("attendance")) StatTile("Today's Attendance", if (t.marked > 0) "${t.present} / ${t.marked}" else "–", Icons.Outlined.HowToReg, Green, Modifier.weight(1f),
+                            if (t.marked == 0L) "Not marked yet" else if (d.batches_not_marked > 0) "${d.batches_not_marked} batch(es) left" else "${t.present * 100 / t.marked}% present") { nav("markAttendance?batch=0") }
+                        else Spacer(Modifier.weight(1f))
+                    }
+                    if (me.has("fees") && me.can("fees.view")) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatTile("Collected This Month", money(d.month_collection_paise), Icons.Outlined.Savings, Green, Modifier.weight(1f), "Today ${money(d.today_collection_paise)}") { nav("payments") }
+                        StatTile("Pending Fees", money(d.pending_fees_paise), Icons.Outlined.HourglassBottom, Red, Modifier.weight(1f), if (d.overdue_students > 0) "${d.overdue_students} students overdue" else null) { nav("fees") }
+                    }
+                }
+            }
+
+            // ---- 3. the only list: fees due soon
+            if (me.has("fees") && me.can("fees.view") && d.upcoming_dues.isNotEmpty()) {
+                item { SectionHeader("Fees due this week", action = "See all") { nav("fees") } }
+                items(d.upcoming_dues.take(3), key = { "due" + it.id }) { u ->
                     PersonRow(u.student_name, "${u.title} · due ${prettyDate(u.due_date)}", onClick = { if (me.can("fees.collect")) nav("collect/${u.student_id}") }, trailing = { Text(money(u.balance_paise), fontWeight = FontWeight.ExtraBold, color = Ink) })
                 }
             }
-            if (d.scheduled_messages.isNotEmpty()) {
-                item { SectionHeader("Scheduled reminders") }
-                items(d.scheduled_messages) { m ->
-                    CnxCard(padding = 12.dp) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconCircle(Icons.Outlined.Alarm, Teal, 38.dp, 18.dp)
-                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                                Text(m.recipient_name ?: label(m.event_key), fontWeight = FontWeight.Bold, color = Ink, maxLines = 1)
-                                Text("${label(m.channel)} · ${prettyDate(m.next_attempt_at)} ${prettyTime(m.next_attempt_at?.drop(11))}", color = Muted, fontSize = 12.sp)
-                            }
-                            Pill("Scheduled", Teal)
-                        }
-                    }
-                }
-            }
-            if (me.has("fees") && me.can("fees.view") && d.recent_payments.isNotEmpty()) {
-                item { SectionHeader("Recent payments", action = "View all") { nav("payments") } }
-                items(d.recent_payments, key = { "pay" + it.id }) { p ->
-                    PersonRow(p.student_name ?: "", "${p.receipt_no ?: ""} · ${label(p.method)} · ${prettyDate(p.paid_on)}", trailing = {
-                        Text(money(p.amount_paise), fontWeight = FontWeight.ExtraBold, color = if (p.status == "reversed") Muted else Green)
-                    })
-                }
-            }
-            if (d.recent_notifications.isNotEmpty()) {
-                // latest outgoing messages; the queue has no ids here, so no item keys (avoids duplicate keys)
-                item { SectionHeader("Recent messages", action = if (me.isClassAdmin) "Log" else null) { nav("module/messageLog") } }
-                items(d.recent_notifications.take(6)) { n ->
-                    CnxCard(padding = 12.dp) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconCircle(Icons.Outlined.Forum, Teal, 38.dp, 18.dp)
-                            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                                Text(n.recipient_name ?: "–", fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${label(n.event_key)} · ${label(n.channel)} · ${prettyDate(n.created_at)}", color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Pill(when (n.status) { "pending" -> "Queued"; "processing" -> "Sending"; else -> label(n.status) }, statusColor(n.status))
-                        }
-                    }
-                }
-            }
+            item { Text("Branches, teachers, reports and more are in the More tab.", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
         }
     }
 }
@@ -489,6 +409,7 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
                 "Overview" -> {
                     s.balance?.takeIf { me.has("fees") && me.can("fees.view") }?.let { b ->
                         item { BalanceRow(b, Modifier.padding(horizontal = 16.dp)) }
+                        if (me.can("fees.collect")) item { GradientButton("Collect Fee", { nav("collect/${s.id}") }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), icon = Icons.Outlined.CurrencyRupee) }
                     }
                     item {
                         CnxCard(Modifier.padding(horizontal = 16.dp)) {
@@ -562,9 +483,9 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
                             SoftButton("Add charge", { nav("form/studentCharge?id=0&parent=${s.id}") }, Modifier.weight(1f), Icons.Outlined.AddCard)
                         }
                     }
-                    item { SectionHeader("Pending invoices", Modifier.padding(horizontal = 16.dp)) }
+                    item { SectionHeader("Pending fees", Modifier.padding(horizontal = 16.dp)) }
                     val inv = dues?.invoices.orEmpty()
-                    if (inv.isEmpty()) item { CnxCard(Modifier.padding(horizontal = 16.dp)) { Text("No pending invoices.", color = Green) } }
+                    if (inv.isEmpty()) item { CnxCard(Modifier.padding(horizontal = 16.dp)) { Text("Nothing pending. 🎉", color = Green) } }
                     items(inv, key = { "i" + it.id }) { i ->
                         CnxCard(Modifier.padding(horizontal = 16.dp), padding = 12.dp) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -579,7 +500,7 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
                             }
                         }
                     }
-                    item { SectionHeader("Payment history", Modifier.padding(horizontal = 16.dp)) }
+                    item { SectionHeader("Payments", Modifier.padding(horizontal = 16.dp)) }
                     val pays = dues?.recent_payments.orEmpty()
                     if (pays.isEmpty()) item { CnxCard(Modifier.padding(horizontal = 16.dp)) { Text("No payments yet.", color = Muted) } }
                     items(pays, key = { "p" + it.id }) { p ->
@@ -599,7 +520,7 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
                     item {
                         CnxCard(Modifier.padding(horizontal = 16.dp)) {
                             SectionHeader("Activities & batches")
-                            if (s.enrollments.isEmpty()) Text("Not enrolled in any batch.", color = Muted, fontSize = 13.sp)
+                            if (s.enrollments.isEmpty()) Text("Not added to any batch yet.", color = Muted, fontSize = 13.sp)
                             s.enrollments.forEach { e ->
                                 Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                                     IconCircle(Icons.Outlined.Groups, if (e.status == "active") Violet else Muted, 38.dp, 18.dp)
@@ -647,9 +568,9 @@ fun StudentDetailScreen(id: Long, me: Me, nav: (String) -> Unit, snack: Snackbar
 @Composable
 private fun BalanceRow(b: Balance, modifier: Modifier = Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MiniFig("Pending", money(b.outstanding_paise), if (b.outstanding_paise > 0) Red else Green, Modifier.weight(1f)) {}
-        MiniFig("Overdue", money(b.overdue_paise), Amber, Modifier.weight(1f)) {}
-        MiniFig("Advance", money(b.advance_paise), Green, Modifier.weight(1f)) {}
+        MiniFig("Pending Amount", money(b.outstanding_paise), if (b.outstanding_paise > 0) Red else Green, Modifier.weight(1f)) {}
+        MiniFig("Overdue Amount", money(b.overdue_paise), Amber, Modifier.weight(1f)) {}
+        MiniFig("Advance Paid", money(b.advance_paise), Green, Modifier.weight(1f)) {}
     }
 }
 

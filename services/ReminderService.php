@@ -11,6 +11,16 @@ final class ReminderService
         return array_map('intval', array_column(array_filter($rows, static fn($r) => (int) $r['is_enabled'] === 1), 'offset_days'));
     }
 
+    /** 'default' (ClassNex timings), 'custom' (own days) or 'off'. */
+    public static function mode(int $academyId): string
+    {
+        $own = DB::all('SELECT is_enabled FROM reminder_rules WHERE academy_id = ?', [$academyId]);
+        if (!$own) {
+            return 'default';
+        }
+        return array_filter($own, static fn($r) => (int) $r['is_enabled'] === 1) ? 'custom' : 'off';
+    }
+
     public static function scheduleForInvoice(int $invoiceId): void
     {
         $inv = DB::one('SELECT id, academy_id, due_date, issue_date, status FROM fee_invoices WHERE id = ?', [$invoiceId]);

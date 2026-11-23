@@ -62,7 +62,7 @@ class UiFlowTest {
     private var recover = false
     private fun toMainScreen() {
         repeat(5) {
-            if (compose.onAllNodesWithContentDescription("Menu").fetchSemanticsNodes().isNotEmpty() && !drawerShown()) return
+            if (compose.onAllNodesWithTag("tab:More").fetchSemanticsNodes().isNotEmpty()) return
             runCatching { back() }
         }
     }
@@ -119,23 +119,19 @@ class UiFlowTest {
 
     private fun hideKeyboard() { runCatching { Espresso.closeSoftKeyboard() } }
 
-    private fun drawerShown() = runCatching { compose.onNodeWithTag("drawerList").assertIsDisplayed() }.isSuccess
-
-    private fun openDrawer() {
-        hideKeyboard()
-        compose.onNodeWithContentDescription("Menu").performClick()
-        // the drawer content is always composed; wait until it is actually on screen
-        compose.waitUntil(10_000) { drawerShown() }
-        compose.waitForIdle()
-    }
-
-    /** Opens a screen from the navigation drawer (the same menu the user sees). */
+    /** Opens a screen from the More tab (the same place the user finds it). */
     private fun menu(route: String) {
-        openDrawer()
-        compose.onNodeWithTag("drawerList").performScrollToNode(hasTestTag("menu:$route"))
-        compose.onNodeWithTag("menu:$route").performClick()
+        hideKeyboard()
+        tab("More")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("moreList").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("moreList").performScrollToNode(hasTestTag("more:$route"))
+        compose.onNodeWithTag("more:$route").performClick()
         compose.waitForIdle()
     }
+
+    private fun home() { tab("Home") }
+
+    private fun quick(text: String) { home(); compose.waitUntil(15_000) { compose.onAllNodesWithTag("quick:$text").fetchSemanticsNodes().isNotEmpty() }; compose.onNodeWithTag("quick:$text").performClick(); compose.waitForIdle() }
 
     private fun back() { hideKeyboard(); Espresso.pressBack(); compose.waitForIdle() }
 
@@ -173,16 +169,18 @@ class UiFlowTest {
 
     @Test fun b_classAdminJourney() {
         step("login as Class Admin") { login("9845000001", "Asha@1234"); waitText("Hello, Asha") }
-        step("dashboard") { shot("03_dashboard"); swipeUp(); shot("04_dashboard_attendance_fees"); swipeUp(); shot("04b_dashboard_actions") }
-        step("navigation drawer") {
-            openDrawer(); shot("05_drawer")
-            compose.onNodeWithTag("drawerList").performTouchInput { swipeUp() }; shot("05b_drawer_more")
-            back()
+        step("dashboard: quick actions first") {
+            waitText("Today at a glance"); shot("03_dashboard")
+            for (q in listOf("Add Student", "Mark Attendance", "Collect Fee", "Pending Fees", "Students", "Send Reminder"))
+                assertTrue("quick action $q", compose.onAllNodesWithTag("quick:$q").fetchSemanticsNodes().isNotEmpty())
+            swipeUp(); shot("04_dashboard_glance")
         }
+        step("more tab") { tab("More"); waitText("Activities & Batches"); shot("05_more"); swipeUp(); shot("05b_more_other_tools") }
+        step("add student form") { quick("Add Student"); waitText("Student name"); shot("05c_add_student"); click("More details (optional)"); waitText("Date of birth"); shot("05d_add_student_more"); back() }
         step("students list") { tab("Students"); waitText("Dancer 1"); shot("06_students") }
         step("student profile") {
             click("Dancer 1"); waitText("Overview"); shot("07_student_profile")
-            click("Fees"); waitText("Pending invoices"); shot("08_student_fees")
+            click("Fees"); waitText("Pending fees"); shot("08_student_fees")
             click("Batches"); waitText("Activities & batches"); shot("08b_student_batches")
             back()
         }
@@ -199,35 +197,42 @@ class UiFlowTest {
         }
         step("fees – pending and overdue") {
             compose.waitForIdle()
-            tab("Fees"); waitText("invoice(s)"); shot("12_fees_pending")
-            click("Overdue"); compose.waitUntil(25_000) { has("invoice(s)") || has("Nothing overdue") }; shot("12b_fees_overdue")
+            tab("Fees"); waitText("fee(s) pending"); shot("12_fees_pending")
+            click("Overdue"); compose.waitUntil(25_000) { has("fee(s) pending") || has("Nothing overdue") }; shot("12b_fees_overdue")
         }
-        step("collect fee") {
-            menu("collect/0"); waitText("Choose the student"); click("Dancer 1"); waitText("Collect & Generate Receipt"); shot("13_collect_fee")
-            compose.onNodeWithText("Collect & Generate Receipt").performClick()
+        step("collect fee in simple steps") {
+            quick("Collect Fee"); waitText("Choose the student"); click("Dancer 1"); waitText("Select the fees"); shot("13_collect_fee")
+            compose.onNode(hasText("Collect ₹", substring = true) and hasClickAction()).performClick()
+            waitText("Confirm payment"); shot("13b_confirm_payment")
+            click("Confirm & Create Receipt")
             compose.waitUntil(25_000) { has("Payment saved") || has("Receipt RCPT") }
             shot("14_payment_saved", idle = false)
             compose.waitUntil(15_000) { has("Receipt RCPT") }
             shot("14b_receipt_actions")
             click("Done"); back()
         }
+        step("send reminder") { quick("Send Reminder"); waitText("Send via"); shot("24_send_reminder"); back() }
+        step("reminders and whatsapp settings") {
+            menu("reminders"); waitText("Fee Reminders"); shot("24b_reminders_whatsapp"); swipeUp(); shot("24c_whatsapp_choice")
+            click("Advanced settings"); waitText("Which messages go where"); shot("24d_advanced_settings"); back()
+        }
         step("payments and receipts") { menu("payments"); waitText("RCPT"); shot("15_payments"); click("RCPT", substring = true); shot("15b_payment_actions"); back() }
         step("branches") { menu("branches"); waitText("North"); shot("16_branches"); back() }
-        step("activities") { menu("module/activities"); waitText("Kathak"); shot("17_activities"); back() }
-        step("batches") { menu("module/batches"); waitText("North Kathak"); shot("18_batches"); click("North Kathak"); waitText("Cancel class"); shot("18b_batch_actions"); back() }
+        step("activities and batches") {
+            menu("structure"); waitText("North Kathak"); shot("18_batches"); click("Activities"); waitText("Yoga"); shot("17_activities")
+            click("Batches"); waitText("North Kathak"); click("North Kathak"); click("Edit"); waitText("Class days"); shot("18c_batch_form")
+            click("More options (optional)"); waitText("Capacity"); shot("18d_batch_form_more"); back(); back()
+        }
         step("teachers and teacher form") {
             menu("module/teachers"); waitText("Guru North"); shot("19_teachers")
-            click("Guru North"); click("Edit"); waitText("Extra permissions"); shot("19b_teacher_form"); back(); back()
+            click("Guru North"); click("Edit"); waitText("What else this teacher may do"); shot("19b_teacher_form"); back(); back()
         }
-        step("batch form") { menu("module/batches"); waitText("North Kathak"); click("North Kathak"); click("Edit"); waitText("Class days"); shot("18c_batch_form"); back(); back() }
-        step("fee structure") { menu("module/feePlans"); waitText("Kathak monthly fee"); shot("20_fee_structure"); back() }
+        step("fee plans") { menu("module/feePlans"); waitText("Kathak monthly fee"); shot("20_fee_plans"); back() }
         step("discounts") { menu("module/discounts"); waitText("Sibling discount"); shot("20b_discounts"); back() }
         step("timetable") { menu("timetable"); compose.waitUntil(25_000) { has("North Kathak") || has("No classes on this day") }; shot("21_timetable"); back() }
         step("attendance history") { menu("history"); waitText("Present"); shot("22_attendance_history"); back() }
         step("announcements") { menu("module/announcements"); waitText("Annual day rehearsal"); shot("23_announcements"); back() }
-        step("whatsapp reminders") { menu("message"); waitText("Send via"); shot("24_whatsapp_reminders"); back() }
-        step("communication centre") { menu("communication"); waitText("Message log"); shot("24b_communication"); back() }
-        step("reports") { menu("reports?financial=0"); waitText("Branch-wise"); shot("25_reports"); click("Branch-wise", substring = true); shot("25b_report"); back(); back() }
+        step("reports") { menu("reports?financial=0"); waitText("Branch-wise"); shot("25_reports"); click("Branch-wise", substring = true); compose.waitUntil(25_000) { has("North") }; shot("25b_report"); back(); back() }
         step("subscription") { menu("subscription"); waitText("Current plan"); shot("26_subscription"); back() }
         step("academy profile") { menu("academyProfile"); waitText("Academy name"); shot("27_academy_profile"); back() }
         step("settings") { menu("profile"); waitText("Change password"); shot("28_settings"); back() }
@@ -239,11 +244,11 @@ class UiFlowTest {
     @Test fun c_teacherJourney() {
         step("login as teacher") { login("9845100001", "Teach@123"); waitText("Today's classes") }
         step("teacher dashboard") { shot("31_teacher_dashboard") }
-        step("teacher menu shows only permitted modules") {
-            openDrawer(); shot("32_teacher_drawer")
-            assertTrue("teacher must not see Branches", compose.onAllNodesWithTag("menu:branches").fetchSemanticsNodes().isEmpty())
-            assertTrue("teacher must not see Subscription", compose.onAllNodesWithTag("menu:subscription").fetchSemanticsNodes().isEmpty())
-            back()
+        step("teacher More shows only permitted sections") {
+            tab("More"); waitText("Activities & Batches"); shot("32_teacher_more")
+            assertTrue("teacher must not see Branches", compose.onAllNodesWithTag("more:branches").fetchSemanticsNodes().isEmpty())
+            assertTrue("teacher must not see Subscription", compose.onAllNodesWithTag("more:subscription").fetchSemanticsNodes().isEmpty())
+            assertTrue("teacher must not see Teachers", compose.onAllNodesWithTag("more:module/teachers").fetchSemanticsNodes().isEmpty())
         }
         step("teacher attendance") { tab("Attendance"); compose.waitUntil(25_000) { has("Choose a batch") || has("Save Attendance") || has("Save Changes") }; shot("33_teacher_attendance") }
         assertTrue("$failures teacher step(s) failed – see CNXUI log", failures == 0)
@@ -254,7 +259,7 @@ class UiFlowTest {
         step("parent home") { shot("34_parent_home") }
         step("parent attendance") { tab("Attendance"); compose.waitUntil(25_000) { has("Present") }; shot("35_parent_attendance") }
         step("parent fees") { tab("Fees"); compose.waitUntil(25_000) { has("₹") }; shot("36_parent_fees") }
-        step("parent menu") { openDrawer(); shot("37_parent_drawer"); back() }
+        step("parent More") { tab("More"); waitText("Help & Support"); shot("37_parent_more") }
         assertTrue("$failures parent step(s) failed – see CNXUI log", failures == 0)
     }
 

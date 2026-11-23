@@ -1244,7 +1244,7 @@
   // ============================================================== SETTINGS
   route('/settings', async (v, p) => {
     const tab = p.tab || 'profile';
-    const tabs = [['profile', 'Academy profile'], ['notify', 'Notifications & reminders'], ['receipts', 'Receipts & IDs'], ['admission', 'Online admission'], ...(has('online_payments') ? [['payments', 'Online payments']] : []), ['audit', 'Activity log']];
+    const tabs = [['profile', 'Academy profile'], ['notify', 'Reminders & WhatsApp'], ['receipts', 'Receipts & IDs'], ['admission', 'Online admission'], ...(has('online_payments') ? [['payments', 'Online payments']] : []), ['audit', 'Activity log']];
     v.innerHTML = head('Settings') + `<ul class="nav nav-pills mb-3 flex-wrap gap-1">${tabs.map(([k, l]) => `<li><a class="nav-link ${k === tab ? 'active' : ''}" href="#/settings?tab=${k}">${l}</a></li>`).join('')}</ul><div id="st"></div>`;
     const el = $('#st', v);
     const a = (await get('/academy')).data;
@@ -1271,12 +1271,30 @@
     } else if (tab === 'notify') {
       const n = (await get('/notification-settings')).data;
       const s = a.settings;
-      el.innerHTML = `<div class="card mb-3"><div class="card-header">Who gets what</div><div class="card-body"><p class="small text-muted">Choose which messages are sent and on which channel. Greyed-out channels are not in your plan.</p><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Event</th>${n.channels.map((c) => `<th class="text-center">${label(c === 'inapp' ? 'App' : c)}</th>`).join('')}</tr></thead><tbody>
+      const w = n.whatsapp || { options: [], current: 'off' };
+      const simple = `<div class="card mb-3"><div class="card-header">Fee reminders</div><div class="card-body">${n.auto_reminders ? `
+          <p class="mb-2">Would you like ClassNex to remind parents about pending fees automatically?</p>
+          <div class="form-check form-switch fs-5"><input class="form-check-input" type="checkbox" id="remOn" ${n.reminder_mode !== 'off' ? 'checked' : ''}><label class="form-check-label fs-6" for="remOn">Automatic reminders</label></div>
+          <p class="small text-muted mb-0">ClassNex will automatically remind parents before and after the fee due date.${n.reminder_mode === 'custom' ? ' You are using your own reminder days (see Advanced settings).' : ''}</p>`
+        : 'Automatic reminders are not in your plan. <a href="#/subscription">Upgrade</a>'}</div></div>
+        <div class="card mb-3"><div class="card-header">How would you like to send WhatsApp messages?</div><div class="card-body">
+          ${w.options.map((o) => `<label class="d-flex gap-2 p-2 border rounded mb-2 ${o.available ? '' : 'opacity-50'}"><input type="radio" class="form-check-input mt-1" name="wa" value="${o.key}" ${w.current === o.key ? 'checked' : ''} ${o.available ? '' : 'disabled'}><span><b>${esc(o.title)}</b><br><span class="small text-muted">${esc(o.text)}${o.reason ? '<br><i>' + esc(o.reason) + '</i>' : ''}</span></span></label>`).join('')}
+          ${w.note ? `<div class="alert alert-warning small mb-2">${esc(w.note)}</div>` : ''}
+          <button class="btn btn-primary" id="svSimple">Save</button></div></div>
+        <details class="mb-3"><summary class="fw-bold mb-2" style="cursor:pointer">Advanced settings</summary>`;
+      el.innerHTML = simple + `<div class="card mb-3"><div class="card-header">Who gets what</div><div class="card-body"><p class="small text-muted">Choose which messages are sent and on which channel. Greyed-out channels are not in your plan.</p><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Event</th>${n.channels.map((c) => `<th class="text-center">${label(c === 'inapp' ? 'App' : c)}</th>`).join('')}</tr></thead><tbody>
         ${Object.entries(n.events).map(([ev, l]) => `<tr><td>${esc(l)}</td>${n.channels.map((c) => `<td class="text-center"><input type="checkbox" class="form-check-input" data-ev="${ev}" data-ch="${c}" ${n.matrix[ev][c] ? 'checked' : ''} ${n.available[c] ? '' : 'disabled'}></td>`).join('')}</tr>`).join('')}</tbody></table></div>
         <div class="row g-2 mt-1"><div class="col-12 fw-bold small">Attendance alerts to parents</div>${['present', 'absent', 'late', 'corrected'].map((k) => `<div class="col-6 col-md-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" data-att="${k}" ${s.attendance_notify[k] ? 'checked' : ''}><label class="form-check-label">${label(k)}</label></div></div>`).join('')}</div>
         <button class="btn btn-primary mt-3" id="sv">Save</button></div></div>
         <div class="card"><div class="card-header">Automatic fee reminder schedule</div><div class="card-body">${n.auto_reminders ? `<p class="small text-muted">Days relative to the due date (negative = before). Default: 7, 3 and 1 day before, on the due date, and 3 and 7 days after.</p>
-          <div class="d-flex flex-wrap gap-2">${[-7, -5, -3, -2, -1, 0, 1, 3, 5, 7, 10, 15].map((d) => `<label class="btn btn-sm btn-outline-primary ${n.reminder_rules.includes(d) ? 'active' : ''}"><input type="checkbox" class="d-none" data-off="${d}" ${n.reminder_rules.includes(d) ? 'checked' : ''}>${d < 0 ? -d + ' days before' : d === 0 ? 'On due date' : d + ' days after'}</label>`).join('')}</div><button class="btn btn-primary mt-3" id="svr">Save schedule</button>` : 'Automatic reminders are not in your plan. <a href="#/subscription">Upgrade</a>'}</div></div>`;
+          <div class="d-flex flex-wrap gap-2">${[-7, -5, -3, -2, -1, 0, 1, 3, 5, 7, 10, 15].map((d) => `<label class="btn btn-sm btn-outline-primary ${n.reminder_rules.includes(d) ? 'active' : ''}"><input type="checkbox" class="d-none" data-off="${d}" ${n.reminder_rules.includes(d) ? 'checked' : ''}>${d < 0 ? -d + ' days before' : d === 0 ? 'On due date' : d + ' days after'}</label>`).join('')}</div><button class="btn btn-primary mt-3" id="svr">Save my own reminder days</button>` : 'Automatic reminders are not in your plan. <a href="#/subscription">Upgrade</a>'}</div></div></details>`;
+      $('#svSimple', el).onclick = async () => {
+        const body = { whatsapp_preference: ($('[name=wa]:checked', el) || {}).value || '' };
+        const on = $('#remOn', el);
+        // switching on keeps custom days if the academy has them; otherwise ClassNex default timings are used
+        if (on && !(on.checked && n.reminder_mode === 'custom')) body.reminder_mode = on.checked ? 'default' : 'off';
+        try { const r = await post('/notification-settings', body); toast(r.message); setTimeout(() => location.reload(), 600); } catch (e) { fail(e); }
+      };
       $$('[data-off]', el).forEach((c) => c.onchange = () => c.closest('label').classList.toggle('active', c.checked));
       $('#sv', el).onclick = async () => {
         const matrix = {};

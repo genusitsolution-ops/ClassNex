@@ -66,7 +66,7 @@ class MarkVm @Inject constructor(private val repo: Repository) : ViewModel() {
             if (me.isClassAdmin) branches.value = runCatching { call { repo.api.branches("active") }.data }.getOrNull() ?: emptyList()
             activities.value = runCatching { call { repo.api.activities() }.data }.getOrNull() ?: emptyList()
             batches.value = runCatching { call { repo.api.batches() }.data }.getOrNull() ?: emptyList()
-            if (initialBatch > 0) batches.value.firstOrNull { it.id == initialBatch }?.let { b -> branch = b.branch_id; activity = b.activity_id; choose(b.id) }
+            if (initialBatch > 0) batches.value.firstOrNull { it.id == initialBatch }?.let { b -> branch = b.branch_id; choose(b.id) }
             else if (batches.value.size == 1) choose(batches.value.first().id)
         }
     }
@@ -95,7 +95,7 @@ class MarkVm @Inject constructor(private val repo: Repository) : ViewModel() {
                 // present by default: a new register starts with everyone present
                 if (!s.already_marked && s.holiday == null) s.students.forEach { st -> if (st.id !in marks) marks[st.id] = "present" }
                 Load.Ready(s)
-            } catch (e: Exception) { Load.Failed(e.message ?: "Could not load the register") }
+            } catch (e: Exception) { Load.Failed(e.message ?: "Could not load the students") }
         }
     }
 
@@ -124,7 +124,7 @@ class MarkVm @Inject constructor(private val repo: Repository) : ViewModel() {
     }
 }
 
-private val statuses = listOf(Triple("present", "P", Green), Triple("absent", "A", Red), Triple("late", "L", Amber), Triple("leave", "Lv", Violet))
+private val statuses = listOf(Triple("present", "Present", Green), Triple("absent", "Absent", Red), Triple("late", "Late", Amber), Triple("leave", "Leave", Violet))
 
 @Composable
 fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, nav: (String) -> Unit, vm: MarkVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
@@ -153,15 +153,13 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
                             SelectField("Branch", listOf<Pair<String?, String>>(null to "All branches") + branches.map { it.id.toString() to it.name }, vm.branch?.toString(), icon = Icons.Outlined.Store) { vm.pickBranch(it?.toLongOrNull()) }
                         }
                         Spacer(Modifier.height(10.dp))
-                        SelectField("Activity", listOf<Pair<String?, String>>(null to "All activities") + activities.map { it.id.toString() to it.name }, vm.activity?.toString(), icon = Icons.Outlined.Interests) { vm.pickActivity(it?.toLongOrNull()) }
-                        Spacer(Modifier.height(10.dp))
                         val vis = remember(batchesAll, vm.branch, vm.activity) { vm.visibleBatches() }
                         SelectField("Batch", vis.map { it.id.toString() to "${it.name} · ${it.activity_name}" + (it.start_time?.let { t -> " · " + prettyTime(t) } ?: "") }, vm.batch?.toString(), icon = Icons.Outlined.Groups) { it?.toLongOrNull()?.let(vm::choose) }
-                        if (batchesAll.isNotEmpty() && vis.isEmpty()) Text("No batch matches this branch and activity.", color = Amber, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                        if (batchesAll.isNotEmpty() && vis.isEmpty()) Text("No batch in this branch.", color = Amber, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                     }
                 }
                 when (val s = sheet) {
-                    null -> item { EmptyState("Choose a batch", "Pick the date, branch, activity and batch to open the register.", Icons.Outlined.HowToReg) }
+                    null -> item { EmptyState("Choose a batch", "Pick the date, branch and batch to see the students.", Icons.Outlined.HowToReg) }
                     Load.Loading -> item { SkeletonList(4, Modifier.height(360.dp)) }
                     is Load.Failed -> item { ErrorView(s.message) { vm.batch?.let(vm::choose) } }
                     is Load.Ready -> {
@@ -169,8 +167,8 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
                         item {
                             when {
                                 sh.holiday != null -> InfoBanner("Holiday: ${sh.holiday}. You can still save if the class took place.", Violet, Icons.Outlined.BeachAccess)
-                                sh.already_marked -> InfoBanner("Already marked for ${prettyDate(sh.date)}. Changes are saved as corrections.", Blue, Icons.Outlined.EditCalendar)
-                                else -> InfoBanner("All students are marked Present by default. Tap only absent, late or on-leave students.", Green, Icons.Outlined.CheckCircle)
+                                sh.already_marked -> InfoBanner("Attendance for ${prettyDate(sh.date)} is already saved. You can change it and save again.", Blue, Icons.Outlined.EditCalendar)
+                                else -> InfoBanner("Everyone is Present. Just tap Absent, Late or Leave for students who are not.", Green, Icons.Outlined.CheckCircle)
                             }
                         }
                         item {
@@ -182,6 +180,7 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
                         if (sh.students.isEmpty()) item { EmptyState("No students in this batch on this date", icon = Icons.Outlined.Group) }
                         itemsIndexed(sh.students, key = { _, st -> st.id }) { i, st ->
                             Entrance(i) {
+                                val cur = vm.marks[st.id]
                                 CnxCard(padding = 10.dp) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Avatar(st.photo_url, st.name, 38)
@@ -189,18 +188,23 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
                                             Text(st.name, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                             Text(st.student_code, color = Muted, fontSize = 11.sp, maxLines = 1)
                                         }
+                                        statuses.firstOrNull { it.first == cur }?.let { (_, l, c) -> Pill(l, c, filled = true) }
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    // clear word buttons: Present · Absent · Late · Leave
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         statuses.forEach { (k, l, c) ->
-                                            val on = vm.marks[st.id] == k
+                                            val on = cur == k
                                             Surface(onClick = { vm.marks[st.id] = k }, shape = RoundedCornerShape(12.dp), color = if (on) c else Color.White,
-                                                border = BorderStroke(1.5.dp, if (on) c else Line), modifier = Modifier.padding(start = 4.dp).size(38.dp, 38.dp)) {
-                                                Box(contentAlignment = Alignment.Center) { Text(l, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = if (on) Color.White else Muted) }
+                                                border = BorderStroke(1.5.dp, if (on) c else Line), modifier = Modifier.weight(1f).height(38.dp)) {
+                                                Box(contentAlignment = Alignment.Center) { Text(l, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (on) Color.White else Muted, maxLines = 1) }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                        if (sh.already_marked) item { CnxField(vm.reason, { vm.reason = it }, "Reason for correction (optional)") }
+                        if (sh.already_marked) item { CnxField(vm.reason, { vm.reason = it }, "Reason for the change (optional)") }
                     }
                 }
             }

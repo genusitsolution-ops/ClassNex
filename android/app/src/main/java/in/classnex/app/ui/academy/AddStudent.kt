@@ -80,6 +80,14 @@ import `in`.classnex.app.ui.theme.Blue
 import `in`.classnex.app.ui.theme.Muted
 import `in`.classnex.app.ui.theme.Red
 import coil.compose.AsyncImage
+import `in`.classnex.app.ui.common.*
+import `in`.classnex.app.ui.theme.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwitchDefaults
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -270,67 +278,80 @@ fun AddStudentScreen(snack: SnackbarHostState, onSaved: (Long) -> Unit, vm: AddS
 
     val hl = { key: String -> if (key in filled) Modifier.background(Amber.copy(alpha = .10f)) else Modifier }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Only fields marked * are needed.", color = Muted)
-        AppCard {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    val opt = { list: List<Pair<Long, String>> -> list.map { (k, v) -> k.toString() to v } }
+    Column(Modifier.fillMaxSize().imePadding()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            CnxCard {
+                // photo (optional)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(84.dp).clip(CircleShape).background(Color(0xFFEEF1F6)), contentAlignment = Alignment.Center) {
-                        if (photo != null) AsyncImage(photo, null, contentScale = ContentScale.Crop, modifier = Modifier.size(84.dp).clip(CircleShape)) else Icon(Icons.Outlined.Person, null, tint = Muted, modifier = Modifier.size(40.dp))
+                    Box(Modifier.size(80.dp).clip(CircleShape).background(VioletSoft), contentAlignment = Alignment.Center) {
+                        if (photo != null) AsyncImage(photo, null, contentScale = ContentScale.Crop, modifier = Modifier.size(80.dp).clip(CircleShape)) else Icon(Icons.Outlined.PhotoCamera, null, tint = Violet, modifier = Modifier.size(34.dp))
                     }
-                    Column(Modifier.padding(start = 12.dp)) {
-                        Button(onClick = { vm.newCameraUri("photo").also { pendingUri = it; takePhoto.launch(it) } }) { Icon(Icons.Outlined.CameraAlt, null); Text(if (photo == null) " Take photo" else " Retake") }
+                    Column(Modifier.padding(start = 14.dp)) {
+                        Text("Student photo (optional)", fontWeight = FontWeight.SemiBold, color = Ink)
                         Row {
-                            TextButton(onClick = { pickPhoto.launch("image/*") }) { Icon(Icons.Outlined.Image, null); Text(" Gallery") }
+                            TextButton(onClick = { vm.newCameraUri("photo").also { pendingUri = it; takePhoto.launch(it) } }) { Text(if (photo == null) "Take photo" else "Retake", color = Violet) }
+                            TextButton(onClick = { pickPhoto.launch("image/*") }) { Text("Gallery", color = Violet) }
                             if (photo != null) TextButton(onClick = { vm.photo.value = null }) { Text("Remove", color = Red) }
                         }
                     }
                 }
-                Field("Student name *", f.name, errs["name"], hl("name")) { v -> vm.update { it.copy(name = v) } }
-                Field("WhatsApp number *", f.whatsapp, errs["whatsapp"], keyboard = KeyboardType.Phone, prefix = "+91 ", help = "Parent's number for students under 18") { v -> vm.update { it.copy(whatsapp = v.filter { c -> c.isDigit() }.take(10)) } }
-                if (branchList.isNotEmpty()) Picker("Branch (optional – same as batch)", branchList.map { it.id to it.name }, f.branchId, null) { id -> vm.update { it.copy(branchId = id) } }
-                Picker("Activity / Class *", acts.map { it.id to it.name }, f.activityId, errs["activity_id"]) { id -> vm.update { it.copy(activityId = id) } }
+                Spacer(Modifier.height(10.dp))
+                CnxField(f.name, { v -> vm.update { it.copy(name = v) } }, "Student name *", Modifier.then(hl("name")), icon = Icons.Outlined.Person, error = errs["name"])
+                Spacer(Modifier.height(10.dp))
+                CnxField(f.whatsapp, { v -> vm.update { it.copy(whatsapp = v.filter { c -> c.isDigit() }.take(10)) } }, "WhatsApp / parent mobile *", icon = Icons.Outlined.Phone, keyboard = KeyboardType.Phone, prefix = "+91 ", error = errs["whatsapp"], supporting = "Fee reminders and receipts go to this number")
+                if (branchList.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    SelectField("Branch", opt(branchList.map { it.id to it.name }), f.branchId?.toString(), icon = Icons.Outlined.Store) { id -> vm.update { it.copy(branchId = id?.toLongOrNull()) } }
+                }
+                Spacer(Modifier.height(10.dp))
+                SelectField("Activity *", opt(acts.map { it.id to it.name }), f.activityId?.toString(), icon = Icons.Outlined.Interests, error = errs["activity_id"]) { id -> vm.update { it.copy(activityId = id?.toLongOrNull()) } }
                 val bs = allBatches.filter { it.activity_id == f.activityId && (f.branchId == null || it.branch_id == null || it.branch_id == f.branchId) }
-                if (bs.isNotEmpty()) Picker("Batch", bs.map { it.id to (it.name + (it.start_time?.let { t -> " · ${t.take(5)}" } ?: "")) }, f.batchId, errs["batch_id"]) { id -> vm.update { it.copy(batchId = id) } }
-                Row(verticalAlignment = Alignment.CenterVertically) { Text("Student is under 18", Modifier.weight(1f)); Switch(f.minor, { v -> vm.update { it.copy(minor = v) } }) }
-                if (f.minor) Field("Parent / Guardian name *", f.guardian, errs["guardian_name"], hl("guardian")) { v -> vm.update { it.copy(guardian = v) } }
-                TextButton(onClick = { more = !more }) { Icon(if (more) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null); Text(" More details (optional)") }
+                if (bs.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    SelectField("Batch", opt(bs.map { it.id to (it.name + (it.start_time?.let { t -> " · " + prettyTime(t) } ?: "")) }), f.batchId?.toString(), icon = Icons.Outlined.Groups, error = errs["batch_id"]) { id -> vm.update { it.copy(batchId = id?.toLongOrNull()) } }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { vm.update { it.copy(minor = !f.minor) } }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Student is under 18", Modifier.weight(1f), color = Ink)
+                    Switch(f.minor, { v -> vm.update { it.copy(minor = v) } }, colors = SwitchDefaults.colors(checkedTrackColor = Violet))
+                }
+                if (f.minor) CnxField(f.guardian, { v -> vm.update { it.copy(guardian = v) } }, "Parent name *", Modifier.then(hl("guardian")), icon = Icons.Outlined.FamilyRestroom, error = errs["guardian_name"])
+            }
+
+            // everything else is optional and folded away
+            CnxCard(padding = 6.dp) {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { more = !more }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconCircle(Icons.Outlined.PostAdd, Violet, 36.dp, 18.dp)
+                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                        Text("More details (optional)", fontWeight = FontWeight.Bold, color = Ink)
+                        Text("Date of birth, email, address, document scan", color = Muted, fontSize = 12.sp)
+                    }
+                    Icon(if (more) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Muted)
+                }
                 AnimatedVisibility(more) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedButton(onClick = {
-                            val d = runCatching { LocalDate.parse(f.dob) }.getOrDefault(LocalDate.now().minusYears(10))
-                            DatePickerDialog(ctx, { _, y, m, day -> vm.update { it.copy(dob = LocalDate.of(y, m + 1, day).toString()) } }, d.year, d.monthValue - 1, d.dayOfMonth).apply { datePicker.maxDate = System.currentTimeMillis() }.show()
-                        }, modifier = Modifier.fillMaxWidth().then(hl("dob"))) { Text(if (f.dob.isBlank()) "Date of birth" else "Date of birth: ${f.dob}") }
-                        Picker("Gender", listOf(1L to "Male", 2L to "Female", 3L to "Other"), when (f.gender) { "male" -> 1L; "female" -> 2L; "other" -> 3L; else -> null }, null) { id -> vm.update { it.copy(gender = when (id) { 1L -> "male"; 2L -> "female"; else -> "other" }) } }
-                        Field("Email", f.email, errs["email"], keyboard = KeyboardType.Email) { v -> vm.update { it.copy(email = v) } }
-                        Field("Address", f.address, errs["address"], hl("address"), single = false) { v -> vm.update { it.copy(address = v) } }
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        DateField("Date of birth", f.dob.ifBlank { null }, Modifier.then(hl("dob")), allowClear = true) { v -> vm.update { it.copy(dob = v ?: "") } }
+                        SelectField("Gender", listOf<Pair<String?, String>>(null to "Not set", "male" to "Male", "female" to "Female", "other" to "Other"), f.gender.ifBlank { null }) { v -> vm.update { it.copy(gender = v ?: "") } }
+                        CnxField(f.email, { v -> vm.update { it.copy(email = v) } }, "Email", icon = Icons.Outlined.Email, keyboard = KeyboardType.Email, error = errs["email"])
+                        CnxField(f.address, { v -> vm.update { it.copy(address = v) } }, "Address", Modifier.then(hl("address")), singleLine = false, minLines = 2, error = errs["address"])
+                        Text("Document (optional)", fontWeight = FontWeight.Bold, color = Ink)
+                        Text("Scan a birth certificate or school ID to fill the details for you. Aadhaar is never needed and its number is not stored.", color = Muted, fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SoftButton("Scan", { vm.newCameraUri("doc").also { docUri = it; scanDoc.launch(it) } }, Modifier.weight(1f), Icons.Outlined.DocumentScanner)
+                            SoftButton("Upload", { pickDoc.launch("image/*") }, Modifier.weight(1f), Icons.Outlined.Image)
+                        }
+                        if (doc != null) Text("✓ Document attached" + (ocr?.id_last4?.let { " · ID $it" } ?: ""), color = Green, fontWeight = FontWeight.SemiBold)
+                        CheckRow("Parent has given consent", f.consent) { v -> vm.update { it.copy(consent = v) } }
+                        CheckRow("Send admission message on WhatsApp", f.sendMessage) { v -> vm.update { it.copy(sendMessage = v) } }
+                        CheckRow("Invite parent to the ClassNex app", f.invite) { v -> vm.update { it.copy(invite = v) } }
                     }
                 }
             }
         }
-        AppCard {
-            Column {
-                Text("Document (optional)", fontWeight = FontWeight.Bold)
-                Text("Scan a birth certificate or ID to auto-fill details. Aadhaar is never required and its number is not stored.", color = Muted, fontSize = 13.sp)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { vm.newCameraUri("doc").also { docUri = it; scanDoc.launch(it) } }, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.DocumentScanner, null); Text(" Scan") }
-                    OutlinedButton(onClick = { pickDoc.launch("image/*") }, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.Image, null); Text(" Upload") }
-                }
-                if (doc != null) Text("✓ Document attached" + (ocr?.id_last4?.let { " · ID $it" } ?: ""), color = Blue, modifier = Modifier.padding(top = 6.dp))
-            }
+        Surface(color = Color.White, shadowElevation = 12.dp) {
+            GradientButton("Save Student", { vm.save { dup = it } }, Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), loading = busy, icon = Icons.Outlined.Check)
         }
-        AppCard {
-            Column {
-                CheckRow("Parent / guardian consent given", f.consent) { v -> vm.update { it.copy(consent = v) } }
-                CheckRow("Send admission confirmation on WhatsApp", f.sendMessage) { v -> vm.update { it.copy(sendMessage = v) } }
-                CheckRow("Invite parent to the ClassNex app", f.invite) { v -> vm.update { it.copy(invite = v) } }
-            }
-        }
-        Button(onClick = { vm.save { dup = it } }, enabled = !busy, modifier = Modifier.fillMaxWidth().height(54.dp)) {
-            if (busy) CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) else Text("Save Student", fontSize = 16.sp)
-        }
-        Spacer(Modifier.height(24.dp))
     }
     dups?.let { d -> DuplicateDialog(d, onDismiss = { dup = null; vm.duplicates.value = null }, onOpen = { id -> vm.duplicates.value = null; onSaved(id) }, onLink = vm::linkExisting) { reason -> vm.duplicates.value = null; vm.save(true, reason) {} } }
 }

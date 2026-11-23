@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -279,67 +280,183 @@ fun AcademyProfileScreen(me: Me, snack: SnackbarHostState, back: () -> Unit, vm:
     }
 }
 
-// ================================================================ notification settings
+// ================================================================ reminders & WhatsApp
+/**
+ * Reminders & WhatsApp – one simple page: send a reminder now, automatic fee reminders ON / OFF
+ * (ClassNex default timings), how WhatsApp messages are sent, and the advanced options folded away.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NotificationSettingsScreen(me: Me, snack: SnackbarHostState, vm: JsonVm = hiltViewModel()) {
-    LaunchedEffect(Unit) { vm.open("notification-settings") }
+fun RemindersScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit, onSaved: () -> Unit = {}, vm: JsonVm = hiltViewModel()) {
+    val canSettings = me.isClassAdmin && me.can("settings.manage")
+    LaunchedEffect(Unit) { if (canSettings) vm.open("notification-settings") }
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
     val st by vm.state.collectAsState()
     val busy by vm.busy.collectAsState()
-    LoadContent(st, { vm.open("notification-settings", true) }) { d ->
-        val o = d as? JsonObject ?: return@LoadContent
-        val events = o.obj("events") ?: JsonObject(emptyMap())
-        val available = o.obj("available")?.filterValues { (it as? JsonPrimitive)?.booleanOrNull == true }?.keys?.toList() ?: emptyList()
-        val matrix = remember(o) {
-            mutableStateMapOf<String, Boolean>().apply { o.obj("matrix")?.forEach { (ev, chs) -> (chs as? JsonObject)?.forEach { (ch, v) -> put("$ev|$ch", (v as? JsonPrimitive)?.booleanOrNull == true) } } }
+    Column(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (me.can("notifications.send")) item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (me.has("manual_reminders")) Box(Modifier.weight(1f)) { BigAction("Send fee reminder", "To families with pending fees", Icons.Outlined.NotificationsActive, Orange) { nav("message?type=fee_reminder") } }
+                    Box(Modifier.weight(1f)) { BigAction("Send a message", "To a batch or everyone", Icons.AutoMirrored.Outlined.Send, Blue) { nav("message") } }
+                }
+            }
+            if (canSettings) {
+                when (val s = st) {
+                    is Load.Ready -> (s.data as? JsonObject)?.let { o -> item { SettingsCards(o, me, vm, busy, onSaved) } }
+                    is Load.Failed -> item { ErrorView(s.message) { vm.open("notification-settings", true) } }
+                    else -> item { Box(Modifier.fillMaxWidth().height(220.dp).clip(Radius.card).shimmer()) }
+                }
+            }
+            item { SectionHeader("History") }
+            item {
+                CnxCard(padding = 6.dp) {
+                    if (me.isClassAdmin && me.can("notifications.send")) LinkRow("Sent messages", Icons.Outlined.Forum) { nav("module/messageLog") }
+                    if (me.has("whatsapp_manual") && me.can("notifications.send")) LinkRow("WhatsApp messages you opened", Icons.Outlined.Chat) { nav("waLog") }
+                    if (me.can("notifications.send")) LinkRow("Announcements", Icons.Outlined.Campaign) { nav("module/announcements") }
+                    LinkRow("My notifications", Icons.Outlined.Notifications) { nav("notifications") }
+                }
+            }
         }
-        val rules = remember(o) { mutableStateListOf<Int>().apply { addAll(o.list("reminder_rules").mapNotNull { it.toIntOrNull() }) } }
-        val auto = o.b("auto_reminders") || me.has("auto_reminders")
-        Column(Modifier.fillMaxSize()) {
-            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { InfoBanner("Choose which messages go out on each channel. Channels not in your plan are hidden.", Violet) }
-                if (auto) item {
-                    CnxCard {
-                        SectionHeader("Automatic fee reminders")
-                        Text("Days relative to the due date (negative = before).", color = Muted, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun BigAction(title: String, sub: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, onClick: () -> Unit) {
+    CnxCard(Modifier.heightIn(min = 118.dp), onClick = onClick, padding = 14.dp) {
+        IconCircle(icon, tint, 42.dp, 21.dp)
+        Spacer(Modifier.height(10.dp))
+        Text(title, fontWeight = FontWeight.Bold, color = Ink)
+        Text(sub, color = Muted, fontSize = 12.sp)
+    }
+}
+
+@Composable
+fun LinkRow(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).pressable(onClick).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconCircle(icon, Violet, 36.dp, 18.dp)
+        Text(text, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
+    }
+}
+
+private fun dayText(off: Int) = when { off < 0 -> "${-off} day${if (off == -1) "" else "s"} before"; off == 0 -> "On the due date"; else -> "$off day${if (off == 1) "" else "s"} after" }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SettingsCards(o: JsonObject, me: Me, vm: JsonVm, busy: Boolean, onSaved: () -> Unit) {
+    val autoAllowed = o.b("auto_reminders")
+    val mode0 = o.s("reminder_mode") ?: "default"
+    var remOn by remember(o) { mutableStateOf(mode0 != "off") }
+    val defaults = o.list("default_reminder_rules").mapNotNull { it.toIntOrNull() }
+    val rules = remember(o) { mutableStateListOf<Int>().apply { addAll(o.list("reminder_rules").mapNotNull { it.toIntOrNull() }.ifEmpty { defaults }) } }
+    var rulesEdited by remember(o) { mutableStateOf(false) }
+    val wa = o.obj("whatsapp")
+    var waChoice by remember(o) { mutableStateOf(wa?.s("current") ?: "off") }
+    var advanced by remember { mutableStateOf(false) }
+    val events = o.obj("events") ?: JsonObject(emptyMap())
+    val available = o.obj("available")?.filterValues { (it as? JsonPrimitive)?.booleanOrNull == true }?.keys?.toList() ?: emptyList()
+    val matrix = remember(o) { mutableStateMapOf<String, Boolean>().apply { o.obj("matrix")?.forEach { (ev, chs) -> (chs as? JsonObject)?.forEach { (ch, v) -> put("$ev|$ch", (v as? JsonPrimitive)?.booleanOrNull == true) } } } }
+    var matrixEdited by remember(o) { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // ---- fee reminders: one switch
+        CnxCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconCircle(Icons.Outlined.Alarm, Green, 40.dp, 20.dp)
+                Text("Fee Reminders", style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            if (!autoAllowed) Text("Automatic reminders are not in your plan. You can still send reminders yourself with the button above.", color = Muted, fontSize = 13.sp)
+            else {
+                Text("Would you like ClassNex to remind parents about pending fees automatically?", color = Ink)
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(14.dp)).background(if (remOn) Green.copy(alpha = .08f) else Color(0xFFF4F3F8)).pressable({ remOn = !remOn }).padding(12.dp, 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (remOn) "Automatic Reminders ON" else "Automatic Reminders OFF", fontWeight = FontWeight.Bold, color = if (remOn) Green else Muted, modifier = Modifier.weight(1f))
+                    Switch(remOn, { remOn = it }, colors = SwitchDefaults.colors(checkedTrackColor = Green))
+                }
+                Text(if (remOn) "ClassNex will automatically remind parents before and after the fee due date." else "Parents will not get automatic fee reminders. You can still send them yourself.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                if (remOn && mode0 == "custom" && !rulesEdited) Text("You are using your own reminder days (see Advanced settings).", color = Violet, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        // ---- WhatsApp: three simple choices
+        if (wa != null) CnxCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconCircle(Icons.Outlined.Chat, Green, 40.dp, 20.dp)
+                Text("WhatsApp Messages", style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+            }
+            Text("How would you like to send WhatsApp messages?", color = Ink, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
+            wa.arr("options").forEach { op ->
+                val key = op.s("key") ?: ""
+                val ok = op.b("available")
+                val on = waChoice == key
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(if (on) VioletSoft else Color.White)
+                    .border(1.dp, if (on) Violet else Line, RoundedCornerShape(14.dp)).pressable(if (ok) ({ waChoice = key }) else null).padding(10.dp), verticalAlignment = Alignment.Top) {
+                    RadioButton(on, { if (ok) waChoice = key }, enabled = ok, colors = RadioButtonDefaults.colors(selectedColor = Violet))
+                    Column(Modifier.weight(1f).padding(top = 10.dp)) {
+                        Text(op.s("title") ?: "", fontWeight = FontWeight.Bold, color = if (ok) Ink else Muted)
+                        Text(op.s("text") ?: "", color = Muted, fontSize = 13.sp)
+                        op.s("reason")?.let { Text(it, color = Amber, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp)) }
+                    }
+                }
+            }
+            wa.s("note")?.let { InfoBanner(it, Amber, Icons.Outlined.Info, Modifier.padding(top = 6.dp)) }
+        }
+        // ---- advanced, folded away
+        CnxCard(padding = 6.dp) {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).pressable({ advanced = !advanced }).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconCircle(Icons.Outlined.Tune, Muted, 36.dp, 18.dp)
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text("Advanced settings", fontWeight = FontWeight.Bold, color = Ink)
+                    Text("Reminder days and which messages go where", color = Muted, fontSize = 12.sp)
+                }
+                Icon(if (advanced) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Muted)
+            }
+            androidx.compose.animation.AnimatedVisibility(advanced) {
+                Column(Modifier.padding(10.dp)) {
+                    if (autoAllowed && remOn) {
+                        Text("Reminder days", fontWeight = FontWeight.Bold, color = Ink)
+                        Text("ClassNex default: " + defaults.joinToString(", ") { dayText(it) } + ".", color = Muted, fontSize = 12.sp)
                         Spacer(Modifier.height(8.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(-7, -3, -1, 0, 1, 3, 7, 15, 30).forEach { off ->
+                            listOf(-7, -5, -3, -2, -1, 0, 1, 3, 5, 7, 10, 15).forEach { off ->
                                 val on = off in rules
-                                FilterChip(on, { if (on) rules.remove(off) else rules.add(off) }, label = { Text(when { off < 0 -> "${-off}d before"; off == 0 -> "On due date"; else -> "${off}d after" }) },
+                                FilterChip(on, { if (on) rules.remove(off) else rules.add(off); rulesEdited = true }, label = { Text(dayText(off)) },
                                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = VioletSoft, selectedLabelColor = Indigo800))
                             }
                         }
+                        TextButton(onClick = { rules.clear(); rules.addAll(defaults); rulesEdited = true }) { Text("Use ClassNex default days") }
+                        Spacer(Modifier.height(8.dp))
                     }
-                }
-                items(events.entries.toList()) { (ev, title) ->
-                    CnxCard(padding = 12.dp) {
-                        Text((title as? JsonPrimitive)?.content ?: label(ev), fontWeight = FontWeight.Bold, color = Ink)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Which messages go where", fontWeight = FontWeight.Bold, color = Ink)
+                    events.entries.forEach { (ev, title) ->
+                        Text((title as? JsonPrimitive)?.content ?: label(ev), fontWeight = FontWeight.SemiBold, color = Ink, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
+                        Row(Modifier.fillMaxWidth()) {
                             available.forEach { ch ->
                                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Switch(matrix["$ev|$ch"] == true, { matrix["$ev|$ch"] = it }, colors = SwitchDefaults.colors(checkedTrackColor = Violet))
-                                    Text(when (ch) { "inapp" -> "Inbox"; "whatsapp" -> "WhatsApp"; else -> label(ch) }, fontSize = 10.sp, color = Muted, maxLines = 1)
+                                    Switch(matrix["$ev|$ch"] == true, { matrix["$ev|$ch"] = it; matrixEdited = true }, colors = SwitchDefaults.colors(checkedTrackColor = Violet))
+                                    Text(when (ch) { "inapp" -> "App inbox"; "whatsapp" -> "WhatsApp"; "push" -> "Phone alert"; else -> label(ch) }, fontSize = 10.sp, color = Muted, maxLines = 1)
                                 }
                             }
                         }
                     }
                 }
             }
-            Surface(color = Color.White, shadowElevation = 12.dp) {
-                GradientButton("Save settings", {
-                    val m = buildJsonObject {
-                        events.keys.forEach { ev -> put(ev, buildJsonObject { available.forEach { ch -> put(ch, matrix["$ev|$ch"] == true) } }) }
-                    }
-                    val body = buildMap<String, JsonElement> {
-                        put("matrix", m)
-                        if (auto) put("reminder_rules", JsonArray(rules.sorted().map { JsonPrimitive(it) }))
-                    }
-                    vm.post("notification-settings", JsonObject(body)) { vm.reload() }
-                }, Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), loading = busy, icon = Icons.Outlined.Save)
-            }
         }
+        GradientButton("Save", {
+            val body = buildMap<String, JsonElement> {
+                if (wa != null && waChoice != wa.s("current")) put("whatsapp_preference", JsonPrimitive(waChoice))
+                if (autoAllowed) {
+                    when {
+                        !remOn -> put("reminder_mode", JsonPrimitive("off"))
+                        rulesEdited && rules.sorted() == defaults.sorted() -> put("reminder_mode", JsonPrimitive("default"))
+                        rulesEdited -> put("reminder_rules", JsonArray(rules.sorted().map { JsonPrimitive(it) }))
+                        mode0 == "off" -> put("reminder_mode", JsonPrimitive("default"))
+                    }
+                }
+                if (matrixEdited) put("matrix", buildJsonObject { events.keys.forEach { ev -> put(ev, buildJsonObject { available.forEach { ch -> put(ch, matrix["$ev|$ch"] == true) } }) } })
+            }
+            if (body.isEmpty()) vm.say("Nothing changed.") else vm.post("notification-settings", JsonObject(body)) { vm.open("notification-settings", true); onSaved() }
+        }, Modifier.fillMaxWidth(), loading = busy, icon = Icons.Outlined.Save)
     }
 }
 
@@ -384,35 +501,13 @@ fun TicketScreen(id: Long, me: Me, snack: SnackbarHostState, vm: JsonVm = hiltVi
     }
 }
 
-// ================================================================ communication hub
+// ================================================================ activities & batches
 @Composable
-fun CommunicationScreen(me: Me, nav: (String) -> Unit) {
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
-            when (me.whatsapp_mode) {
-                "api" -> InfoBanner("WhatsApp: automatic through the official WhatsApp Business API.", Green, Icons.Outlined.Verified)
-                "manual" -> InfoBanner("WhatsApp: click-to-send. You press send in WhatsApp; ClassNex cannot confirm delivery.", Amber, Icons.Outlined.TouchApp)
-                else -> InfoBanner("WhatsApp is not part of your plan. App inbox and notifications are used.", Muted)
-            }
-        }
-        val links = buildList {
-            if (me.has("manual_reminders") && me.can("notifications.send")) add(Triple("Send message / fee reminder", Icons.AutoMirrored.Outlined.Send, "message"))
-            if (me.can("notifications.send")) add(Triple("Announcements", Icons.Outlined.Campaign, "module/announcements"))
-            if (me.has("whatsapp_manual") && me.can("notifications.send")) add(Triple("WhatsApp history (click-to-send)", Icons.Outlined.Chat, "waLog"))
-            if (me.isClassAdmin && me.can("notifications.send")) add(Triple("Message log & delivery status", Icons.Outlined.Forum, "module/messageLog"))
-            if (me.isClassAdmin && me.can("settings.manage")) add(Triple("Notification settings & auto reminders", Icons.Outlined.Tune, "notificationSettings"))
-            add(Triple("My notifications", Icons.Outlined.Notifications, "notifications"))
-        }
-        itemsIndexed(links) { i, (t, ic, r) ->
-            Entrance(i) {
-                CnxCard(onClick = { nav(r) }, padding = 14.dp) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconCircle(ic, Violet, 40.dp, 19.dp)
-                        Text(t, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
-                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
-                    }
-                }
-            }
-        }
+fun StructureScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit) {
+    var tab by rememberSaveable { mutableIntStateOf(1) }
+    Column(Modifier.fillMaxSize()) {
+        SegmentedTabs(listOf("Activities", "Batches"), tab, Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp)) { tab = it }
+        val spec = remember(tab, me) { moduleFor(if (tab == 0) "activities" else "batches", me) }
+        Box(Modifier.weight(1f)) { spec?.let { CrudListScreen(it, snack, nav) } }
     }
 }

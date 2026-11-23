@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
                 Crossfade(screen, label = "root") { s ->
                     when (s) {
                         "splash" -> SplashScreen()
-                        "home" -> ui.me?.let { HomeScaffold(it, onLogout = auth::logout) }
+                        "home" -> ui.me?.let { HomeScaffold(it, onLogout = auth::logout, onRefreshMe = auth::refreshMe) }
                         "onboarding" -> OnboardingScreen { auth.finishOnboarding(); onboarded = true }
                         else -> LoginScreen(auth)
                     }

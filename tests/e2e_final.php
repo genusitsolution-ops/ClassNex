@@ -354,6 +354,21 @@ ok(api('POST', '/public/registration-status', ['identifier' => '9845000001', 'pa
 $tl = api('GET', '/teachers', null, $own)['json']['data'][0] ?? [];
 ok(($tl['batch_ids'] ?? null) === [$bA], 'Teacher list includes assigned batch ids so the app can edit them safely');
 
+section('Simple settings: automatic reminders on/off and WhatsApp choice');
+$ns = api('GET', '/notification-settings', null, $own)['json']['data'];
+ok($ns['reminder_mode'] === 'default' && $ns['reminder_rules'] === $ns['default_reminder_rules'] && count($ns['whatsapp']['options']) === 3 && !isset($ns['whatsapp']['access_token']), 'New academy: reminders ON with ClassNex default timings; 3 WhatsApp choices without technical details');
+api('POST', '/notification-settings', ['reminder_mode' => 'off', 'whatsapp_preference' => 'manual'], $own);
+$ns2 = api('GET', '/notification-settings', null, $own)['json']['data'];
+$me2 = api('GET', '/auth/me', null, $own)['json']['data'];
+ok($ns2['reminder_mode'] === 'off' && $ns2['reminder_rules'] === [] && $me2['whatsapp_mode'] === 'manual' && !in_array('whatsapp', $me2['features'], true), 'Owner can switch reminders off and choose Manual WhatsApp (automatic sending stops)');
+api('POST', '/notification-settings', ['reminder_rules' => [-2, 0, 5]], $own);
+ok(api('GET', '/notification-settings', null, $own)['json']['data']['reminder_mode'] === 'custom', 'Advanced: own reminder days are still supported');
+api('POST', '/notification-settings', ['reminder_mode' => 'default', 'whatsapp_preference' => 'api'], $own);
+$ns3 = api('GET', '/notification-settings', null, $own)['json']['data'];
+ok($ns3['reminder_mode'] === 'default' && $ns3['whatsapp']['current'] === 'api', 'Back to defaults and Automatic WhatsApp');
+ok(api('POST', '/notification-settings', ['whatsapp_preference' => 'api'], $mo)['status'] === 422, 'Automatic WhatsApp cannot be chosen when the plan only has Manual');
+ok(api('POST', '/notification-settings', ['whatsapp_preference' => 'manual'], $tch)['status'] >= 400, 'Teachers cannot change academy WhatsApp settings');
+
 // ------------------------------------------------------------------ 8. subscription expiry
 section('Subscription expiry');
 api('POST', "/admin/academies/$mid/subscription", ['action' => 'assign', 'package_id' => $pManual, 'starts_on' => d(60), 'ends_on' => d(30)], $sa);

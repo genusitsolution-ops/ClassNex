@@ -54,12 +54,15 @@ import `in`.classnex.app.ui.portal.PortalHomeScreen
 import `in`.classnex.app.ui.theme.*
 import kotlinx.coroutines.launch
 
-/** One drawer entry. Only entries the user's package and permissions allow are built. */
-data class MenuItem(val label: String, val route: String, val icon: ImageVector)
+/** One entry of the More screen. Only entries the user's package and permissions allow are built. */
+data class MenuItem(val label: String, val route: String, val icon: ImageVector, val tint: Color = Violet, val hint: String? = null)
 data class MenuSection(val title: String, val items: List<MenuItem>)
 
-/** The navigation menu – the same modules and rules as the web panel for each role. */
-fun menuFor(me: Me): List<MenuSection> {
+/**
+ * The More screen: the main sections as large tiles, then the other tools in a short list.
+ * Same modules and permission rules as the web panel for each role.
+ */
+fun moreFor(me: Me): List<MenuSection> {
     val owner = me.isClassAdmin
     val fees = me.has("fees") && me.can("fees.view")
     val att = me.has("attendance")
@@ -67,60 +70,41 @@ fun menuFor(me: Me): List<MenuSection> {
     fun MenuItem.on(b: Boolean) = if (b) this else null
     val list = when {
         me.role == "super_admin" -> listOf(
-            sec("Overview", MenuItem("Dashboard", "admin", Icons.Outlined.Dashboard), MenuItem("Notifications", "notifications", Icons.Outlined.Notifications)),
-            sec("Platform", MenuItem("Registrations", "module/registrations", Icons.Outlined.HowToReg), MenuItem("Academies", "module/academies", Icons.Outlined.Apartment)),
-            sec("Account", MenuItem("Settings", "profile", Icons.Outlined.Settings)),
+            sec("Main", MenuItem("Registrations", "module/registrations", Icons.Outlined.HowToReg, Amber, "Approve new academies"), MenuItem("Academies", "module/academies", Icons.Outlined.Apartment, Violet, "All academies and plans"),
+                MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue), MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Password and log out")),
         )
         me.isFamily -> listOf(
-            sec("Overview", MenuItem("Home", "portal", Icons.Outlined.Home), MenuItem("Notifications", "notifications", Icons.Outlined.Notifications)),
-            sec("My Child", MenuItem("Attendance", "portalAttendance", Icons.Outlined.HowToReg).on(att), MenuItem("Fees & Receipts", "portalFees", Icons.Outlined.ReceiptLong).on(me.has("fees"))),
-            sec("Account", MenuItem("Help & Support", "module/support", Icons.Outlined.SupportAgent), MenuItem("Settings", "profile", Icons.Outlined.Settings)),
+            sec("Main", MenuItem("Attendance", "portalAttendance", Icons.Outlined.HowToReg, Green).on(att), MenuItem("Fees & Receipts", "portalFees", Icons.Outlined.ReceiptLong, Orange).on(me.has("fees")),
+                MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue), MenuItem("Help & Support", "module/support", Icons.Outlined.SupportAgent, Pink, "Ask the academy"),
+                MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Password and log out")),
         )
         else -> listOf(
-            sec("Overview", MenuItem("Dashboard", "dashboard", Icons.Outlined.Dashboard), MenuItem("Notifications", "notifications", Icons.Outlined.Notifications)),
             sec(
-                "Academy Management",
-                MenuItem("Branches", "branches", Icons.Outlined.Store).on(owner),
-                MenuItem("Activities", "module/activities", Icons.Outlined.Interests),
-                MenuItem("Batches", "module/batches", Icons.Outlined.Groups),
-                MenuItem("Teachers", "module/teachers", Icons.Outlined.Badge).on(owner),
-                MenuItem("Students", "students", Icons.Outlined.Group).on(me.can("students.view")),
-                MenuItem("Admissions", "module/admissions", Icons.Outlined.AssignmentInd).on(me.has("online_admission") && me.can("admissions.manage")),
-                MenuItem("Parents", "module/parents", Icons.Outlined.FamilyRestroom).on(owner || me.can("students.manage")),
-                MenuItem("Holidays", "module/holidays", Icons.Outlined.BeachAccess).on(owner),
-                MenuItem(if (owner) "Teacher Leaves" else "My Leaves", "module/leaves", Icons.Outlined.EventAvailable),
+                "Main",
+                MenuItem("Branches", "branches", Icons.Outlined.Store, Teal, "Your centres").on(owner),
+                MenuItem("Teachers", "module/teachers", Icons.Outlined.Badge, Blue, "Add teachers, set access").on(owner),
+                MenuItem("Activities & Batches", "structure", Icons.Outlined.Groups, Orange, "Classes, timings, batches"),
+                MenuItem("Reports", "reports?financial=0", Icons.Outlined.Assessment, Pink, "Attendance, fees, students").on(me.has("reports") && me.can("reports.view")),
+                MenuItem("Reminders & WhatsApp", "reminders", Icons.Outlined.NotificationsActive, Green, "Fee reminders, messages").on(me.can("notifications.send") || (owner && me.can("settings.manage"))),
+                MenuItem("Announcements", "module/announcements", Icons.Outlined.Campaign, Amber, "News for everyone").on(me.can("notifications.send")),
+                MenuItem("Subscription", "subscription", Icons.Outlined.WorkspacePremium, Violet, "Your plan and usage").on(owner),
+                MenuItem("Settings", "profile", Icons.Outlined.Settings, Muted, "Profile, password, log out"),
+                MenuItem("Help & Support", "module/support", Icons.Outlined.SupportAgent, Pink, "We are here to help"),
             ),
             sec(
-                "Daily Operations",
-                MenuItem("Attendance", "markAttendance?batch=0", Icons.Outlined.HowToReg).on(att && me.can("attendance.mark")),
-                MenuItem("Attendance History", "history", Icons.Outlined.History).on(att),
-                MenuItem("Timetable", "timetable", Icons.Outlined.CalendarViewWeek),
-            ),
-            sec(
-                "Finance",
-                MenuItem("Collect Fee", "collect/0", Icons.Outlined.CurrencyRupee).on(fees && me.can("fees.collect")),
-                MenuItem("Fee Structure", "module/feePlans", Icons.Outlined.RequestQuote).on(fees),
-                MenuItem("Discounts", "module/discounts", Icons.Outlined.Sell).on(fees && owner),
-                MenuItem("Pending Fees", "fees", Icons.Outlined.HourglassBottom).on(fees),
-                MenuItem("Overdue Fees", "fees?tab=1", Icons.Outlined.ErrorOutline).on(fees),
-                MenuItem("Payments", "payments", Icons.Outlined.Payments).on(fees),
-                MenuItem("Receipts", "receipts", Icons.Outlined.ReceiptLong).on(fees),
-                MenuItem("Financial Reports", "reports?financial=1", Icons.Outlined.Insights).on(fees && me.has("reports") && me.can("reports.financial")),
-            ),
-            sec(
-                "Communication",
-                MenuItem("WhatsApp Reminders", "message", Icons.Outlined.Chat).on(me.has("manual_reminders") && me.can("notifications.send")),
-                MenuItem("Announcements", "module/announcements", Icons.Outlined.Campaign).on(me.can("notifications.send")),
-                MenuItem("Communication Centre", "communication", Icons.Outlined.Forum).on(me.can("notifications.send")),
-                MenuItem("Notifications", "notifications", Icons.Outlined.NotificationsActive),
-            ),
-            sec(
-                "Business & Account",
-                MenuItem("Reports", "reports?financial=0", Icons.Outlined.Assessment).on(me.has("reports") && me.can("reports.view")),
-                MenuItem("Subscription", "subscription", Icons.Outlined.WorkspacePremium).on(owner),
-                MenuItem("Academy Profile", "academyProfile", Icons.Outlined.Storefront).on(owner),
-                MenuItem("Settings", "profile", Icons.Outlined.Settings),
-                MenuItem("Help & Support", "module/support", Icons.Outlined.SupportAgent),
+                "Other tools",
+                MenuItem("Payments & Receipts", "payments", Icons.Outlined.ReceiptLong, Green).on(fees),
+                MenuItem("Fee Plans", "module/feePlans", Icons.Outlined.RequestQuote, Teal).on(fees),
+                MenuItem("Discounts", "module/discounts", Icons.Outlined.Sell, Pink).on(fees && owner),
+                MenuItem("Fee Reports", "reports?financial=1", Icons.Outlined.Insights, Orange).on(fees && me.has("reports") && me.can("reports.financial")),
+                MenuItem("Attendance History", "history", Icons.Outlined.History, Blue).on(att),
+                MenuItem("Timetable", "timetable", Icons.Outlined.CalendarViewWeek, Indigo600),
+                MenuItem("Admission Requests", "module/admissions", Icons.Outlined.AssignmentInd, Amber).on(me.has("online_admission") && me.can("admissions.manage")),
+                MenuItem("Parents", "module/parents", Icons.Outlined.FamilyRestroom, Violet).on(owner || me.can("students.manage")),
+                MenuItem("Holidays", "module/holidays", Icons.Outlined.BeachAccess, Pink).on(owner),
+                MenuItem(if (owner) "Teacher Leaves" else "My Leaves", "module/leaves", Icons.Outlined.EventAvailable, Blue),
+                MenuItem("Academy Profile", "academyProfile", Icons.Outlined.Storefront, Violet).on(owner),
+                MenuItem("Notifications", "notifications", Icons.Outlined.Notifications, Blue),
             ),
         )
     }
@@ -128,35 +112,33 @@ fun menuFor(me: Me): List<MenuSection> {
 }
 
 private fun bottomFor(me: Me): List<BottomItem> = when {
-    me.role == "super_admin" -> listOf(BottomItem("admin", "Home", Icons.Outlined.Dashboard), BottomItem("module/registrations", "Approvals", Icons.Outlined.HowToReg), BottomItem("module/academies", "Academies", Icons.Outlined.Apartment), BottomItem(MORE, "More", Icons.Outlined.Menu))
+    me.role == "super_admin" -> listOf(BottomItem("admin", "Home", Icons.Outlined.Dashboard), BottomItem("module/registrations", "Approvals", Icons.Outlined.HowToReg), BottomItem("module/academies", "Academies", Icons.Outlined.Apartment), BottomItem("more", "More", Icons.Outlined.GridView))
     me.isFamily -> buildList {
         add(BottomItem("portal", "Home", Icons.Outlined.Home))
         if (me.has("attendance")) add(BottomItem("portalAttendance", "Attendance", Icons.Outlined.HowToReg))
         if (me.has("fees")) add(BottomItem("portalFees", "Fees", Icons.Outlined.ReceiptLong))
         add(BottomItem("notifications", "Alerts", Icons.Outlined.Notifications))
-        add(BottomItem(MORE, "More", Icons.Outlined.Menu))
+        add(BottomItem("more", "More", Icons.Outlined.GridView))
     }
     else -> buildList {
         add(BottomItem("dashboard", "Home", Icons.Outlined.Home))
         if (me.can("students.view")) add(BottomItem("students", "Students", Icons.Outlined.Group))
         if (me.has("attendance") && me.can("attendance.mark")) add(BottomItem("markAttendance?batch={batch}", "Attendance", Icons.Outlined.HowToReg))
         if (me.has("fees") && me.can("fees.view")) add(BottomItem("fees?tab={tab}", "Fees", Icons.Outlined.CurrencyRupee))
-        add(BottomItem(MORE, "More", Icons.Outlined.Menu))
+        add(BottomItem("more", "More", Icons.Outlined.GridView))
     }
 }
 
-private const val MORE = "__more__"
 
 /** Turns a route pattern into a real destination ("fees?tab={tab}" → "fees"). */
 private fun target(route: String) = route.substringBefore('?').let { base -> if (route.contains("{")) base else route }
 
 @Composable
-fun HomeScaffold(me: Me, onLogout: () -> Unit) {
+fun HomeScaffold(me: Me, onLogout: () -> Unit, onRefreshMe: () -> Unit = {}) {
     val nav = rememberNavController()
     val snack = remember { SnackbarHostState() }
     val entry by nav.currentBackStackEntryAsState()
     val pattern = entry?.destination?.route ?: ""
-    val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     if (Build.VERSION.SDK_INT >= 33) {
@@ -164,7 +146,7 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
         LaunchedEffect(Unit) { perm.launch(Manifest.permission.POST_NOTIFICATIONS) }
     }
 
-    val menu = remember(me) { menuFor(me) }
+    val more = remember(me) { moreFor(me) }
     val tabs = remember(me) { bottomFor(me) }
     val start = target(tabs.first().route)
     val go: (String) -> Unit = { r -> nav.navigate(r) { launchSingleTop = true } }
@@ -180,19 +162,7 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
     // close the keyboard when the user arrives (after login) and whenever the screen changes
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(pattern) { keyboard?.hide() }
-    // system back closes the drawer first
-    androidx.activity.compose.BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
-
-    ModalNavigationDrawer(
-        drawerState = drawer,
-        gesturesEnabled = isTab || drawer.isOpen,
-        drawerContent = {
-            AppDrawer(me, menu, currentReal, onLogout = { scope.launch { drawer.close() }; onLogout() }) { item ->
-                scope.launch { drawer.close() }
-                if (tabs.any { t -> target(t.route) == item.route.substringBefore('?') }) goTab(item.route) else go(item.route)
-            }
-        },
-    ) {
+    run {
         Scaffold(
             containerColor = Lavender,
             snackbarHost = { SnackbarHost(snack) { d -> Snackbar(d, shape = RoundedCornerShape(14.dp), containerColor = Indigo900, contentColor = Color.White) } },
@@ -200,10 +170,7 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
                 GradientTopBar(
                     title = titleFor(pattern, entry, me),
                     subtitle = if (isTab && pattern != "dashboard") me.academy?.name else null,
-                    navigation = {
-                        if (isTab) BarIcon(Icons.Outlined.Menu, "Menu") { scope.launch { drawer.open() } }
-                        else BackIcon { nav.popBackStack() }
-                    },
+                    navigation = if (isTab) null else ({ BackIcon { nav.popBackStack() } }),
                     actions = {
                         if (pattern != "notifications") BarIcon(Icons.Outlined.Notifications, "Notifications") { go("notifications") }
                         if (pattern == "students" && me.can("students.manage")) BarIcon(Icons.Outlined.PersonAdd, "Add student") { go("addStudent") }
@@ -213,7 +180,7 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
             bottomBar = {
                 AnimatedVisibility(isTab, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
                     CnxBottomBar(tabs, currentTab) { t ->
-                        if (t.route == MORE) scope.launch { drawer.open() } else goTab(target(t.route))
+                        goTab(target(t.route))
                     }
                 }
             },
@@ -227,6 +194,9 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
             ) {
                 val showMsg: (String) -> Unit = { m -> scope.launch { snack.showSnackbar(m) } }
                 composable("dashboard") { DashboardScreen(me, go) }
+                composable("more") { MoreScreen(me, more, go, onLogout) }
+                composable("structure") { StructureScreen(me, snack, go) }
+                composable("reminders") { RemindersScreen(me, snack, go, onRefreshMe) }
                 composable("students") { StudentsScreen(me, go) }
                 composable("student/{id}", listOf(navArgument("id") { type = NavType.LongType })) { StudentDetailScreen(it.arguments!!.getLong("id"), me, go, snack) }
                 composable("branchStudents/{branch}", listOf(navArgument("branch") { type = NavType.LongType })) { StudentsScreen(me, go, branchId = it.arguments!!.getLong("branch")) }
@@ -248,8 +218,8 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
                 composable("fees?tab={tab}", listOf(navArgument("tab") { type = NavType.IntType; defaultValue = 0 })) { PendingFeesScreen(me, snack, go, it.arguments!!.getInt("tab")) }
                 composable("payments") { PaymentsScreen(snack, me) }
                 composable("receipts") { PaymentsScreen(snack, me) }
-                composable("message?student={student}", listOf(navArgument("student") { type = NavType.LongType; defaultValue = 0L })) {
-                    MessageScreen(me, it.arguments!!.getLong("student").takeIf { s -> s > 0 }, snack, back = { nav.popBackStack() })
+                composable("message?student={student}&type={type}", listOf(navArgument("student") { type = NavType.LongType; defaultValue = 0L }, navArgument("type") { type = NavType.StringType; defaultValue = "message" })) {
+                    MessageScreen(me, it.arguments!!.getLong("student").takeIf { s -> s > 0 }, snack, back = { nav.popBackStack() }, initialType = it.arguments!!.getString("type") ?: "message")
                 }
                 composable("module/{key}", listOf(navArgument("key") { type = NavType.StringType })) {
                     // keyed by the module: a single-top navigation between modules reuses this entry with new arguments
@@ -270,8 +240,8 @@ fun HomeScaffold(me: Me, onLogout: () -> Unit) {
                 composable("timetable") { TimetableScreen(go) }
                 composable("subscription") { SubscriptionScreen(me) }
                 composable("academyProfile") { AcademyProfileScreen(me, snack, back = { nav.popBackStack() }) }
-                composable("notificationSettings") { NotificationSettingsScreen(me, snack) }
-                composable("communication") { CommunicationScreen(me, go) }
+                composable("notificationSettings") { RemindersScreen(me, snack, go, onRefreshMe) }
+                composable("communication") { RemindersScreen(me, snack, go, onRefreshMe) }
                 composable("portal") { PortalHomeScreen(me, snack, go) }
                 composable("portalAttendance") { PortalAttendanceScreen(me) }
                 composable("portalFees") { PortalFeesScreen(me, snack) }
@@ -301,7 +271,7 @@ private val titles = mapOf(
     "dashboard" to "Dashboard", "students" to "Students", "addStudent" to "Add Student", "notifications" to "Notifications", "profile" to "Settings",
     "portal" to "Home", "portalAttendance" to "Attendance", "portalFees" to "Fees & Receipts", "admin" to "Super Admin",
     "branches" to "Branches", "waLog" to "WhatsApp History", "payments" to "Payments", "receipts" to "Receipts", "timetable" to "Timetable",
-    "subscription" to "Subscription", "academyProfile" to "Academy Profile", "notificationSettings" to "Notification Settings", "communication" to "Communication",
+    "subscription" to "Subscription", "academyProfile" to "Academy Profile", "notificationSettings" to "Fee Reminder Settings", "communication" to "Reminders & WhatsApp", "more" to "More", "structure" to "Activities & Batches", "reminders" to "Reminders & WhatsApp",
 )
 
 private fun titleFor(pattern: String, e: NavBackStackEntry?, me: Me): String {
@@ -316,13 +286,13 @@ private fun titleFor(pattern: String, e: NavBackStackEntry?, me: Me): String {
             else (if ((a?.getLong("id") ?: 0L) > 0) "Edit " else "New ") + t.replaceFirstChar { it.lowercase() }
         }
         pattern.startsWith("fees") -> if ((a?.getInt("tab") ?: 0) == 1) "Overdue Fees" else "Pending Fees"
-        pattern.startsWith("reports") -> if ((a?.getInt("financial") ?: 0) == 1) "Financial Reports" else "Reports"
-        pattern.startsWith("markAttendance") || pattern.startsWith("attendance/") -> "Mark Attendance"
+        pattern.startsWith("reports") -> if ((a?.getInt("financial") ?: 0) == 1) "Fee Reports" else "Reports"
+        pattern.startsWith("markAttendance") || pattern.startsWith("attendance/") -> "Attendance"
         pattern.startsWith("history") -> "Attendance History"
         pattern.startsWith("student/") -> "Student Profile"
         pattern.startsWith("branchStudents") -> "Branch Students"
         pattern.startsWith("collect/") -> "Collect Fee"
-        pattern.startsWith("message") -> "WhatsApp & Reminders"
+        pattern.startsWith("message") -> "Send Reminder"
         pattern.startsWith("branch/") -> "Branch"
         pattern.startsWith("assign/") -> "Assign Students"
         pattern.startsWith("report/") -> "Report"
@@ -332,40 +302,64 @@ private fun titleFor(pattern: String, e: NavBackStackEntry?, me: Me): String {
     }
 }
 
+/** The More tab: main sections as large tiles, other tools as a short list. */
 @Composable
-private fun AppDrawer(me: Me, menu: List<MenuSection>, current: String, onLogout: () -> Unit, onSelect: (MenuItem) -> Unit) {
-    ModalDrawerSheet(drawerContainerColor = Color.White, drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp), modifier = Modifier.widthIn(max = 320.dp)) {
-        Column(Modifier.fillMaxWidth().background(Brand.drawer).statusBarsPadding().padding(20.dp)) {
-            Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(Color.White), contentAlignment = Alignment.Center) {
-                val logo = me.academy?.logo_url
-                if (logo != null) AsyncImage(logo, null, Modifier.fillMaxSize().padding(4.dp)) else Image(painterResource(R.drawable.classnex_icon), null, Modifier.size(42.dp))
+private fun MoreScreen(me: Me, sections: List<MenuSection>, go: (String) -> Unit, onLogout: () -> Unit) {
+    var logout by remember { mutableStateOf(false) }
+    LazyColumn(Modifier.fillMaxSize().testTag("moreList"), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth().clip(Radius.card).background(Brand.drawer).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    val logo = me.academy?.logo_url
+                    if (logo != null) AsyncImage(logo, null, Modifier.fillMaxSize().padding(4.dp)) else Image(painterResource(R.drawable.classnex_icon), null, Modifier.size(36.dp))
+                }
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text(me.academy?.name ?: "ClassNex", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("${me.name} · ${roleName(me.role)}", color = Color.White.copy(alpha = .8f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
-            Spacer(Modifier.height(12.dp))
-            Text(me.academy?.name ?: "ClassNex", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("${me.name} · ${roleName(me.role)}", color = Color.White.copy(alpha = .8f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            me.subscription?.package_name?.let { Pill("$it · ${label(me.subscription?.status)}", Color.White, Modifier.padding(top = 8.dp)) }
         }
-        LazyColumn(Modifier.weight(1f).testTag("drawerList"), contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 8.dp)) {
-            menu.forEach { sec ->
-                item { Text(sec.title.uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 12.dp, top = 14.dp, bottom = 4.dp)) }
-                sec.items.forEach { mi ->
+        sections.forEachIndexed { si, sec ->
+            if (si == 0) {
+                // main sections: two large tiles per row
+                sec.items.chunked(2).forEachIndexed { ri, row ->
                     item {
-                        val on = mi.route == current
-                        NavigationDrawerItem(
-                            label = { Text(mi.label, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium) },
-                            icon = { Icon(mi.icon, null) }, selected = on, onClick = { onSelect(mi) },
-                            shape = RoundedCornerShape(14.dp), modifier = Modifier.height(48.dp).testTag("menu:" + mi.route),
-                            colors = NavigationDrawerItemDefaults.colors(selectedContainerColor = VioletSoft, selectedTextColor = Indigo800, selectedIconColor = Violet, unselectedIconColor = Muted, unselectedTextColor = Ink),
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            row.forEachIndexed { ci, mi ->
+                                Box(Modifier.weight(1f)) {
+                                    Entrance(ri * 2 + ci) {
+                                        CnxCard(Modifier.testTag("more:" + mi.route).heightIn(min = 112.dp), onClick = { go(mi.route) }, padding = 14.dp) {
+                                            IconCircle(mi.icon, mi.tint, 42.dp, 21.dp)
+                                            Spacer(Modifier.height(10.dp))
+                                            Text(mi.label, fontWeight = FontWeight.Bold, color = Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                            mi.hint?.let { Text(it, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                                        }
+                                    }
+                                }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                item { SectionHeader(sec.title) }
+                item {
+                    CnxCard(padding = 6.dp) {
+                        sec.items.forEach { mi ->
+                            Row(Modifier.fillMaxWidth().testTag("more:" + mi.route).clip(RoundedCornerShape(12.dp)).clickable { go(mi.route) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                IconCircle(mi.icon, mi.tint, 36.dp, 18.dp)
+                                Text(mi.label, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+                                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Muted)
+                            }
+                        }
                     }
                 }
             }
         }
-        HorizontalDivider(color = Line)
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().clickable(onClick = onLogout).padding(20.dp, 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Outlined.Logout, null, tint = Red)
-            Text("Log out", color = Red, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(start = 12.dp))
-            Text("v${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 11.sp)
+        item {
+            SoftButton("Log out", { logout = true }, Modifier.fillMaxWidth(), Icons.AutoMirrored.Outlined.Logout, Red)
+            Text("ClassNex v${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 10.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
+    if (logout) ConfirmDialog("Log out?", "You will need your password to log in again.", "Log out", true, { logout = false }) { logout = false; onLogout() }
 }

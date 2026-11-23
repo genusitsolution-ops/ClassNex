@@ -74,6 +74,14 @@ class CollectVm @Inject constructor(private val repo: Repository) : LoadVm<Dues>
 val payMethods = listOf("cash" to "Cash", "upi" to "UPI", "bank_transfer" to "Bank Transfer", "card" to "Card", "online" to "Online", "cheque" to "Cheque", "other" to "Other")
 
 @Composable
+private fun StepTitle(n: Int, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+        Box(Modifier.size(26.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Violet), contentAlignment = Alignment.Center) { Text("$n", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+        Text(text, fontWeight = FontWeight.Bold, color = Ink, fontSize = 16.sp, modifier = Modifier.padding(start = 10.dp))
+    }
+}
+
+@Composable
 fun CollectFeeScreen(initialStudent: Long, me: Me, snack: SnackbarHostState, nav: (String) -> Unit, vm: CollectVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
     var studentId by rememberSaveable { mutableLongStateOf(initialStudent) }
     LaunchedEffect(studentId) { if (studentId > 0) vm.open(studentId) }
@@ -100,6 +108,9 @@ fun CollectFeeScreen(initialStudent: Long, me: Me, snack: SnackbarHostState, nav
         var ref by remember { mutableStateOf("") }
         var notes by remember { mutableStateOf("") }
         var paidOn by remember { mutableStateOf(today()) }
+        var moreOptions by remember { mutableStateOf(false) }
+        var confirm by remember { mutableStateOf(false) }
+        val paise = ((amount.toDoubleOrNull() ?: 0.0) * 100).toLong()
         Column(Modifier.fillMaxSize().imePadding()) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 CnxCard {
@@ -113,12 +124,13 @@ fun CollectFeeScreen(initialStudent: Long, me: Me, snack: SnackbarHostState, nav
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile("Pending", money(d.balance.outstanding_paise), Icons.Outlined.HourglassBottom, Amber, Modifier.weight(1f))
-                    StatTile("Overdue", money(d.balance.overdue_paise), Icons.Outlined.ErrorOutline, Red, Modifier.weight(1f))
-                    StatTile("Advance", money(d.balance.advance_paise), Icons.Outlined.Savings, Green, Modifier.weight(1f))
+                    StatTile("Pending Amount", money(d.balance.outstanding_paise), Icons.Outlined.HourglassBottom, Amber, Modifier.weight(1f))
+                    StatTile("Overdue Amount", money(d.balance.overdue_paise), Icons.Outlined.ErrorOutline, Red, Modifier.weight(1f))
+                    StatTile("Advance Paid", money(d.balance.advance_paise), Icons.Outlined.Savings, Green, Modifier.weight(1f))
                 }
-                SectionHeader("Select fees to collect")
-                if (d.invoices.isEmpty()) InfoBanner("No pending dues. Any amount collected is kept as advance.", Green)
+
+                StepTitle(1, "Select the fees")
+                if (d.invoices.isEmpty()) InfoBanner("No pending fees. The amount you collect is kept as advance.", Green)
                 d.invoices.forEach { i ->
                     val on = vm.selected[i.id] == true
                     CnxCard(onClick = { vm.selected[i.id] = !on; amount = rupeesInput(vm.selectedTotal(d)) }, padding = 12.dp) {
@@ -126,33 +138,58 @@ fun CollectFeeScreen(initialStudent: Long, me: Me, snack: SnackbarHostState, nav
                             Checkbox(on, { vm.selected[i.id] = it; amount = rupeesInput(vm.selectedTotal(d)) }, colors = CheckboxDefaults.colors(checkedColor = Violet))
                             Column(Modifier.weight(1f)) {
                                 Text(i.title, fontWeight = FontWeight.Bold, color = Ink)
-                                Text("Due ${prettyDate(i.due_date)}" + (if (i.status == "partial") " · partly paid" else "") + (if (i.days_overdue > 0) " · ${i.days_overdue} days overdue" else ""), color = if (i.days_overdue > 0) Red else Muted, fontSize = 12.sp)
+                                Text("Due ${prettyDate(i.due_date)}" + (if (i.status == "partial") " · partly paid" else "") + (if (i.days_overdue > 0) " · ${i.days_overdue} days late" else ""), color = if (i.days_overdue > 0) Red else Muted, fontSize = 12.sp)
                             }
                             Text(money(i.balance_paise), fontWeight = FontWeight.ExtraBold, color = Ink)
                         }
                     }
                 }
-                CnxCard {
-                    val a = ((amount.toDoubleOrNull() ?: 0.0) * 100).toLong()
-                    val sel = vm.selectedTotal(d)
-                    CnxField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' } }, "Amount received *", keyboard = KeyboardType.Decimal, prefix = "₹ ",
-                        supporting = when { a == 0L -> null; a < sel -> "Partial payment · ${money(sel - a)} stays pending"; a > d.balance.outstanding_paise -> "${money(a - d.balance.outstanding_paise)} kept as advance"; else -> "Full payment" })
-                    Spacer(Modifier.height(10.dp))
-                    Text("Payment method", fontWeight = FontWeight.Bold, color = Ink)
-                    Spacer(Modifier.height(6.dp))
-                    ChoiceChips(payMethods, method) { method = it }
-                    if (method != "cash") { Spacer(Modifier.height(10.dp)); CnxField(ref, { ref = it }, if (method == "cheque") "Cheque number" else "Transaction / UTR number") }
-                    Spacer(Modifier.height(10.dp))
-                    DateField("Paid on", paidOn) { it?.let { v -> if (v <= today()) paidOn = v } }
-                    Spacer(Modifier.height(10.dp))
-                    CnxField(notes, { notes = it }, "Note (optional)", singleLine = false, minLines = 2)
+
+                StepTitle(2, "Enter the amount")
+                val sel = vm.selectedTotal(d)
+                CnxField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' } }, "Amount received", keyboard = KeyboardType.Decimal, prefix = "₹ ",
+                    supporting = when { paise == 0L -> null; paise < sel -> "Part payment – ${money(sel - paise)} will stay pending"; paise > d.balance.outstanding_paise -> "${money(paise - d.balance.outstanding_paise)} extra will be kept as advance"; else -> "Full payment" })
+
+                StepTitle(3, "How did they pay?")
+                ChoiceChips(payMethods, method) { method = it }
+
+                // optional details, folded away
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).pressable({ moreOptions = !moreOptions }).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (moreOptions) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Violet)
+                    Text("More options (transaction no., date, note)", color = Violet, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 6.dp))
+                }
+                androidx.compose.animation.AnimatedVisibility(moreOptions) {
+                    CnxCard {
+                        CnxField(ref, { ref = it }, if (method == "cheque") "Cheque number" else "Transaction / UPI reference number")
+                        Spacer(Modifier.height(10.dp))
+                        DateField("Payment date", paidOn) { it?.let { v -> if (v <= today()) paidOn = v } }
+                        Spacer(Modifier.height(10.dp))
+                        CnxField(notes, { notes = it }, "Note", singleLine = false, minLines = 2)
+                    }
                 }
             }
             Surface(color = Color.White, shadowElevation = 12.dp) {
-                GradientButton("Collect & Generate Receipt", { vm.pay(amount, method, ref, paidOn, notes, d) }, Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
-                    enabled = (amount.toDoubleOrNull() ?: 0.0) > 0 && me.can("fees.collect"), loading = busy, icon = Icons.Outlined.ReceiptLong)
+                GradientButton(if (paise > 0) "Collect ${money(paise)}" else "Collect Fee", { confirm = true }, Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
+                    enabled = paise > 0 && me.can("fees.collect"), loading = busy, icon = Icons.Outlined.ReceiptLong)
             }
         }
+        if (confirm) AlertDialog(
+            onDismissRequest = { confirm = false }, containerColor = Color.White, shape = RoundedCornerShape(24.dp),
+            icon = { IconCircle(Icons.Outlined.CurrencyRupee, Violet) },
+            title = { Text("Confirm payment") },
+            text = {
+                Column {
+                    KeyRow("Student", d.student.name)
+                    KeyRow("Amount", money(paise))
+                    KeyRow("Paid by", payMethods.firstOrNull { it.first == method }?.second)
+                    KeyRow("For", d.invoices.filter { vm.selected[it.id] == true }.joinToString(", ") { it.title }.ifBlank { "Advance" })
+                    KeyRow("Date", prettyDate(paidOn))
+                    Text("A receipt is created right after you confirm.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+            },
+            confirmButton = { Button(onClick = { confirm = false; vm.pay(amount, method, ref, paidOn, notes, d) }, colors = ButtonDefaults.buttonColors(containerColor = Violet), shape = RoundedCornerShape(14.dp)) { Text("Confirm & Create Receipt") } },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Back") } },
+        )
     }
     val r = result
     if (r != null && showDone) {
@@ -221,12 +258,12 @@ fun PendingFeesScreen(me: Me, snack: SnackbarHostState, nav: (String) -> Unit, i
             }
             SegmentedTabs(listOf("Pending", "Overdue"), tab) { tab = it; vm.tab = if (it == 1) "overdue" else "open"; vm.refresh() }
             SearchBox(q, { q = it; vm.search(it) }, "Search student")
-            if (me.has("manual_reminders") && me.can("notifications.send")) SoftButton("Send reminder to all overdue", { confirm = true }, Modifier.fillMaxWidth(), Icons.Outlined.NotificationsActive)
+            if (me.has("manual_reminders") && me.can("notifications.send")) SoftButton("Send reminder to everyone overdue", { confirm = true }, Modifier.fillMaxWidth(), Icons.Outlined.NotificationsActive)
         }
         LoadContent(st, vm::refresh) { list ->
             if (list.isEmpty()) EmptyState(if (tab == 1) "Nothing overdue 🎉" else "No pending fees 🎉", icon = Icons.Outlined.TaskAlt)
             else LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Text("Total ${money(list.sumOf { it.balance_paise })} · ${list.size} invoice(s)", fontWeight = FontWeight.Bold, color = Ink) }
+                item { Text("Total ${money(list.sumOf { it.balance_paise })} · ${list.size} fee(s) pending", fontWeight = FontWeight.Bold, color = Ink) }
                 itemsIndexed(list, key = { _, i -> i.id }) { idx, i ->
                     Entrance(idx) {
                         PersonRow(i.student_name ?: "", "${i.title} · due ${prettyDate(i.due_date)}" + (if (i.days_overdue > 0) " · ${i.days_overdue} days overdue" else "") + (i.branch_name?.let { " · $it" } ?: ""),
@@ -307,7 +344,7 @@ fun PaymentsScreen(snack: SnackbarHostState, me: Me? = null, vm: PaymentsVm = hi
                                 }
                                 if (me != null && me.can("payments.reverse") && me.isClassAdmin && p.status == "success") {
                                     Spacer(Modifier.height(8.dp))
-                                    SoftButton("Reverse payment", { reverse = p }, Modifier.fillMaxWidth(), Icons.Outlined.Undo, Red)
+                                    SoftButton("Cancel this payment", { reverse = p }, Modifier.fillMaxWidth(), Icons.Outlined.Undo, Red)
                                 }
                             }
                         }
@@ -320,9 +357,9 @@ fun PaymentsScreen(snack: SnackbarHostState, me: Me? = null, vm: PaymentsVm = hi
         var reason by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { reverse = null }, containerColor = Color.White, shape = RoundedCornerShape(24.dp),
             icon = { IconCircle(Icons.Outlined.WarningAmber, Red) },
-            title = { Text("Reverse ${money(p.amount_paise)}?") },
-            text = { Column { Text("The receipt is cancelled and the invoices become pending again. This is recorded in the audit log.", color = Muted); Spacer(Modifier.height(10.dp)); CnxField(reason, { reason = it }, "Reason *", singleLine = false, minLines = 2) } },
-            confirmButton = { Button(onClick = { vm.reverse(p, reason); reverse = null }, enabled = reason.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("Reverse") } },
+            title = { Text("Cancel payment of ${money(p.amount_paise)}?") },
+            text = { Column { Text("The receipt is cancelled and the fee becomes pending again. This is recorded in the activity log.", color = Muted); Spacer(Modifier.height(10.dp)); CnxField(reason, { reason = it }, "Reason *", singleLine = false, minLines = 2) } },
+            confirmButton = { Button(onClick = { vm.reverse(p, reason); reverse = null }, enabled = reason.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("Cancel payment") } },
             dismissButton = { TextButton(onClick = { reverse = null }) { Text("Cancel") } })
     }
 }
@@ -360,13 +397,13 @@ class MessageVm @Inject constructor(private val repo: Repository) : LoadVm<List<
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun MessageScreen(me: Me, studentId: Long?, snack: SnackbarHostState, back: () -> Unit, vm: MessageVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
+fun MessageScreen(me: Me, studentId: Long?, snack: SnackbarHostState, back: () -> Unit, initialType: String = "message", vm: MessageVm = hiltViewModel(), wa: WhatsAppVm = hiltViewModel()) {
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
     val st by vm.state.collectAsState()
     val busy by vm.busy.collectAsState()
-    var target by remember { mutableStateOf(if (studentId != null) "students" else "batch") }
+    var target by remember { mutableStateOf(if (studentId != null) "students" else if (initialType == "fee_reminder") "dues" else "batch") }
     var batch by remember { mutableStateOf<String?>(null) }
-    var type by remember { mutableStateOf("message") }
+    var type by remember { mutableStateOf(if (initialType == "fee_reminder" && me.has("fees")) "fee_reminder" else "message") }
     var text by remember { mutableStateOf("") }
     val channels = remember { mutableStateMapOf<String, Boolean>().apply { listOf("whatsapp", "inapp", "push").filter { me.has(it) }.forEach { put(it, true) }; if (me.has("whatsapp_manual")) put("wa_manual", me.whatsappManualOnly) } }
     LaunchedEffect(Unit) { wa.messages.collect { snack.showSnackbar(it) } }

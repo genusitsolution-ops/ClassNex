@@ -63,6 +63,8 @@ final class Settings
             'receipt_prefix'           => 'RCPT',
             'online_admission_fields'  => ['dob' => true, 'address' => true, 'email' => true, 'photo' => true, 'document' => false],
             'student_id_prefix'        => '',
+            // owner's WhatsApp choice within the plan: '' = as the plan allows, 'api' = automatic, 'manual' = click-to-send, 'off'
+            'whatsapp_preference'      => '',
         ];
     }
 }

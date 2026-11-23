@@ -68,6 +68,14 @@ final class Feature
         //   manual – click-to-send: ClassNex prepares the message, the user sends it from WhatsApp / WhatsApp Business
         //   api    – official WhatsApp Business Cloud API, sent in the background by the queue (+ click-to-send)
         $waMode = in_array($pkg['whatsapp_mode'] ?? 'api', ['off', 'manual', 'api'], true) ? $pkg['whatsapp_mode'] : 'api';
+        $pkgMode = $waMode;
+        // the Class Admin may choose a simpler mode than the plan allows (never a higher one)
+        $pref = (string) (Settings::academy($academyId)['whatsapp_preference'] ?? '');
+        if ($pref === 'off') {
+            $waMode = 'off';
+        } elseif ($pref === 'manual' && $waMode === 'api') {
+            $waMode = 'manual';
+        }
         $pkgHasWhatsApp = in_array('whatsapp', $features, true);
         $features = array_values(array_diff($features, ['whatsapp', 'whatsapp_manual']));
         if ($waMode !== 'off') {
@@ -76,7 +84,7 @@ final class Feature
         if ($waMode === 'api' && $pkgHasWhatsApp) {
             $features[] = 'whatsapp';
         }
-        return self::$cache[$academyId] = ['features' => $features, 'limits' => $limits, 'package' => $pkg['name'], 'whatsapp_mode' => $waMode];
+        return self::$cache[$academyId] = ['features' => $features, 'limits' => $limits, 'package' => $pkg['name'], 'whatsapp_mode' => $waMode, 'whatsapp_package_mode' => $pkgMode];
     }
 
     public static function has(int $academyId, string $feature): bool

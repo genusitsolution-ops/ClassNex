@@ -186,7 +186,7 @@ fun ProfileScreen(me: Me, snack: SnackbarHostState, onLogout: () -> Unit, nav: (
         if (me.isClassAdmin) CnxCard {
             SectionHeader("Academy settings")
             SettingLink("Academy profile & receipts", Icons.Outlined.Storefront) { nav("academyProfile") }
-            if (me.can("settings.manage")) SettingLink("Notification settings", Icons.Outlined.NotificationsActive) { nav("notificationSettings") }
+            if (me.can("settings.manage")) SettingLink("Reminders & WhatsApp", Icons.Outlined.NotificationsActive) { nav("reminders") }
             SettingLink("Subscription", Icons.Outlined.WorkspacePremium) { nav("subscription") }
         }
         CnxCard {

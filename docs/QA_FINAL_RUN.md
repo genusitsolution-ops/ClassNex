@@ -1,8 +1,8 @@
 # Final integration test run
 
-Run: 2026-11-22 19:23:27 · Database: classnex_test · PHP 8.3.6 · Server: http://127.0.0.1:8081
+Run: 2026-11-23 18:54:45 · Database: classnex_test · PHP 8.3.6 · Server: http://127.0.0.1:8081
 
-**104 / 104 passed**
+**110 / 110 passed**
 
 | # | Check | Result |
 |---|---|---|
@@ -57,15 +57,15 @@ Run: 2026-11-22 19:23:27 · Database: classnex_test · PHP 8.3.6 · Server: http
 | 45 | Link existing student: enrols the existing profile, no new student | PASS |
 | 46 | Live duplicate check while typing | PASS |
 | | **Large academy: server-side search, paging and bulk branch moves** | |
-| 47 | 3,000 extra students loaded (0.1s) | PASS |
-| 48 | Page 40 of the student list (50 per page, 9 ms) | PASS |
+| 47 | 3,000 extra students loaded (0.0s) | PASS |
+| 48 | Page 40 of the student list (50 per page, 6 ms) | PASS |
 | 49 | Page size is capped by the server (never loads everyone) | PASS |
-| 50 | Search by Student ID (9 ms) | PASS |
+| 50 | Search by Student ID (7 ms) | PASS |
 | 51 | Search by WhatsApp number | PASS |
 | 52 | Search by name | PASS |
 | 53 | Filter: students not yet in a branch | PASS |
 | 54 | Preview shows how many students will move (nothing changed yet) | PASS |
-| 55 | “All matching” bulk move of 3,000 students (95 ms) | PASS |
+| 55 | “All matching” bulk move of 3,000 students (59 ms) | PASS |
 | 56 | Bulk move keeps the same profiles: active count unchanged | PASS |
 | 57 | Bulk transfer of selected students into a batch at the new branch | PASS |
 | 58 | Bulk transfer rejects a batch from another branch | PASS |
@@ -113,11 +113,18 @@ Run: 2026-11-22 19:23:27 · Database: classnex_test · PHP 8.3.6 · Server: http
 | 96 | Track Registration Status shows approved / rejected with the reason | PASS |
 | 97 | Registration status needs the correct password (no information leak) | PASS |
 | 98 | Teacher list includes assigned batch ids so the app can edit them safely | PASS |
+| | **Simple settings: automatic reminders on/off and WhatsApp choice** | |
+| 99 | New academy: reminders ON with ClassNex default timings; 3 WhatsApp choices without technical details | PASS |
+| 100 | Owner can switch reminders off and choose Manual WhatsApp (automatic sending stops) | PASS |
+| 101 | Advanced: own reminder days are still supported | PASS |
+| 102 | Back to defaults and Automatic WhatsApp | PASS |
+| 103 | Automatic WhatsApp cannot be chosen when the plan only has Manual | PASS |
+| 104 | Teachers cannot change academy WhatsApp settings | PASS |
 | | **Subscription expiry** | |
-| 99 | Expired: changes blocked, history still readable | PASS |
-| 100 | Expired: attendance cannot be marked until renewal | PASS |
+| 105 | Expired: changes blocked, history still readable | PASS |
+| 106 | Expired: attendance cannot be marked until renewal | PASS |
 | | **Role names and installation paths** | |
-| 101 | Super Admin goes to /admin/ | PASS |
-| 102 | Class Admin goes to /class-admin/ | PASS |
-| 103 | Old /owner/ address redirects to /class-admin/ | PASS |
-| 104 | Class Admin panel shows “Class Admin”, not “Owner” | PASS |
+| 107 | Super Admin goes to /admin/ | PASS |
+| 108 | Class Admin goes to /class-admin/ | PASS |
+| 109 | Old /owner/ address redirects to /class-admin/ | PASS |
+| 110 | Class Admin panel shows “Class Admin”, not “Owner” | PASS |

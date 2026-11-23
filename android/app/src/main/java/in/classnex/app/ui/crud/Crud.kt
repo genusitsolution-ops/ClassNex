@@ -84,6 +84,8 @@ data class FieldSpec(
     val createOnly: Boolean = false,
     val noneLabel: String? = null,
     val visibleWhen: (Map<String, String>) -> Boolean = { true },
+    /** Shown only after the user opens "More options" (progressive disclosure). */
+    val advanced: Boolean = false,
 )
 
 data class FormSpec(
@@ -189,7 +191,7 @@ class CrudVm @Inject constructor(private val repo: Repository) : LoadVm<List<Jso
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun CrudListScreen(spec: ModuleSpec, snack: SnackbarHostState, nav: (String) -> Unit, vm: CrudVm = hiltViewModel()) {
+fun CrudListScreen(spec: ModuleSpec, snack: SnackbarHostState, nav: (String) -> Unit, vm: CrudVm = hiltViewModel(key = "crud-" + spec.key)) {
     LaunchedEffect(spec.key) { vm.start(spec) }
     val version by FormBus.version.collectAsState()
     LaunchedEffect(version) { if (version > 0) vm.refresh(silent = true) }
@@ -371,10 +373,22 @@ fun FormScreen(key: String, spec: FormSpec, row: JsonObject?, snack: SnackbarHos
     LaunchedEffect(key, row) { vm.start(key + ":" + (row?.id() ?: 0), spec, row) }
     LaunchedEffect(Unit) { vm.messages.collect { snack.showSnackbar(it) } }
     val saving by vm.saving.collectAsState()
+    var more by remember { mutableStateOf(false) }
+    val shown = spec.fields.filter { it.visibleWhen(vm.values) && !(it.createOnly && row != null) }
+    val extra = shown.filter { it.advanced }
+    // open "More options" automatically when one of those fields has an error
+    LaunchedEffect(vm.errors.keys.toSet()) { if (extra.any { it.key in vm.errors }) more = true }
     Column(Modifier.fillMaxSize().imePadding()) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            spec.fields.filter { it.visibleWhen(vm.values) && !(it.createOnly && row != null) }.forEach { f ->
-                FieldInput(f, vm)
+            shown.filter { !it.advanced }.forEach { f -> FieldInput(f, vm) }
+            if (extra.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { more = !more }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (more) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, tint = Violet)
+                    Text(if (more) "Fewer options" else "More options (optional)", color = Violet, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp))
+                }
+                androidx.compose.animation.AnimatedVisibility(more) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { extra.forEach { f -> FieldInput(f, vm) } }
+                }
             }
             Spacer(Modifier.height(8.dp))
         }

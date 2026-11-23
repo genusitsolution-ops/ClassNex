@@ -220,6 +220,10 @@ return static function (Router $r): void {
         return Http::ok([
             'events' => NotificationService::EVENTS, 'channels' => NotificationService::CHANNELS, 'available' => $avail, 'matrix' => $matrix,
             'reminder_rules' => ReminderService::rules($aid), 'auto_reminders' => Feature::has($aid, 'auto_reminders'),
+            // simple view of the same settings (Android + web): on/off with ClassNex defaults, custom days stay possible
+            'reminder_mode' => ReminderService::mode($aid),
+            'default_reminder_rules' => array_map('intval', DB::col('SELECT offset_days FROM reminder_rules WHERE academy_id IS NULL AND is_enabled = 1 ORDER BY offset_days')),
+            'whatsapp' => WhatsAppChoice::state($aid),
             'custom_templates' => Feature::has($aid, 'custom_templates'),
             'templates' => Feature::has($aid, 'custom_templates') ? DB::all('SELECT * FROM notification_templates WHERE academy_id = ?', [$aid]) : [],
         ]);
@@ -239,7 +243,14 @@ return static function (Router $r): void {
                     }
                 }
             }
-            if (isset($in['reminder_rules']) && is_array($in['reminder_rules'])) {
+            // simple switch: 'default' = ClassNex timings, 'off' = no automatic reminders ('custom' uses reminder_rules below)
+            if (in_array($in['reminder_mode'] ?? null, ['default', 'off'], true)) {
+                Feature::assert($aid, 'auto_reminders');
+                DB::exec('DELETE FROM reminder_rules WHERE academy_id = ?', [$aid]);
+                if ($in['reminder_mode'] === 'off') {
+                    DB::insert('reminder_rules', ['academy_id' => $aid, 'offset_days' => 0, 'is_enabled' => 0]);
+                }
+            } elseif (isset($in['reminder_rules']) && is_array($in['reminder_rules'])) {
                 Feature::assert($aid, 'auto_reminders');
                 $offsets = array_values(array_unique(array_filter(array_map('intval', $in['reminder_rules']), static fn($o) => $o >= -30 && $o <= 60)));
                 if (count($offsets) > 10) {
@@ -254,7 +265,10 @@ return static function (Router $r): void {
                 }
             }
         });
-        if (isset($in['reminder_rules'])) {
+        if (isset($in['whatsapp_preference'])) {
+            WhatsAppChoice::set($aid, (string) $in['whatsapp_preference']);
+        }
+        if (isset($in['reminder_rules']) || isset($in['reminder_mode'])) {
             ReminderService::reschedule($aid);
         }
         Audit::log($c, 'settings.notifications', 'academies', $aid);
