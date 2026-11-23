@@ -207,7 +207,7 @@ class UiFlowTest {
         step("fees – pending and overdue") {
             compose.waitForIdle()
             tab("Fees"); waitText("Recent Payments"); compose.waitUntil(20_000) { has("This month") }; shot("12_fees_collect_tab")
-            compose.onAllNodes(hasSetTextAction())[0].performTextReplacement("Dancer 1"); waitText("RDS0001", 20_000); click("Dancer 1"); waitText("Advance"); shot("12a_fees_student_balance")
+            compose.onAllNodes(hasSetTextAction())[0].performTextReplacement("Dancer 1"); waitText("RDS0001", 20_000); hideKeyboard(); compose.onAllNodes(hasText("RDS0001", substring = true) and hasClickAction())[0].performClick(); waitText("Advance"); shot("12a_fees_student_balance")
             click("Pending"); waitText("fee(s) pending"); shot("12b_fees_pending")
             click("Overdue"); compose.waitUntil(25_000) { has("fee(s) pending") || has("Nothing overdue") }; shot("12c_fees_overdue")
         }
