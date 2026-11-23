@@ -188,7 +188,6 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
                                             Text(st.name, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                             Text(st.student_code, color = Muted, fontSize = 11.sp, maxLines = 1)
                                         }
-                                        statuses.firstOrNull { it.first == cur }?.let { (_, l, c) -> Pill(l, c, filled = true) }
                                     }
                                     Spacer(Modifier.height(8.dp))
                                     // clear word buttons: Present · Absent · Late · Leave
@@ -211,14 +210,15 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
             val ready = (sheet as? Load.Ready)?.data
             if (ready != null && ready.students.isNotEmpty()) {
                 Surface(color = Color.White, shadowElevation = 12.dp, shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)) {
-                    Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp, 12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp, 10.dp)) {
                         val c = vm.marks.values.groupingBy { it }.eachCount()
+                        // one compact line of counts so more students stay visible
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             CountBox("Present", c["present"] ?: 0, Green); CountBox("Absent", c["absent"] ?: 0, Red)
                             CountBox("Late", c["late"] ?: 0, Amber); CountBox("Leave", c["leave"] ?: 0, Violet)
-                            CountBox("Total", ready.students.size, Ink)
+                            CountBox("of", ready.students.size, Ink)
                         }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(8.dp))
                         GradientButton(if (ready.already_marked) "Save Changes" else "Save Attendance", { vm.save(manualWa) }, Modifier.fillMaxWidth(), loading = saving, icon = Icons.Outlined.Save,
                             enabled = me.can("attendance.mark"))
                     }
@@ -242,8 +242,8 @@ fun MarkAttendanceScreen(initialBatch: Long, me: Me, snack: SnackbarHostState, n
 
 @Composable
 private fun CountBox(label: String, n: Int, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("$n", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = color)
-        Text(label, fontSize = 11.sp, color = Muted)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("$n", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = color)
+        Text(" $label", fontSize = 12.sp, color = Muted)
     }
 }

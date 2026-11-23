@@ -131,7 +131,13 @@ class UiFlowTest {
 
     private fun home() { tab("Home") }
 
-    private fun quick(text: String) { home(); compose.waitUntil(15_000) { compose.onAllNodesWithTag("quick:$text").fetchSemanticsNodes().isNotEmpty() }; compose.onNodeWithTag("quick:$text").performClick(); compose.waitForIdle() }
+    /** Taps one of the big quick-action cards at the top of the dashboard. */
+    private fun quick(text: String) {
+        home()
+        compose.waitUntil(15_000) { compose.onAllNodesWithTag("dashList").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("dashList").performScrollToNode(hasTestTag("quick:$text"))
+        compose.onNodeWithTag("quick:$text").performClick(); compose.waitForIdle()
+    }
 
     private fun back() { hideKeyboard(); Espresso.pressBack(); compose.waitForIdle() }
 

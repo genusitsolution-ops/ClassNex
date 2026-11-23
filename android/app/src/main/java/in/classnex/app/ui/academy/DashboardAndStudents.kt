@@ -81,7 +81,7 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
     val st by vm.state.collectAsState()
     val branches by vm.branches.collectAsState()
     LoadContent(st, { vm.refresh() }) { d ->
-        LazyColumn(contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        LazyColumn(Modifier.testTag("dashList"), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             // ---- greeting + branch selector
             item {
                 Entrance(0) {
@@ -192,7 +192,7 @@ fun DashboardScreen(me: Me, nav: (String) -> Unit, vm: DashboardVm = hiltViewMod
                     }
                     if (me.has("fees") && me.can("fees.view")) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         StatTile("Collected This Month", money(d.month_collection_paise), Icons.Outlined.Savings, Green, Modifier.weight(1f), "Today ${money(d.today_collection_paise)}") { nav("payments") }
-                        StatTile("Pending Fees", money(d.pending_fees_paise), Icons.Outlined.HourglassBottom, Red, Modifier.weight(1f), if (d.overdue_students > 0) "${d.overdue_students} students overdue" else null) { nav("fees") }
+                        StatTile("Pending Fees", money(d.pending_fees_paise), Icons.Outlined.HourglassBottom, Red, Modifier.weight(1f), if (d.overdue_students > 0) "${d.overdue_students} student${if (d.overdue_students == 1L) "" else "s"} overdue" else null) { nav("fees") }
                     }
                 }
             }
