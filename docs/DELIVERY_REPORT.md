@@ -156,3 +156,13 @@ verification checklist). Cron (verify the PHP path with `which php` first):
 Android build run 45186737092 (#21); emulator UI journeys 5/5 tests, 44/44 steps, 63 screenshots (run 45186737491).
 
 **Still pending:** physical-device testing, signed release (signing secrets), and the items listed in section 17.
+
+## 19. Android 1.0.22 – premium redesign and Class Admin parity (23 Nov 2026)
+
+- Version 1.0.22 (build 22), package `in.classnex.app` unchanged, API URL / auth / quota / branch access unchanged.
+- Redesigned Home, Students, Attendance, Fees and More to the supplied reference; lightweight animations that respect the phone's reduced-motion setting.
+- New in the app (existing API endpoints): Receipts & IDs, Online admission, Online payments, Activity log, refund, cancel fee, unlink parent, enrol in another activity, student filters.
+- Still web-only: bulk import (Excel/OCR), report export, fee-assignment change, teacher photo upload, subscription checkout.
+- Tests: emulator UI 44/44, e2e 107/107, branches 80/80, final 110/110, web smoke 187/187. No physical-device test. Release APK/AAB unsigned (no keystore supplied). Not deployed.
+- Commits: `bf2a659`, `030e9aa` and the docs commit. See RELEASE_1.0.22.md, FEATURE_COMPARISON_1.0.22.md, QA_1.0.22.md.
+

@@ -2,6 +2,10 @@
 
 One native app (`in.classnex.app`) for every role. After login the app shows the menu, start screen and actions for the signed-in user's role, package features and permissions — the same rules as the web panel, because both use the same REST API.
 
+## Version 1.0.22 (23 Nov 2026)
+
+Current version: **1.0.22, versionCode 22**, package `in.classnex.app` (unchanged). Light top bars, animated bottom-nav pill, hero Home with tile grid and charts, filterable Students, status-pill Attendance, tabbed Fees, grouped More menu, plus new Class Admin screens (Receipts & IDs, Online admission, Online payments, Activity log, refund, cancel fee, unlink parent, enrol in another activity). Details: `RELEASE_1.0.22.md`, `FEATURE_COMPARISON_1.0.22.md`, `QA_1.0.22.md`.
+
 ## Redesign (November 2026)
 
 The whole app was redesigned to the ClassNex concept: white / lavender background, deep-indigo gradient app bar, purple → indigo gradient buttons, rounded white cards with soft shadows, tinted circular icons, Plus Jakarta Sans typeface (same font as the website).
@@ -143,6 +147,7 @@ For a local backend use your PC's LAN IP over HTTPS (cleartext HTTP is disabled 
 
 ## Verification status
 
+- 1.0.22: emulator UI flow 44/44 passed (API 30), backend suites all green – see QA_1.0.22.md.
 - Compiles, passes the API contract tests and builds debug + release APK/AAB in GitHub Actions (see QA_REPORT.md for run IDs).
 - **Not yet tested on a physical Android device** (no device was available to the developer). Please run the checklist in
   QA_REPORT.md → *Physical device checklist* on one or two real phones before publishing on Google Play.

@@ -1,6 +1,6 @@
 # Final integration test run
 
-Run: 2026-11-23 18:54:45 · Database: classnex_test · PHP 8.3.6 · Server: http://127.0.0.1:8081
+Run: 2026-11-23 21:48:46 · Database: classnex_test · PHP 8.3.6 · Server: http://127.0.0.1:8081
 
 **110 / 110 passed**
 
@@ -57,15 +57,15 @@ Run: 2026-11-23 18:54:45 · Database: classnex_test · PHP 8.3.6 · Server: http
 | 45 | Link existing student: enrols the existing profile, no new student | PASS |
 | 46 | Live duplicate check while typing | PASS |
 | | **Large academy: server-side search, paging and bulk branch moves** | |
-| 47 | 3,000 extra students loaded (0.0s) | PASS |
-| 48 | Page 40 of the student list (50 per page, 6 ms) | PASS |
+| 47 | 3,000 extra students loaded (0.1s) | PASS |
+| 48 | Page 40 of the student list (50 per page, 14 ms) | PASS |
 | 49 | Page size is capped by the server (never loads everyone) | PASS |
-| 50 | Search by Student ID (7 ms) | PASS |
+| 50 | Search by Student ID (14 ms) | PASS |
 | 51 | Search by WhatsApp number | PASS |
 | 52 | Search by name | PASS |
 | 53 | Filter: students not yet in a branch | PASS |
 | 54 | Preview shows how many students will move (nothing changed yet) | PASS |
-| 55 | “All matching” bulk move of 3,000 students (59 ms) | PASS |
+| 55 | “All matching” bulk move of 3,000 students (89 ms) | PASS |
 | 56 | Bulk move keeps the same profiles: active count unchanged | PASS |
 | 57 | Bulk transfer of selected students into a batch at the new branch | PASS |
 | 58 | Bulk transfer rejects a batch from another branch | PASS |
